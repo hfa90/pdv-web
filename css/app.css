@@ -72,7 +72,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   min-height: 42px; padding: 0 1rem;
   border: 1px solid var(--line-strong); border-radius: var(--r-sm);
   background: var(--surface); color: var(--ink);
-  font-weight: 550; cursor: pointer; white-space: nowrap;
+  font-weight: 550; cursor: pointer; white-space: nowrap; text-decoration: none;
   transition: background .12s, border-color .12s;
 }
 .btn:hover { background: var(--surface-2); border-color: var(--muted); }

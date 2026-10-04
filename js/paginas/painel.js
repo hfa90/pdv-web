@@ -1,7 +1,7 @@
 // Painel do dia para administradores e gerentes.
 import { sb, q, rpc } from "../api.js";
 import { estado } from "../estado.js";
-import { html, render, $, dinheiro, qtd as fmtQtd, hora } from "../ui.js";
+import { html, render, dinheiro, qtd as fmtQtd, hora, rotuloMesa } from "../ui.js";
 import { kpis, colunas, barras, preencherHoras } from "./relatorios.js";
 import { nomeForma } from "../impressao/cupom.js";
 
@@ -40,7 +40,7 @@ export default async function painel(el) {
         <div class="linha-valor" style="font-size:1rem"><span>Caixas abertos</span><strong style="color:var(--ink)">${caixas.length}</strong></div>
         ${caixas.map((c) => html`<div class="linha-valor"><span>${c.operador?.nome}</span><span>desde ${hora(c.aberto_em)}</span></div>`)}
         <div class="linha-valor" style="font-size:1rem;margin-top:.5rem"><span>Pedidos e comandas abertos</span><strong style="color:var(--ink)">${pedidos.length} · ${dinheiro(pedidos.reduce((a, p) => a + Number(p.total), 0))}</strong></div>
-        ${pedidos.slice(0, 6).map((p) => html`<div class="linha-valor"><span>Mesa ${p.identificador || "—"} · desde ${hora(p.created_at)}</span><span>${dinheiro(p.total)}</span></div>`)}
+        ${pedidos.slice(0, 6).map((p) => html`<div class="linha-valor"><span>${rotuloMesa(p.identificador) || "Sem mesa"} · desde ${hora(p.created_at)}</span><span>${dinheiro(p.total)}</span></div>`)}
       </div></div>
       <div class="panel"><div class="panel-head"><h2>Estoque baixo</h2>${baixo.length ? html`<a href="#/estoque" class="small">Ver todos</a>` : ""}</div><div class="panel-pad stack" style="gap:.4rem">
         ${baixo.length ? baixo.slice(0, 8).map((p) => html`<div class="linha-valor" style="font-size:.95rem"><span style="color:var(--ink)">${p.nome}</span>

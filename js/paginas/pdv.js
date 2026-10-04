@@ -4,7 +4,7 @@
 // Leitor: "3*789..." multiplica a quantidade; etiquetas de balança (EAN-13 iniciado em 2) são lidas automaticamente.
 import { sb, q, rpc, fn, todos } from "../api.js";
 import { estado, eh, atualizarCaixa } from "../estado.js";
-import { html, render, $, $$, dinheiro, qtd as fmtQtd, lerNumero, toast, erro, modal, confirmar, pedirTexto, ocupado, docValido, somenteDigitos, formatarDoc, hora } from "../ui.js";
+import { html, render, $, $$, dinheiro, qtd as fmtQtd, lerNumero, toast, erro, modal, confirmar, pedirTexto, ocupado, docValido, somenteDigitos, formatarDoc, hora, rotuloMesa } from "../ui.js";
 import { icone } from "../icons.js";
 import { configImpressora, imprimir, imprimirVenda, layoutVenda, nomeForma } from "../impressao/cupom.js";
 
@@ -176,9 +176,9 @@ export default async function pdv(el) {
     salvarCarrinho();
     const titulo = venda.numero ? `Pedido nº ${venda.numero}` : "Nova venda";
     $("#titulo-venda", el).textContent = titulo;
-    const sub = [venda.identificador && `Mesa/comanda ${venda.identificador}`, venda.cliente?.nome, venda.cpf && `CPF/CNPJ ${formatarDoc(venda.cpf)}`].filter(Boolean).join(" · ");
+    const sub = [rotuloMesa(venda.identificador), venda.cliente?.nome, venda.cpf && `CPF/CNPJ ${formatarDoc(venda.cpf)}`].filter(Boolean).join(" · ");
     $("#sub-venda", el).textContent = sub || `${venda.itens.length} ${venda.itens.length === 1 ? "item" : "itens"}`;
-    $("#btn-ident", el).textContent = venda.identificador ? `Mesa ${venda.identificador}` : "Mesa";
+    $("#btn-ident", el).textContent = venda.identificador ? rotuloMesa(venda.identificador) : "Mesa";
     $("#btn-cliente", el).textContent = venda.cliente || venda.cpf ? "Cliente ✓" : "CPF";
 
     const box = $("#itens", el);
@@ -357,7 +357,7 @@ export default async function pdv(el) {
     if (!venda.identificador) { await definirIdentificador(); if (!venda.identificador) return; }
     try {
       const r = await ocupado($("#btn-salvar", el), () => rpc("registrar_venda", { p: payload(false) }));
-      toast(`Pedido nº ${r.numero} salvo${venda.identificador ? " · Mesa " + venda.identificador : ""}`, "ok");
+      toast(`Pedido nº ${r.numero} salvo · ${rotuloMesa(venda.identificador)}`, "ok");
       if (configImpressora().viaPedido) imprimirVenda(r.id).catch(erro);
       limpar(false); contarPedidos();
     } catch (e) { erro(e); }
@@ -369,7 +369,7 @@ export default async function pdv(el) {
     await modal({
       titulo: "Pedidos e comandas abertos",
       corpo: lista.length ? html`<div class="table-wrap"><table class="table"><thead><tr><th>Mesa/comanda</th><th>Pedido</th><th>Desde</th><th>Atendente</th><th class="r">Total</th></tr></thead>
-        <tbody>${lista.map((v) => html`<tr class="click" data-id="${v.id}"><td><strong>${v.identificador || "—"}</strong></td><td>nº ${v.numero}</td><td>${hora(v.created_at)}</td><td>${v.operador?.nome || ""}</td><td class="r">${dinheiro(v.total)}</td></tr>`)}</tbody></table></div>`
+        <tbody>${lista.map((v) => html`<tr class="click" data-id="${v.id}"><td><strong>${rotuloMesa(v.identificador) || "—"}</strong></td><td>nº ${v.numero}</td><td>${hora(v.created_at)}</td><td>${v.operador?.nome || ""}</td><td class="r">${dinheiro(v.total)}</td></tr>`)}</tbody></table></div>`
         : html`<div class="empty"><p>Nenhum pedido aberto.</p><p class="small">Use “Salvar pedido” para guardar uma mesa ou comanda e continuar depois.</p></div>`,
       largo: true,
       onPronto: (d, fechar) => d.querySelectorAll("tr[data-id]").forEach((tr) => (tr.onclick = () => fechar(tr.dataset.id))),

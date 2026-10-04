@@ -3,7 +3,7 @@
 // uma lista de "operações" e renderizado nos dois formatos.
 import { sb, q } from "../api.js";
 import { estado } from "../estado.js";
-import { esc, numero, dataHora, formatarDoc, qtd as fmtQtd } from "../ui.js";
+import { esc, numero, dataHora, formatarDoc, qtd as fmtQtd, rotuloMesa } from "../ui.js";
 import { Escpos, enviar } from "./escpos.js";
 
 // ---------- Configuração (por terminal, salva no navegador) ----------
@@ -42,7 +42,7 @@ export function layoutVenda(venda, doc) {
     ops.push({ t: "texto", s: "DANFE NFC-e", align: "centro", bold: true });
     ops.push({ t: "texto", s: "Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica", align: "centro" });
   } else if (aberta) {
-    ops.push({ t: "texto", s: venda.identificador ? `PEDIDO · ${venda.identificador}` : "PEDIDO", align: "centro", bold: true, grande: true });
+    ops.push({ t: "texto", s: venda.identificador ? `PEDIDO · ${rotuloMesa(venda.identificador)}` : "PEDIDO", align: "centro", bold: true, grande: true });
   } else {
     ops.push({ t: "texto", s: "CUPOM NÃO FISCAL", align: "centro", bold: true });
   }
@@ -87,7 +87,7 @@ export function layoutVenda(venda, doc) {
   }
   ops.push({ t: "texto", s: `Venda nº ${venda.numero}  ${dataHora(venda.finalizada_em || venda.created_at)}` });
   if (venda.operador?.nome) ops.push({ t: "texto", s: `Operador: ${venda.operador.nome}` });
-  if (venda.identificador && !aberta) ops.push({ t: "texto", s: `Mesa/Comanda: ${venda.identificador}` });
+  if (venda.identificador && !aberta) ops.push({ t: "texto", s: rotuloMesa(venda.identificador) });
   if (venda.observacao) ops.push({ t: "texto", s: `Obs: ${venda.observacao}` });
   if (!aberta && estado.empresa?.mensagem_cupom) { ops.push({ t: "espaco" }); ops.push({ t: "texto", s: estado.empresa.mensagem_cupom, align: "centro" }); }
   return ops;

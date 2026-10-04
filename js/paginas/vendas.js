@@ -1,7 +1,7 @@
 // Histórico de vendas: detalhes, reimpressão, nota fiscal e cancelamento.
 import { sb, q, rpc, fn } from "../api.js";
 import { estado, eh } from "../estado.js";
-import { html, render, $, $$, dinheiro, dataHora, qtd as fmtQtd, toast, erro, modal, pedirTexto, confirmar, debounce, formatarDoc, urlSegura } from "../ui.js";
+import { html, render, $, $$, dinheiro, dataHora, qtd as fmtQtd, toast, erro, modal, pedirTexto, confirmar, debounce, formatarDoc, urlSegura, rotuloMesa } from "../ui.js";
 import { icone } from "../icons.js";
 import { imprimirVenda, nomeForma } from "../impressao/cupom.js";
 
@@ -40,7 +40,7 @@ export default async function vendas(el) {
         <div class="row">${f.pagina > 0 ? html`<button class="btn sm" id="ant">Anteriores</button>` : ""}${(f.pagina + 1) * POR_PAGINA < count ? html`<button class="btn sm" id="prox">Próximas</button>` : ""}</div></div>
       <div class="table-wrap"><table class="table"><thead><tr><th>Nº</th><th>Data</th><th>Mesa</th><th>Operador</th><th>Situação</th><th>Nota</th><th class="r">Total</th></tr></thead>
       <tbody>${data.map((v) => { const d = v.docs?.find((x) => x.status === "autorizado") || v.docs?.[0]; return html`<tr class="click" data-id="${v.id}">
-        <td><strong>${v.numero}</strong></td><td>${dataHora(v.finalizada_em || v.created_at)}</td><td>${v.identificador || ""}</td><td>${v.operador?.nome || ""}</td>
+        <td><strong>${v.numero}</strong></td><td>${dataHora(v.finalizada_em || v.created_at)}</td><td>${rotuloMesa(v.identificador)}</td><td>${v.operador?.nome || ""}</td>
         <td><span class="badge ${STATUS[v.status][0]}">${STATUS[v.status][1]}</span></td>
         <td>${d ? html`<span class="badge ${DOC[d.status]}">${d.modelo === "55" ? "NF-e" : "NFC-e"} ${d.status}</span>` : ""}</td>
         <td class="r"><strong>${dinheiro(v.total)}</strong></td></tr>`; })}</tbody></table></div>`
@@ -69,7 +69,7 @@ export default async function vendas(el) {
       titulo: `Venda nº ${v.numero}`, largo: true,
       corpo: html`<div class="stack-lg">
         <div class="row wrap"><span class="badge ${STATUS[v.status][0]}">${STATUS[v.status][1]}</span>
-          <span class="muted small">${dataHora(v.finalizada_em || v.created_at)} · ${v.operador?.nome || ""}${v.identificador ? ` · Mesa ${v.identificador}` : ""}</span></div>
+          <span class="muted small">${dataHora(v.finalizada_em || v.created_at)} · ${v.operador?.nome || ""}${v.identificador ? ` · ${rotuloMesa(v.identificador)}` : ""}</span></div>
         ${v.status === "cancelada" ? html`<div class="alerta">Cancelada em ${dataHora(v.cancelada_em)} por ${v.cancelador?.nome || "—"}: ${v.motivo_cancelamento}</div>` : ""}
         <div class="table-wrap"><table class="table"><thead><tr><th>Item</th><th class="r">Qtd</th><th class="r">Unit.</th><th class="r">Total</th></tr></thead>
           <tbody>${itens.map((i) => html`<tr><td>${i.descricao}${i.observacao ? html`<div class="hint">${i.observacao}</div>` : ""}</td><td class="r">${fmtQtd(i.quantidade, i.unidade)} ${i.unidade.toLowerCase()}</td><td class="r">${dinheiro(i.preco_unitario)}</td><td class="r">${dinheiro(i.total)}</td></tr>`)}</tbody></table></div>

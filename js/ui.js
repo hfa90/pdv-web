@@ -38,7 +38,9 @@ export const dinheiro = (n) => BRL.format(Number(n) || 0);
 export const numero = (n, casas = 0) =>
   new Intl.NumberFormat("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas }).format(Number(n) || 0);
 export const qtd = (n, unidade = "UN") =>
-  ["KG", "L", "M", "G", "ML"].includes(unidade) ? numero(n, 3) : numero(n, Number(n) % 1 ? 3 : 0);
+  ["KG", "L", "M", "G", "ML"].includes(unidade) && Number(n) % 1 ? numero(n, 3) : numero(n, Number(n) % 1 ? 3 : 0);
+/** "12" vira "Mesa 12"; textos livres ("Balcão 3", "João") ficam como estão. */
+export const rotuloMesa = (id) => (!id ? "" : /^\d+$/.test(String(id).trim()) ? `Mesa ${id}` : String(id));
 export const dataHora = (d) => d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—";
 export const data = (d) => d ? new Date(d).toLocaleDateString("pt-BR") : "—";
 export const hora = (d) => d ? new Date(d).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
