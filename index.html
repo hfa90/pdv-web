@@ -3,20 +3,420 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://viacep.com.br; frame-src 'self' about:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'self'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Lis PDV · Sistema de caixa com computador, impressora e manutenção</title>
+  <meta name="description" content="Sistema de PDV para padarias, mercados, lanchonetes, cafés e restaurantes. Computador, impressora térmica, leitor de código de barras, nota fiscal e manutenção numa mensalidade. Teste grátis por 7 dias.">
   <meta name="theme-color" content="#136F63">
-  <title>PDV</title>
+  <meta property="og:title" content="Lis PDV · O caixa da sua loja, pronto para vender">
+  <meta property="og:description" content="Equipamentos, sistema, nota fiscal e manutenção numa mensalidade. Teste grátis por 7 dias.">
+  <meta property="og:image" content="assets/img/pdv.webp">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23136F63'/%3E%3Cpath d='M9 8h14v16l-2.3-1.5L18.3 24 16 22.5 13.7 24l-2.4-1.5L9 24z' fill='white'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/app.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" defer></script>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
-  <div id="app"><div class="loading"><div class="spinner" aria-label="Carregando"></div></div></div>
-  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
-  <script type="module" src="js/main.js"></script>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+<header class="topo">
+  <div class="largura topo-in">
+    <a class="logo" href="#" aria-label="Lis PDV, início"><span class="logo-m">L</span><span data-marca>Lis PDV</span></a>
+    <nav class="menu" aria-label="Seções">
+      <a href="#vantagens">Vantagens</a>
+      <a href="#kit">O que vem no kit</a>
+      <a href="#planos">Planos</a>
+      <a href="#duvidas">Dúvidas</a>
+    </nav>
+    <div class="topo-acoes">
+      <a class="link-discreto" href="app/">Entrar</a>
+      <a class="botao primario" href="#teste">Testar grátis</a>
+    </div>
+  </div>
+</header>
+
+<main id="conteudo">
+
+<!-- ============ ABERTURA ============ -->
+<section class="hero">
+  <div class="largura hero-in">
+    <div class="hero-texto">
+      <h1>O caixa da sua loja, pronto para vender.</h1>
+      <p class="hero-sub">Computador, impressora térmica, leitor de código de barras e o sistema, instalados na sua loja e com manutenção inclusa. Você paga uma mensalidade e cuida só de vender.</p>
+      <div class="hero-ctas">
+        <a class="botao primario grande" href="#teste">Testar grátis por 7 dias</a>
+        <a class="botao contorno grande" href="#planos">Ver planos e preços</a>
+      </div>
+      <p class="hero-nota">Sem cartão de crédito. Sua loja de teste já vem com produtos de exemplo: em 2 minutos você está vendendo.</p>
+    </div>
+    <div class="hero-visual" aria-hidden="true">
+      <div class="tela"><img src="assets/img/pdv.webp" alt="" width="1600" height="937"></div>
+      <div class="cupom-flutua serrilha"><img src="assets/img/cupom.webp" alt="" width="520" height="1064"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PARA QUEM ============ -->
+<section class="segmentos" aria-labelledby="t-seg">
+  <div class="largura">
+    <h2 id="t-seg" class="t-menor">Feito para o balcão de quem vende todo dia</h2>
+    <ul class="seg-lista">
+      <li><strong>Padaria</strong><span>Pão por unidade, frios por peso e café no balcão.</span></li>
+      <li><strong>Mercadinho e supermercado</strong><span>Leitor de código de barras e etiqueta de balança.</span></li>
+      <li><strong>Lanchonete</strong><span>Comandas com observação para a cozinha.</span></li>
+      <li><strong>Café da manhã</strong><span>Favoritos na tela e pedido saindo rápido.</span></li>
+      <li><strong>Restaurante</strong><span>Mesas, taxa de serviço e conta dividida.</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ VANTAGENS ============ -->
+<section id="vantagens" class="secao">
+  <div class="largura">
+    <h2 class="t-secao">Menos fila no caixa, mais controle no fim do dia</h2>
+
+    <div class="recurso">
+      <div class="recurso-texto">
+        <h3>Venda em segundos</h3>
+        <p>Passe o código no leitor, toque no produto favorito ou leia a etiqueta da balança. O sistema soma, calcula o troco e aceita pagamento dividido: parte no PIX, parte no dinheiro.</p>
+        <ul class="lista-check">
+          <li>Atalhos de teclado para quem é rápido no caixa</li>
+          <li>Produtos por quilo com o peso digitado ou lido da etiqueta</li>
+          <li>Mesas e comandas que o garçom lança pelo celular</li>
+        </ul>
+      </div>
+      <figure class="recurso-img"><img src="assets/img/pagamento.webp" alt="Tela de pagamento com PIX e dinheiro e troco calculado" width="1100" height="982" loading="lazy"></figure>
+    </div>
+
+    <div class="recurso invertido">
+      <div class="recurso-texto">
+        <h3>Caixa que fecha certo</h3>
+        <p>Cada operador abre o próprio caixa com o fundo de troco. Sangrias e suprimentos ficam registrados, e no fechamento o sistema mostra quanto deveria ter na gaveta e se faltou ou sobrou dinheiro.</p>
+        <ul class="lista-check">
+          <li>Comprovante de fechamento impresso para assinatura</li>
+          <li>Cancelamentos só com gerente e com motivo</li>
+          <li>Registro de tudo o que cada pessoa fez</li>
+        </ul>
+      </div>
+      <figure class="recurso-img"><img src="assets/img/fechar-caixa.webp" alt="Tela de fechamento de caixa com conferência" width="900" height="823" loading="lazy"></figure>
+    </div>
+
+    <div class="recurso">
+      <div class="recurso-texto">
+        <h3>Nota fiscal no mesmo clique</h3>
+        <p>Emita a NFC-e na hora da venda e entregue o cupom com QR Code direto da impressora térmica. Para empresas que pedem nota completa, a NF-e sai pelo mesmo sistema.</p>
+        <ul class="lista-check">
+          <li>CPF na nota com validação automática</li>
+          <li>Cancelamento de nota com justificativa</li>
+          <li>Configuração fiscal feita com você</li>
+        </ul>
+      </div>
+      <figure class="recurso-img cupom-fig"><img src="assets/img/cupom.webp" alt="Cupom fiscal NFC-e impresso na térmica" width="520" height="1064" loading="lazy"></figure>
+    </div>
+
+    <div class="recurso invertido">
+      <div class="recurso-texto">
+        <h3>Saiba quanto a loja ganha</h3>
+        <p>O painel mostra o faturamento do dia, os horários de pico, o que mais vende e o lucro estimado. O estoque baixa sozinho a cada venda e avisa quando é hora de comprar.</p>
+        <ul class="lista-check">
+          <li>Relatórios por dia, por operador e por forma de pagamento</li>
+          <li>Exportação para o contador</li>
+          <li>Alerta de estoque baixo</li>
+        </ul>
+      </div>
+      <figure class="recurso-img"><img src="assets/img/painel.webp" alt="Painel com faturamento do dia e vendas por hora" width="1600" height="937" loading="lazy"></figure>
+    </div>
+
+    <div class="extras">
+      <div><strong>Na nuvem</strong><p>Acesse do caixa, do escritório ou do celular. Sem instalar nada.</p></div>
+      <div><strong>Cada um com seu login</strong><p>Administrador, gerente, caixa e atendente, cada um vendo só o que precisa.</p></div>
+      <div><strong>Dados protegidos</strong><p>Cada loja isolada, regras de segurança no servidor e cópia de segurança automática.</p></div>
+      <div><strong>Manual completo</strong><p><a href="assets/Manual-PDV.pdf" target="_blank" rel="noopener">Baixe o manual em PDF</a> com cada função explicada.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ KIT ============ -->
+<section id="kit" class="secao kit">
+  <div class="largura kit-in">
+    <div>
+      <h2 class="t-secao">Tudo o que o caixa precisa, num pacote só</h2>
+      <p class="lead">No Combo Completo os equipamentos vão para a sua loja em comodato: são nossos, ficam com você enquanto durar o contrato, e se der problema a gente conserta ou troca.</p>
+      <ol class="como-funciona" aria-label="Como funciona">
+        <li><strong>Teste o sistema</strong><span>7 dias grátis, na sua loja, com os seus produtos.</span></li>
+        <li><strong>Receba a proposta</strong><span>A gente entende quantos caixas você precisa e monta o combo.</span></li>
+        <li><strong>Instalamos e treinamos</strong><span>Levamos os equipamentos, cadastramos os produtos e ensinamos a equipe.</span></li>
+        <li><strong>Suporte contínuo</strong><span>WhatsApp para dúvidas, manutenção e troca de equipamento.</span></li>
+      </ol>
+    </div>
+    <div class="recibo-kit serrilha" role="list" aria-label="Itens do Combo Completo">
+      <div class="rk-topo">COMBO COMPLETO · 1 CAIXA</div>
+      <div class="rk-linha" role="listitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M9 20h6M12 16v4"/></svg>
+        <span>Computador completo<small>desktop com monitor 19" (ou notebook)</small></span><b>incluso</b></div>
+      <div class="rk-linha" role="listitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>
+        <span>Impressora térmica 80 mm<small>com corte automático de papel</small></span><b>incluso</b></div>
+      <div class="rk-linha" role="listitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5h3M17 5h3v2M20 17v2h-3M7 19H4v-2"/><path d="M8 9v6M11 9v6M13 9v6M16 9v6"/></svg>
+        <span>Leitor de código de barras<small>lê etiqueta, QR Code e tela de celular</small></span><b>incluso</b></div>
+      <div class="rk-linha" role="listitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.5h12v19l-2.5-1.6-2.3 1.6-2.2-1.6-2.3 1.6L6 21.5z"/><path d="M9 7.5h6M9 11h6"/></svg>
+        <span>Sistema + nota fiscal<small>NFC-e e NF-e, 500 notas por mês</small></span><b>incluso</b></div>
+      <div class="rk-linha" role="listitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/></svg>
+        <span>Instalação e treinamento<small>na sua loja, com cadastro dos produtos</small></span><b>incluso</b></div>
+      <div class="rk-linha" role="listitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 4 5.5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10v-6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>
+        <span>Manutenção e troca<small>equipamento novo em até 2 dias úteis se não houver conserto</small></span><b>incluso</b></div>
+      <div class="rk-linha opc" role="listitem">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="10" width="19" height="9" rx="1.5"/><path d="M5 10V7h14v3M10 14.5h4"/></svg>
+        <span>Gaveta de dinheiro<small>abre sozinha ao imprimir o cupom</small></span><b data-preco="gaveta"></b></div>
+      <div class="rk-total"><span>Por mês</span><b data-preco="combo"></b></div>
+      <div class="rk-rodape">Entrada R$ 0,00 · fidelidade de 24 meses</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PLANOS ============ -->
+<section id="planos" class="secao planos">
+  <div class="largura">
+    <h2 class="t-secao">Planos</h2>
+    <p class="lead">Escolha pelo que a sua loja já tem. Todos incluem usuários e caixas ilimitados no sistema, atualizações e suporte pelo WhatsApp.</p>
+
+    <div class="planos-grade">
+      <article class="plano">
+        <h3>Sistema</h3>
+        <p class="plano-para">Para quem já tem computador e impressora.</p>
+        <p class="preco"><span class="rs">R$</span><span data-preco="sistema" data-sem-rs></span><span class="mes">/mês</span></p>
+        <ul class="lista-check">
+          <li>PDV completo: caixa, estoque, relatórios</li>
+          <li>Instalação e configuração remotas</li>
+          <li>Suporte pelo WhatsApp</li>
+          <li>Sem fidelidade</li>
+        </ul>
+        <a class="botao contorno" href="#teste">Testar grátis</a>
+      </article>
+
+      <article class="plano">
+        <h3>Sistema + Nota fiscal</h3>
+        <p class="plano-para">Para emitir NFC-e com os seus equipamentos.</p>
+        <p class="preco"><span class="rs">R$</span><span data-preco="sistemaNota" data-sem-rs></span><span class="mes">/mês</span></p>
+        <ul class="lista-check">
+          <li>Tudo do plano Sistema</li>
+          <li>NFC-e e NF-e, 500 notas por mês</li>
+          <li>Configuração fiscal feita com você</li>
+          <li>Sem fidelidade</li>
+        </ul>
+        <a class="botao contorno" href="#teste">Testar grátis</a>
+      </article>
+
+      <article class="plano destaque">
+        <p class="selo">O mais escolhido</p>
+        <h3>Combo Completo</h3>
+        <p class="plano-para">Equipamentos, sistema, nota e manutenção.</p>
+        <p class="preco"><span class="rs">R$</span><span data-preco="combo" data-sem-rs></span><span class="mes">/mês</span></p>
+        <p class="promo">Contratando durante o teste: <strong><span data-preco="comboPromo"></span></strong> nos 3 primeiros meses e instalação grátis.</p>
+        <ul class="lista-check">
+          <li>Computador, impressora térmica e leitor</li>
+          <li>Sistema + NFC-e e NF-e</li>
+          <li>Instalação e treinamento na loja</li>
+          <li>Manutenção e troca em até 2 dias úteis</li>
+          <li>Entrada zero, fidelidade de 24 meses</li>
+        </ul>
+        <a class="botao primario" href="#teste">Começar pelo teste grátis</a>
+      </article>
+    </div>
+
+    <div class="compra">
+      <div>
+        <h3>Prefere comprar os equipamentos?</h3>
+        <p>Kit instalado e configurado por <strong data-preco="kitCompra"></strong> por caixa, em até 10 vezes, mais o plano Sistema ou Sistema + Nota fiscal. A manutenção dos equipamentos é opcional: <strong data-preco="manutencaoAvulsa"></strong> por mês por caixa.</p>
+      </div>
+      <button class="botao contorno" data-contato="Compra do kit">Pedir orçamento</button>
+    </div>
+
+    <table class="adicionais">
+      <caption>Adicionais do Combo</caption>
+      <tbody>
+        <tr><th scope="row">Caixa adicional com kit completo</th><td data-preco="caixaExtra" data-sufixo="/mês"></td></tr>
+        <tr><th scope="row">Notebook no lugar do desktop (por caixa)</th><td data-preco="notebook" data-sufixo="/mês" data-mais></td></tr>
+        <tr><th scope="row">Gaveta de dinheiro (por caixa)</th><td data-preco="gaveta" data-sufixo="/mês" data-mais></td></tr>
+        <tr><th scope="row">Nota fiscal acima de 500 por mês</th><td data-preco="notaExcedente" data-sufixo=" por nota"></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ SIMULADOR ============ -->
+<section id="simulador" class="secao simulador">
+  <div class="largura sim-in">
+    <div>
+      <h2 class="t-secao">Monte o seu</h2>
+      <p class="lead">Ajuste ao tamanho da sua loja e veja o valor na hora.</p>
+      <form id="sim" class="sim-form">
+        <fieldset>
+          <legend>Equipamentos</legend>
+          <label class="opcao"><input type="radio" name="equip" value="combo" checked><span>Combo com desktop</span></label>
+          <label class="opcao"><input type="radio" name="equip" value="combo_note"><span>Combo com notebook</span></label>
+          <label class="opcao"><input type="radio" name="equip" value="compra"><span>Quero comprar o kit</span></label>
+          <label class="opcao"><input type="radio" name="equip" value="tenho"><span>Já tenho os equipamentos</span></label>
+        </fieldset>
+        <div class="sim-linha" id="linha-caixas">
+          <span>Quantos caixas</span>
+          <div class="contador"><button type="button" data-d="-1" aria-label="Menos um caixa">−</button><output id="caixas">1</output><button type="button" data-d="1" aria-label="Mais um caixa">+</button></div>
+        </div>
+        <label class="sim-linha" id="linha-nota"><span>Emitir nota fiscal (NFC-e)</span><input type="checkbox" name="nota" checked></label>
+        <label class="sim-linha" id="linha-gaveta"><span>Gaveta de dinheiro</span><input type="checkbox" name="gaveta"></label>
+        <label class="sim-linha" id="linha-manut" hidden><span>Manutenção dos equipamentos</span><input type="checkbox" name="manut" checked></label>
+      </form>
+    </div>
+    <div class="sim-recibo serrilha" aria-live="polite">
+      <div class="rk-topo">SUA PROPOSTA</div>
+      <div id="sim-itens"></div>
+      <div class="rk-total"><span>Por mês</span><b id="sim-total"></b></div>
+      <div class="sim-obs" id="sim-obs"></div>
+      <button class="botao primario bloco" id="sim-quero">Quero esta proposta</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMPARATIVO ============ -->
+<section class="secao comparativo">
+  <div class="largura">
+    <h2 class="t-secao">Montar sozinho ou ter tudo com a gente?</h2>
+    <div class="tabela-rolagem">
+      <table class="comparar">
+        <thead><tr><th scope="col"></th><th scope="col">Comprando tudo por conta</th><th scope="col">Combo Completo</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Para começar</th><td>Cerca de R$ 2.600 a R$ 3.500 por caixa em equipamentos</td><td><strong>R$ 0 de entrada</strong></td></tr>
+          <tr><th scope="row">Instalação</th><td>Você mesmo ou um técnico avulso</td><td><strong>Inclusa, na sua loja</strong></td></tr>
+          <tr><th scope="row">Quando o equipamento quebra</th><td>Conserto pago e caixa parado esperando</td><td><strong>Manutenção inclusa e troca em até 2 dias úteis</strong></td></tr>
+          <tr><th scope="row">Sistema e nota fiscal</th><td>Outra assinatura, outro fornecedor</td><td><strong>Incluídos</strong></td></tr>
+          <tr><th scope="row">Treinamento da equipe</th><td>Por sua conta</td><td><strong>Feito no local</strong></td></tr>
+          <tr><th scope="row">Quem chamar</th><td>Loja do equipamento, técnico, suporte do sistema</td><td><strong>Um só WhatsApp</strong></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fonte">Faixa de preço dos equipamentos com base em computador de entrada para PDV, monitor 19", impressora térmica de 80 mm e leitor 1D/2D em grandes lojas on-line, outubro de 2026.</p>
+  </div>
+</section>
+
+<!-- ============ TESTE GRÁTIS ============ -->
+<section id="teste" class="secao teste">
+  <div class="largura teste-in">
+    <div class="teste-texto">
+      <h2 class="t-secao">Teste grátis por 7 dias</h2>
+      <p class="lead">Use o sistema completo na sua loja antes de decidir. Sem cartão de crédito e sem compromisso.</p>
+      <ul class="lista-check">
+        <li>Loja pronta com produtos de exemplo do seu ramo</li>
+        <li>Até 200 vendas e 3 usuários durante o teste</li>
+        <li>Nota fiscal em modo de homologação, para conhecer sem valor fiscal</li>
+        <li>Funciona com a sua impressora térmica e o seu leitor</li>
+        <li>Se contratar, continua tudo de onde parou</li>
+      </ul>
+      <p class="aviso-um">O teste é de um por negócio, identificado pelo CPF ou CNPJ.</p>
+    </div>
+
+    <div class="cartao-form">
+      <form id="form-teste" novalidate>
+        <div class="campo-robo" aria-hidden="true"><label>Site<input name="site" tabindex="-1" autocomplete="off"></label></div>
+        <div class="grade-2">
+          <label class="campo"><span>Seu nome</span><input name="nome" autocomplete="name" required></label>
+          <label class="campo"><span>Nome da loja</span><input name="loja" autocomplete="organization" required></label>
+        </div>
+        <div class="grade-2">
+          <label class="campo"><span>Tipo de negócio</span>
+            <select name="segmento" required>
+              <option value="padaria">Padaria</option><option value="mercadinho">Mercadinho</option>
+              <option value="supermercado">Supermercado</option><option value="lanchonete">Lanchonete</option>
+              <option value="cafe">Café da manhã / cafeteria</option><option value="restaurante">Restaurante</option>
+            </select></label>
+          <label class="campo"><span>WhatsApp</span><input name="whatsapp" inputmode="tel" autocomplete="tel" placeholder="(11) 99999-0000" required></label>
+        </div>
+        <div class="grade-2">
+          <label class="campo"><span>CPF ou CNPJ</span><input name="documento" inputmode="numeric" required></label>
+          <label class="campo"><span>E-mail</span><input name="email" type="email" autocomplete="email" required></label>
+        </div>
+        <label class="campo"><span>Crie uma senha</span><input name="senha" type="password" minlength="8" autocomplete="new-password" required><small>Mínimo de 8 caracteres. Você vai usar para entrar no sistema.</small></label>
+        <label class="aceite"><input type="checkbox" name="aceite" required><span>Concordo em receber o contato da equipe pelo WhatsApp sobre o teste e os planos.</span></label>
+        <div id="msg-teste" role="alert"></div>
+        <button class="botao primario grande bloco" type="submit">Criar minha loja de teste</button>
+      </form>
+      <div id="teste-ok" hidden>
+        <h3>Falta só confirmar o e-mail</h3>
+        <p>Enviamos um link para <strong id="email-ok"></strong>. Abra o e-mail e clique no link: sua loja de teste é criada na hora e os 7 dias começam a contar.</p>
+        <p class="pequeno">Não chegou em alguns minutos? Veja a caixa de spam ou promoções.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DÚVIDAS ============ -->
+<section id="duvidas" class="secao duvidas">
+  <div class="largura estreita">
+    <h2 class="t-secao">Dúvidas frequentes</h2>
+    <details><summary>Preciso de internet para usar?</summary><p>Sim. O sistema funciona na nuvem, o que permite acessar de qualquer lugar e não perder dados se o computador quebrar. Se a internet cair no meio de uma venda, os itens ficam guardados no caixa e você conclui quando a conexão voltar. Para lojas com internet instável, recomendamos um chip 4G de reserva.</p></details>
+    <details><summary>O que acontece quando o teste acaba?</summary><p>As vendas ficam pausadas, mas seus produtos, vendas e configurações continuam guardados. Contratando um plano, tudo volta a funcionar de onde parou.</p></details>
+    <details><summary>Posso testar mais de uma vez?</summary><p>O teste grátis é de um por negócio. Se precisar de mais tempo para decidir, fale com a gente: podemos estender o seu teste.</p></details>
+    <details><summary>O que é comodato?</summary><p>É um empréstimo dos equipamentos. Eles continuam sendo nossos e ficam na sua loja enquanto o contrato estiver ativo. Por isso a manutenção e a troca são nossas. A fidelidade é de 24 meses; cancelando antes, há multa proporcional aos meses restantes, prevista em contrato.</p></details>
+    <details><summary>O que a manutenção cobre?</summary><p>Defeitos de uso normal nos equipamentos do combo e qualquer problema no sistema: atendimento remoto pelo WhatsApp, visita técnica quando precisa e troca do equipamento em até 2 dias úteis quando não há conserto. Danos por queda, líquido, descarga elétrica ou mau uso são orçados à parte.</p></details>
+    <details><summary>Funciona com a impressora que eu já tenho?</summary><p>Funciona com impressoras térmicas de 58 e 80 mm que usam o padrão ESC/POS, como Epson, Elgin, Bematech, Daruma, Tanca e Knup, por USB, rede, serial ou Bluetooth. No teste você confirma na prática.</p></details>
+    <details><summary>Como funciona a nota fiscal?</summary><p>O sistema emite NFC-e (cupom fiscal eletrônico) e NF-e. A loja precisa de um certificado digital A1 e do código CSC da SEFAZ do seu estado; a gente ajuda a configurar. Os planos com nota incluem 500 notas por mês.</p></details>
+    <details><summary>Dá para usar no celular ou tablet?</summary><p>Sim. O garçom pode lançar pedidos pelo celular e o dono acompanha as vendas de casa. A impressão direta na térmica funciona melhor no computador do caixa.</p></details>
+    <details><summary>Meus dados ficam seguros?</summary><p>Cada loja fica isolada das outras, todas as regras de acesso são aplicadas no servidor e há cópia de segurança automática. Cada funcionário tem o próprio login e tudo o que é feito fica registrado.</p></details>
+    <details><summary>Vocês atendem a minha cidade?</summary><p>O sistema funciona em todo o Brasil. A instalação presencial e a troca de equipamentos dependem da região: deixe seu contato e confirmamos para você.</p></details>
+  </div>
+</section>
+
+<!-- ============ FECHAMENTO ============ -->
+<section class="final">
+  <div class="largura final-in">
+    <h2>Seu próximo cupom pode sair daqui a 2 minutos.</h2>
+    <div class="hero-ctas">
+      <a class="botao claro grande" href="#teste">Testar grátis por 7 dias</a>
+      <button class="botao contorno-claro grande" data-contato="Falar com consultor">Falar com um consultor</button>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="rodape">
+  <div class="largura rodape-in">
+    <div><a class="logo" href="#"><span class="logo-m">L</span><span data-marca>Lis PDV</span></a>
+      <p>Sistema de ponto de venda com equipamentos e manutenção.</p></div>
+    <nav aria-label="Rodapé">
+      <a href="app/">Entrar no sistema</a>
+      <a href="assets/Manual-PDV.pdf" target="_blank" rel="noopener">Manual do sistema (PDF)</a>
+      <a href="#planos">Planos</a>
+      <button class="link-rodape" data-contato="Falar com consultor">Fale conosco</button>
+    </nav>
+  </div>
+</footer>
+
+<a class="zap-flutua" id="zap-flutua" hidden target="_blank" rel="noopener" aria-label="Falar pelo WhatsApp">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 .8A4 4 0 0 1 10.7 11l.8-1-1-2z"/></svg>
+</a>
+
+<dialog id="dlg-contato" class="dialogo" aria-labelledby="t-contato">
+  <form id="form-contato" method="dialog" novalidate>
+    <div class="dlg-topo"><h2 id="t-contato">Fale com um consultor</h2><button type="button" class="fechar" data-fechar aria-label="Fechar">✕</button></div>
+    <p class="pequeno">Respondemos pelo WhatsApp em horário comercial.</p>
+    <div class="campo-robo" aria-hidden="true"><label>Site<input name="site" tabindex="-1" autocomplete="off"></label></div>
+    <label class="campo"><span>Seu nome</span><input name="nome" autocomplete="name" required></label>
+    <div class="grade-2">
+      <label class="campo"><span>WhatsApp</span><input name="whatsapp" inputmode="tel" autocomplete="tel" required></label>
+      <label class="campo"><span>Cidade</span><input name="cidade" autocomplete="address-level2"></label>
+    </div>
+    <label class="campo"><span>Nome da loja</span><input name="loja" autocomplete="organization"></label>
+    <label class="campo"><span>Interesse</span><input name="interesse" readonly></label>
+    <label class="campo"><span>Mensagem (opcional)</span><textarea name="mensagem" rows="3"></textarea></label>
+    <div id="msg-contato" role="alert"></div>
+    <button class="botao primario bloco" type="submit">Enviar</button>
+  </form>
+</dialog>
+
+<script type="module" src="assets/site.js"></script>
 </body>
 </html>

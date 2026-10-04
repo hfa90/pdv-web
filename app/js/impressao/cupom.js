@@ -36,6 +36,7 @@ function cabecalhoEmpresa(ops) {
 export function layoutVenda(venda, doc) {
   const ops = [];
   cabecalhoEmpresa(ops);
+  if (estado.conta?.status === "teste") ops.push({ t: "texto", s: "*** MODO TESTE · SEM VALOR ***", align: "centro", bold: true });
   const fiscal = doc?.status === "autorizado";
   const aberta = venda.status === "aberta";
   if (fiscal) {

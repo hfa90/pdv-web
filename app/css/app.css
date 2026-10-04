@@ -347,3 +347,13 @@ dialog.modal[open] { animation: surgir .16s ease-out; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
+
+/* ---------- Situação da conta (teste grátis) ---------- */
+.aviso-conta { display: grid; gap: .35rem; padding: .7rem .75rem; margin: 0 .25rem .25rem; border-radius: var(--r-md); background: var(--amber-soft); font-size: var(--fs-sm); }
+.aviso-conta strong { font-size: var(--fs-sm); }
+.aviso-conta span { color: #6B4A00; line-height: 1.35; }
+.aviso-conta .barra { height: 5px; border-radius: 99px; background: rgba(138, 90, 0, .15); overflow: hidden; }
+.aviso-conta .barra div { height: 100%; background: var(--amber); }
+.aviso-conta.bloqueado { background: var(--danger-soft); }
+.aviso-conta.bloqueado span { color: var(--danger); }
+.aviso-conta .btn { margin-top: .15rem; }

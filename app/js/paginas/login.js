@@ -1,13 +1,18 @@
 // Entrar, criar conta, recuperar senha e cadastro inicial da empresa.
-import { sb, rpc, mensagemErro } from "../api.js";
+import { sb, fn, mensagemErro } from "../api.js";
+import { estado } from "../estado.js";
+import { MARCA, linkWhatsApp } from "../config.js";
+import { obterDispositivo, obterImpressao } from "../../../assets/dispositivo.js";
+
+const estado_usuario = () => estado.usuario;
 import { html, render, $, lerForm, toast, ocupado, docValido, somenteDigitos } from "../ui.js";
 
 function moldura(conteudo) {
   return html`
   <div class="auth">
     <section class="auth-arte">
-      <div class="brand" style="padding:0"><div class="brand-mark" style="background:#fff;color:var(--primary)">P</div>
-        <div class="brand-name">PDV</div></div>
+      <div class="brand" style="padding:0"><div class="brand-mark" style="background:#fff;color:var(--primary)">${MARCA.slice(0, 1)}</div>
+        <div class="brand-name">${MARCA}</div></div>
       <div>
         <h2>Venda no balcão, na mesa e no caixa.</h2>
         <p>Para padarias, mercadinhos, lanchonetes, cafés e restaurantes. Cupom na impressora térmica e nota fiscal em poucos toques.</p>
@@ -93,39 +98,47 @@ export function telaLogin(app, aoEntrar, modo = "entrar") {
 }
 
 export function telaOnboarding(app, aoConcluir) {
+  const meta = estado_usuario()?.user_metadata || {};
   render(app, moldura(html`
-    <div><h1>Sua loja</h1><p class="muted">Último passo. Esses dados aparecem no cupom e podem ser alterados depois.</p></div>
+    <div><h1>Ative seu teste grátis</h1><p class="muted">7 dias para usar o sistema completo na sua loja. Já deixamos produtos de exemplo para você começar a vender no primeiro minuto.</p></div>
     <form class="stack" id="f">
-      <label class="field"><span>Nome da empresa (razão social)</span><input class="input" name="razao" required autofocus></label>
-      <label class="field"><span>Nome no cupom (fantasia)</span><input class="input" name="fantasia"></label>
-      <label class="field"><span>CNPJ</span><input class="input" name="cnpj" inputmode="numeric" placeholder="Opcional agora; obrigatório para nota fiscal"></label>
+      <label class="field"><span>Seu nome</span><input class="input" name="nome" value="${meta.nome || sessionStorage.getItem("pdv-nome") || ""}" required autofocus></label>
+      <label class="field"><span>Nome da loja</span><input class="input" name="loja" value="${meta.loja || ""}" required></label>
       <label class="field"><span>Tipo de negócio</span>
         <select class="input" name="segmento">
-          <option value="padaria">Padaria</option><option value="mercadinho">Mercadinho</option>
-          <option value="supermercado">Supermercado</option><option value="lanchonete">Lanchonete</option>
-          <option value="cafe">Café da manhã / cafeteria</option><option value="restaurante">Restaurante</option>
-        </select><span class="hint">Usado para sugerir categorias de produtos.</span></label>
-      <label class="field"><span>Seu nome</span><input class="input" name="nome" value="${sessionStorage.getItem("pdv-nome") || ""}" required></label>
+          ${[["padaria","Padaria"],["mercadinho","Mercadinho"],["supermercado","Supermercado"],["lanchonete","Lanchonete"],["cafe","Café da manhã / cafeteria"],["restaurante","Restaurante"]]
+            .map(([v, n]) => html`<option value="${v}" ${meta.segmento === v ? "selected" : ""}>${n}</option>`)}
+        </select></label>
+      <div class="grid-2">
+        <label class="field"><span>WhatsApp</span><input class="input" name="whatsapp" value="${meta.whatsapp || ""}" inputmode="tel" placeholder="(92) 99999-0000" required></label>
+        <label class="field"><span>CPF ou CNPJ</span><input class="input" name="documento" value="${meta.documento || ""}" inputmode="numeric" required></label>
+      </div>
+      <p class="hint">O teste é de um por negócio. Esses dados não são compartilhados.</p>
       <div id="msg"></div>
-      <button class="btn primary lg block">Começar a vender</button>
+      <button class="btn primary lg block">Começar meu teste de 7 dias</button>
     </form>
     <button class="link-btn" id="sair">Sair</button>`));
   $("#sair").onclick = async () => { await sb.auth.signOut(); aoConcluir(); };
   $("#f").onsubmit = async (e) => {
     e.preventDefault();
     const d = lerForm(e.target);
-    if (d.cnpj && !docValido(d.cnpj)) return render($("#msg"), html`<div class="alerta">CNPJ inválido</div>`);
+    const msg = (t, extra = "") => render($("#msg"), html`<div class="alerta">${t}${extra}</div>`);
+    if (!docValido(d.documento)) return msg("CPF ou CNPJ inválido");
+    if (somenteDigitos(d.whatsapp).length < 10) return msg("Informe o WhatsApp com DDD");
     await ocupado(e.target.querySelector("button"), async () => {
       try {
-        await rpc("criar_empresa", {
-          p_razao_social: d.razao, p_nome_fantasia: d.fantasia || null, p_cnpj: somenteDigitos(d.cnpj) || null,
-          p_segmento: d.segmento, p_nome_usuario: d.nome,
-        });
+        await fn("teste", { acao: "iniciar", ...d, documento: somenteDigitos(d.documento),
+          dispositivo: obterDispositivo(), impressao: await obterImpressao() });
         sessionStorage.removeItem("pdv-nome");
-        toast("Loja criada", "ok");
+        toast("Loja de teste criada. Boas vendas!", "ok");
         location.hash = "#/painel";
         aoConcluir();
-      } catch (err) { render($("#msg"), html`<div class="alerta">${err.message}</div>`); }
+      } catch (err) {
+        const zap = linkWhatsApp(`Olá! Quero conhecer os planos do ${MARCA}. Minha loja: ${d.loja}.`);
+        render($("#msg"), html`<div class="alerta warn">${err.message}
+          ${zap ? html`<div style="margin-top:.5rem"><a class="btn sm" href="${zap}" target="_blank" rel="noopener">Falar no WhatsApp</a></div>` : ""}
+          <div style="margin-top:.5rem"><a href="../#planos">Ver planos e preços</a></div></div>`);
+      }
     });
   };
 }

@@ -25,6 +25,13 @@ Deno.serve(async (req) => {
       if (!PAPEIS.includes(papel)) throw new HttpError(400, "Nível de acesso inválido");
       if (!podeGerir(papel)) throw new HttpError(403, "Gerentes só podem criar caixas e atendentes");
 
+      // Período de teste: até 3 usuários por loja
+      const { data: emp } = await admin.from("empresas").select("status_conta").eq("id", perfil.empresa_id).single();
+      if (emp?.status_conta !== "ativo") {
+        const { count } = await admin.from("perfis").select("id", { count: "exact", head: true }).eq("empresa_id", perfil.empresa_id);
+        if ((count ?? 0) >= 3) throw new HttpError(403, "No período de teste a loja pode ter até 3 usuários. Contrate um plano para liberar mais.");
+      }
+
       const { data: criado, error } = await admin.auth.admin.createUser({
         email, password: senha, email_confirm: true, user_metadata: { nome },
       });

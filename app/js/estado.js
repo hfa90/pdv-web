@@ -7,6 +7,8 @@ export const estado = {
   empresa: null,   // public.empresas
   fiscal: null,    // public.config_fiscal
   caixa: null,     // sessão de caixa aberta do operador
+  conta: null,     // situação comercial: teste, ativo, bloqueio
+  adminPlataforma: false, // fornecedor do sistema
 };
 
 export const PAPEIS = {
@@ -30,10 +32,11 @@ export const ROTAS = {
   relatorios:    { titulo: "Relatórios",    icone: "relatorios", papeis: ["admin", "gerente"] },
   usuarios:      { titulo: "Usuários",      icone: "usuarios",   papeis: ["admin", "gerente"] },
   configuracoes: { titulo: "Configurações", icone: "config",     papeis: ["admin", "gerente", "caixa"] },
+  plataforma:    { titulo: "Plataforma",    icone: "plataforma", papeis: [], soFornecedor: true },
 };
 
 export const papel = () => estado.perfil?.papel;
-export const pode = (rota) => !!ROTAS[rota]?.papeis.includes(papel());
+export const pode = (rota) => (ROTAS[rota]?.soFornecedor ? estado.adminPlataforma : !!ROTAS[rota]?.papeis.includes(papel()));
 export const eh = (...papeis) => papeis.includes(papel());
 export const rotaInicial = () => (eh("admin", "gerente") ? "painel" : "pdv");
 
@@ -41,6 +44,7 @@ export async function carregarContexto() {
   const { data: { user } } = await sb.auth.getUser();
   estado.usuario = user;
   if (!user) return false;
+  estado.adminPlataforma = !!(await sb.rpc("sou_admin_plataforma")).data;
   const perfil = await q(sb.from("perfis").select("*").eq("id", user.id).maybeSingle());
   estado.perfil = perfil;
   if (!perfil) return true; // logado, mas ainda sem empresa (onboarding)
@@ -51,7 +55,7 @@ export async function carregarContexto() {
   ]);
   estado.empresa = empresa;
   estado.fiscal = fiscal;
-  await atualizarCaixa();
+  await Promise.all([atualizarCaixa(), atualizarConta()]);
   return true;
 }
 
@@ -62,6 +66,19 @@ export async function atualizarCaixa() {
   return estado.caixa;
 }
 
+export async function atualizarConta() {
+  estado.conta = (await sb.rpc("situacao_conta")).data || null;
+  return estado.conta;
+}
+
+/** Dias que faltam no teste (arredondado para cima). */
+export function diasDeTeste() {
+  const fim = estado.conta?.teste_expira_em;
+  if (!fim) return null;
+  return Math.max(0, Math.ceil((new Date(fim) - Date.now()) / 864e5));
+}
+
 export function limparEstado() {
   Object.keys(estado).forEach((k) => (estado[k] = null));
+  estado.adminPlataforma = false;
 }

@@ -1,6 +1,7 @@
 // Ponto de entrada: autenticação, roteamento por hash e layout.
 import { sb } from "./api.js";
-import { estado, carregarContexto, limparEstado, pode, rotaInicial, ROTAS, PAPEIS } from "./estado.js";
+import { estado, carregarContexto, limparEstado, pode, rotaInicial, ROTAS, PAPEIS, atualizarConta, diasDeTeste } from "./estado.js";
+import { linkWhatsApp, MARCA } from "./config.js";
 import { html, render, $, $$, iniciais, carregando, erro } from "./ui.js";
 import { icone } from "./icons.js";
 import { telaLogin, telaOnboarding, telaNovaSenha } from "./paginas/login.js";
@@ -17,6 +18,7 @@ const PAGINAS = {
   relatorios: () => import("./paginas/relatorios.js"),
   usuarios: () => import("./paginas/usuarios.js"),
   configuracoes: () => import("./paginas/configuracoes.js"),
+  plataforma: () => import("./paginas/plataforma.js"),
 };
 
 const app = document.getElementById("app");
@@ -38,6 +40,7 @@ function montarShell() {
             html`<a href="#/${r}" data-rota="${r}">${icone(def.icone)}<span>${def.titulo}</span></a>`)}
         </nav>
         <div class="sidebar-foot">
+          <div id="aviso-conta"></div>
           <div class="user-chip">
             <div class="avatar">${iniciais(p.nome)}</div>
             <div class="grow small"><div style="font-weight:600">${p.nome}</div><div class="muted">${PAPEIS[p.papel].nome}</div></div>
@@ -49,12 +52,37 @@ function montarShell() {
         <div class="topbar-mobile">
           <button class="btn ghost icon-btn" id="btn-menu" aria-label="Abrir menu">${icone("menu", 'width="22" height="22"')}</button>
           <strong>${nomeLoja}</strong>
+          <span class="grow"></span><span id="aviso-conta-mob"></span>
         </div>
         <main id="conteudo"></main>
       </div>
     </div>`);
   $("#btn-sair").onclick = sair;
   $("#btn-menu").onclick = () => $("#sidebar").classList.toggle("aberta");
+  desenharAvisoConta();
+}
+
+/** Cartão no menu lateral com a situação do teste grátis ou do bloqueio. */
+function desenharAvisoConta() {
+  const c = estado.conta;
+  const alvo = $("#aviso-conta"), mob = $("#aviso-conta-mob");
+  if (!alvo) return;
+  if (!c || c.status === "ativo") { render(alvo, ""); if (mob) render(mob, ""); return; }
+  const dias = diasDeTeste();
+  const zap = linkWhatsApp(`Olá! Estou testando o sistema na loja ${estado.empresa?.nome_fantasia || ""} e quero contratar.`);
+  const gestor = ["admin", "gerente"].includes(estado.perfil?.papel);
+  if (c.bloqueio) {
+    render(alvo, html`<div class="aviso-conta bloqueado"><strong>Vendas pausadas</strong><span>${c.bloqueio}</span>
+      ${gestor ? html`<a class="btn sm primary block" href="../#planos" target="_blank" rel="noopener">Ver planos</a>` : ""}
+      ${gestor && zap ? html`<a class="btn sm block" href="${zap}" target="_blank" rel="noopener">${icone("whatsapp", 'width="16" height="16"')} Contratar</a>` : ""}</div>`);
+    if (mob) render(mob, html`<span class="badge danger">Teste encerrado</span>`);
+    return;
+  }
+  render(alvo, html`<div class="aviso-conta"><strong>Teste grátis</strong>
+    <span>${dias === 0 ? "Termina hoje" : dias === 1 ? "Falta 1 dia" : `Faltam ${dias} dias`} · ${c.vendas_teste} de 200 vendas</span>
+    <div class="barra"><div style="width:${Math.min(100, ((7 - (dias ?? 7)) / 7) * 100)}%"></div></div>
+    ${gestor ? html`<a class="btn sm block" href="../#planos" target="_blank" rel="noopener">Ver planos</a>` : ""}</div>`);
+  if (mob) render(mob, html`<span class="badge warn">Teste · ${dias}d</span>`);
 }
 
 async function navegar() {
@@ -65,8 +93,9 @@ async function navegar() {
   if (!$("#conteudo")) montarShell();
   $$(".nav a").forEach((a) => a.classList.toggle("ativo", a.dataset.rota === rota));
   $("#sidebar")?.classList.remove("aberta");
-  document.title = `${ROTAS[rota].titulo} · PDV`;
+  document.title = `${ROTAS[rota].titulo} · ${MARCA}`;
 
+  atualizarConta().then(desenharAvisoConta).catch(() => {});
   try { limparPagina?.(); } catch { /* ignora */ }
   limparPagina = null;
   const alvo = $("#conteudo");
