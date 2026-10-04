@@ -24,6 +24,8 @@ const TODOS = ["admin", "gerente", "caixa", "atendente"];
 export const ROTAS = {
   painel:        { titulo: "Painel",        icone: "painel",     papeis: ["admin", "gerente"] },
   pdv:           { titulo: "Vender",        icone: "pdv",        papeis: TODOS },
+  mesas:         { titulo: "Mesas",         icone: "mesa",       papeis: TODOS, modulo: "garcom" },
+  delivery:      { titulo: "Delivery",      icone: "moto",       papeis: ["admin", "gerente", "caixa"], modulo: "delivery" },
   caixa:         { titulo: "Caixa",         icone: "caixa",      papeis: ["admin", "gerente", "caixa"] },
   vendas:        { titulo: "Vendas",        icone: "vendas",     papeis: ["admin", "gerente", "caixa"] },
   produtos:      { titulo: "Produtos",      icone: "produtos",   papeis: ["admin", "gerente"] },
@@ -36,7 +38,13 @@ export const ROTAS = {
 };
 
 export const papel = () => estado.perfil?.papel;
-export const pode = (rota) => (ROTAS[rota]?.soFornecedor ? estado.adminPlataforma : !!ROTAS[rota]?.papeis.includes(papel()));
+const moduloLiberado = (m) => !m || (m === "garcom" ? !!estado.conta?.garcom : !!(estado.conta?.delivery_contratado && estado.conta?.delivery_ativo));
+export const pode = (rota) => {
+  const r = ROTAS[rota];
+  if (!r) return false;
+  if (r.soFornecedor) return estado.adminPlataforma;
+  return r.papeis.includes(papel()) && moduloLiberado(r.modulo);
+};
 export const eh = (...papeis) => papeis.includes(papel());
 export const rotaInicial = () => (eh("admin", "gerente") ? "painel" : "pdv");
 

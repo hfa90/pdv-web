@@ -4,6 +4,8 @@ import { estado } from "../estado.js";
 import { html, render, dinheiro, qtd as fmtQtd, hora, rotuloMesa } from "../ui.js";
 import { kpis, colunas, barras, preencherHoras } from "./relatorios.js";
 import { nomeForma } from "../impressao/cupom.js";
+import { icone } from "../icons.js";
+import { linkGarcom, linkCardapio } from "../links.js";
 
 export default async function painel(el) {
   const ini = new Date(); ini.setHours(0, 0, 0, 0);
@@ -12,7 +14,7 @@ export default async function painel(el) {
     rpc("relatorio_vendas", { p_inicio: ini.toISOString(), p_fim: fim.toISOString() }),
     rpc("produtos_estoque_baixo"),
     q(sb.from("caixa_sessoes").select("id,aberto_em,operador:perfis(nome)").eq("status", "aberto")),
-    q(sb.from("vendas").select("id,identificador,total,created_at").eq("status", "aberta").order("created_at")),
+    q(sb.from("vendas").select("id,identificador,total,created_at,canal").eq("status", "aberta").order("created_at")),
     sb.from("produtos").select("id", { count: "exact", head: true }).then((x) => x.count || 0),
   ]);
   const saud = new Date().getHours() < 12 ? "Bom dia" : new Date().getHours() < 18 ? "Boa tarde" : "Boa noite";
@@ -26,6 +28,21 @@ export default async function painel(el) {
       <h2>Primeiros passos</h2>
       <p class="muted">Três coisas para deixar a loja pronta para vender:</p>
       <div class="row wrap"><a class="btn" href="#/configuracoes">1. Dados da loja e impressora</a><a class="btn" href="#/produtos">2. Cadastrar produtos</a><a class="btn" href="#/usuarios">3. Criar usuários de caixa</a></div>
+    </div>` : ""}
+
+    ${estado.conta?.garcom || estado.conta?.delivery_contratado ? html`<div class="modulos">
+      ${estado.conta?.garcom ? html`<div class="panel panel-pad modulo">
+        <div class="modulo-ic">${icone("celular", 'width="26" height="26"')}</div>
+        <div class="grow"><h3>App do garçom</h3><p class="small muted">Os garçons lançam pedidos pelo celular ou tablet, direto para a cozinha. Instala como aplicativo.</p>
+          <a class="small link-quebra" href="${linkGarcom()}" target="_blank" rel="noopener">${linkGarcom()}</a></div>
+        <a class="btn sm" href="#/mesas">Ver mesas</a></div>` : ""}
+      ${estado.conta?.delivery_contratado ? html`<div class="panel panel-pad modulo">
+        <div class="modulo-ic">${icone("moto", 'width="26" height="26"')}</div>
+        <div class="grow"><h3>Cardápio digital e delivery</h3>
+          ${estado.empresa.delivery_ativo && estado.empresa.slug ? html`<p class="small muted">Pedidos pelo link, sem comissão. Pagamento por PIX e acompanhamento em tempo real.</p>
+            <a class="small link-quebra" href="${linkCardapio(estado.empresa.slug)}" target="_blank" rel="noopener">${linkCardapio(estado.empresa.slug)}</a>`
+          : html`<p class="small muted">Monte seu cardápio online e receba pedidos de entrega e retirada sem pagar comissão.</p>`}</div>
+        <a class="btn sm ${estado.empresa.delivery_ativo ? "" : "primary"}" href="${estado.empresa.delivery_ativo ? "#/delivery" : "#/configuracoes/delivery"}">${estado.empresa.delivery_ativo ? "Pedidos" : "Ativar"}</a></div>` : ""}
     </div>` : ""}
 
     ${kpis(r.resumo)}

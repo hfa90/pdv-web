@@ -16,6 +16,11 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 - **Nota fiscal**: NFC-e (cupom fiscal eletrônico, modelo 65) e NF-e (modelo 55) via provedor Focus NFe, com DANFE NFC-e impresso na térmica, consulta e cancelamento.
 - **Níveis de acesso**: Administrador, Gerente, Caixa e Atendente.
 - **Registro de atividades** (auditoria) de cancelamentos, alterações de preço, caixa, usuários e notas.
+- **PIX com QR Code no caixa**: a chave da loja fica em Configurações › PIX e o PDV gera o código "copia e cola" (BR Code com CRC16) com o valor exato. Opcional: token do Mercado Pago para cobrança com confirmação automática.
+- **Mesas (restaurantes)**: mapa interativo do salão (arrastar para montar, áreas, formatos), situação ao vivo (livre, ocupada, conta pedida), lançar itens, transferir/juntar, conta por pessoa e envio para o caixa.
+- **App do garçom** (`garcom/`): PWA instalável no celular ou tablet, mesmo login e mesmas regras do banco, funciona com internet instável e reenvia pedidos pendentes.
+- **Cozinha**: um computador pode imprimir sozinho os itens lançados pelos garçons e os pedidos do delivery.
+- **Delivery e cardápio digital** (`cardapio/?loja=endereco`): cardápio com fotos, sacola, entrega ou retirada, CEP automático, PIX, e acompanhamento do pedido em tempo real (recebido, em preparo, saiu, entregue). A loja gerencia em um quadro por etapa com aviso sonoro.
 
 ## Segurança
 
@@ -32,6 +37,8 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 
 - **Site de vendas:** `index.html` na raiz (planos, simulador, teste grátis, captação de contatos)
 - **Sistema:** `app/` (o PDV em si)
+- **App do garçom:** `garcom/` (PWA; liberado para lojas do segmento restaurante ou com o módulo ativado no painel Plataforma)
+- **Cardápio digital:** `cardapio/?loja=<endereço da loja>` (público; módulo delivery)
 
 ## Teste grátis e antifraude
 
@@ -70,7 +77,13 @@ app/js/paginas/*.js            uma tela por arquivo
 app/js/impressao/escpos.js     comandos ESC/POS + WebUSB/Serial
 app/js/impressao/cupom.js      layout dos cupons (navegador e térmica)
 supabase/migrations/*.sql  banco, RLS e regras de negócio
-supabase/functions/*       Edge Functions (usuarios, fiscal)
+supabase/functions/*       Edge Functions (usuarios, fiscal, teste, pagamentos)
+assets/pix.js              gerador de PIX copia e cola + QR (usado por PDV, garçom e cardápio)
+app/js/mesa-detalhe.js     detalhe da mesa (compartilhado entre a tela Mesas e o app do garçom)
+app/js/seletor.js          seletor de itens para mesas
+app/js/cozinha.js          impressão automática de pedidos do garçom e do delivery
+garcom/                    app do garçom (PWA: manifest, service worker, ícones)
+cardapio/                  cardápio digital público e acompanhamento do pedido
 ```
 
 ## Rodar localmente
@@ -109,6 +122,13 @@ supabase functions deploy fiscal
 4. Para trocar de provedor, implemente o mesmo contrato em `supabase/functions/fiscal/index.ts`.
 
 > A informação de tributos aproximados (Lei 12.741/IBPT) ainda não é calculada; alguns estados exigem no DANFE.
+
+## Mesas, garçom e delivery: segurança
+
+- Garçons (nível Atendente) só lançam itens; preços sempre vêm do cadastro (`adicionar_itens`). Tirar item lançado há mais de 5 minutos exige gerente e fica no registro de atividades.
+- O cardápio público não lê tabelas: usa só `cardapio_publico`, `criar_pedido_delivery` e `acompanhar_pedido` (código aleatório por pedido), com limite de pedidos por telefone e por loja.
+- O acompanhamento ao vivo usa um canal de broadcast por pedido; o caixa e o garçom usam Realtime com RLS.
+- Se um garçom lançar itens enquanto o caixa recebe a mesma mesa, o servidor recusa o fechamento e o caixa recarrega o pedido.
 
 ## Atalhos do PDV
 

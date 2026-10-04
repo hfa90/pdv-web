@@ -10,6 +10,8 @@ import { telaLogin, telaOnboarding, telaNovaSenha } from "./paginas/login.js";
 const PAGINAS = {
   painel: () => import("./paginas/painel.js"),
   pdv: () => import("./paginas/pdv.js"),
+  mesas: () => import("./paginas/mesas.js"),
+  delivery: () => import("./paginas/delivery.js"),
   caixa: () => import("./paginas/caixa.js"),
   vendas: () => import("./paginas/vendas.js"),
   produtos: () => import("./paginas/produtos.js"),
@@ -60,6 +62,8 @@ function montarShell() {
   $("#btn-sair").onclick = sair;
   $("#btn-menu").onclick = () => $("#sidebar").classList.toggle("aberta");
   desenharAvisoConta();
+  import("./cozinha.js").then((m) => m.iniciarCozinha()).catch(() => {});
+  if (pode("delivery")) import("./avisos.js").then((m) => m.iniciarAvisos()).catch(() => {});
 }
 
 /** Cartão no menu lateral com a situação do teste grátis ou do bloqueio. */
@@ -127,6 +131,7 @@ async function iniciar() {
 }
 
 async function sair() {
+  sb.removeAllChannels?.();
   await sb.auth.signOut();
   limparEstado();
   location.hash = "";

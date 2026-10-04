@@ -49,7 +49,7 @@ export default async function produtos(el) {
         <thead><tr><th>Produto</th><th>Categoria</th><th>Código</th><th class="r">Custo</th><th class="r">Preço</th><th class="r">Margem</th><th class="r">Estoque</th></tr></thead>
         <tbody>${itens.slice(0, 500).map((p) => { const c = nomeCat[p.categoria_id]; const margem = p.preco_venda > 0 && p.preco_custo > 0 ? ((p.preco_venda - p.preco_custo) / p.preco_venda) * 100 : null; return html`
           <tr class="click" data-id="${p.id}" style="${p.ativo ? "" : "opacity:.55"}">
-            <td><strong>${p.nome}</strong>${p.favorito ? html` <span class="badge info">favorito</span>` : ""}${!p.ativo ? html` <span class="badge">inativo</span>` : ""}</td>
+            <td><strong>${p.nome}</strong>${p.favorito ? html` <span class="badge info">favorito</span>` : ""}${p.no_cardapio ? html` <span class="badge ok">cardápio</span>` : ""}${!p.ativo ? html` <span class="badge">inativo</span>` : ""}</td>
             <td>${c ? html`<span class="row" style="gap:.4rem"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:${c.cor}"></span>${c.nome}</span>` : html`<span class="muted">—</span>`}</td>
             <td class="small">${p.codigo || ""}${p.codigo_barras ? html`<div class="muted">${p.codigo_barras}</div>` : ""}</td>
             <td class="r">${p.preco_custo > 0 ? dinheiro(p.preco_custo) : "—"}</td>
@@ -95,6 +95,20 @@ export default async function produtos(el) {
                  : html`<div class="field"><span>Estoque atual</span><div class="input" style="display:flex;align-items:center">${fmtQtd(p.estoque_atual, p.unidade)} <a href="#/estoque" class="small" style="margin-left:auto">Ajustar no Estoque</a></div></div>`}
           <label class="field"><span>Estoque mínimo (alerta)</span><input class="input" name="estoque_minimo" value="${v(p.estoque_minimo)}" inputmode="decimal"></label>
         </div>
+        ${estado.conta?.delivery_contratado ? html`<details ${p.no_cardapio ? "open" : ""} class="cardapio-box"><summary style="cursor:pointer;font-weight:600">Cardápio digital (delivery)</summary>
+          <div class="row wrap" style="gap:1rem;margin-top:.75rem;align-items:flex-start">
+            <label class="foto-produto" title="Trocar foto">
+              <img id="foto-img" alt="" ${p.imagem_url ? html`src="${p.imagem_url}"` : "hidden"}>
+              <span id="foto-vazia" ${p.imagem_url ? "hidden" : ""}>${icone("mais", 'width="22" height="22"')}<small>Foto</small></span>
+              <input type="file" id="foto" accept="image/jpeg,image/png,image/webp" hidden>
+            </label>
+            <div class="stack grow" style="min-width:220px">
+              <label class="check"><input type="checkbox" name="no_cardapio" ${p.no_cardapio ? "checked" : ""}> Mostrar no cardápio digital</label>
+              <label class="field"><span>Descrição para o cliente</span><textarea class="input" name="descricao" maxlength="300" rows="2" placeholder="Ex.: Pão de fermentação natural, 400 g">${p.descricao || ""}</textarea></label>
+              <input type="hidden" name="imagem_url" value="${p.imagem_url || ""}">
+              ${p.imagem_url ? html`<button type="button" class="btn sm ghost" id="foto-tirar" style="align-self:flex-start">Remover foto</button>` : ""}
+            </div>
+          </div></details>` : ""}
         <details ${novo ? "" : "open"}><summary style="cursor:pointer;font-weight:600">Dados fiscais (para NFC-e / NF-e)</summary>
           <div class="grid-3" style="margin-top:.75rem">
             <label class="field"><span>NCM</span><input class="input" name="ncm" value="${p.ncm || ""}" maxlength="10" inputmode="numeric" placeholder="8 dígitos"></label>
@@ -115,6 +129,21 @@ export default async function produtos(el) {
           d.querySelector("#margem").textContent = pv > 0 && pc > 0 ? `Margem de ${numero(((pv - pc) / pv) * 100, 1)}% · lucro ${dinheiro(pv - pc)} por ${form.unidade.value.toLowerCase()}` : "";
         };
         form.preco_venda.oninput = form.preco_custo.oninput = margem; margem();
+        const foto = d.querySelector("#foto");
+        if (foto) {
+          foto.onchange = async () => {
+            const arq = foto.files[0]; if (!arq) return;
+            const img = d.querySelector("#foto-img");
+            try {
+              d.querySelector(".foto-produto").classList.add("enviando");
+              const url = await enviarFoto(arq);
+              form.imagem_url.value = url; img.src = url; img.hidden = false; d.querySelector("#foto-vazia").hidden = true;
+              if (!form.no_cardapio.checked) form.no_cardapio.checked = true;
+            } catch (err) { erro(err); }
+            finally { d.querySelector(".foto-produto").classList.remove("enviando"); foto.value = ""; }
+          };
+          d.querySelector("#foto-tirar")?.addEventListener("click", () => { form.imagem_url.value = ""; d.querySelector("#foto-img").hidden = true; d.querySelector("#foto-vazia").hidden = false; });
+        }
         form.onsubmit = (e) => {
           e.preventDefault();
           const x = lerForm(form);
@@ -127,6 +156,7 @@ export default async function produtos(el) {
             ncm: x.ncm.replace(/\D/g, "") || null, cest: x.cest.replace(/\D/g, "") || null,
             cfop: x.cfop || "5102", csosn: x.csosn || "102", origem: Number(x.origem),
           };
+          if ("no_cardapio" in x) Object.assign(dados, { no_cardapio: x.no_cardapio, descricao: x.descricao || null, imagem_url: x.imagem_url || null });
           if (novo) dados.estoque_atual = lerNumero(x.estoque_atual || 0);
           if (!(dados.preco_venda >= 0) || !(dados.preco_custo >= 0) || Number.isNaN(dados.estoque_minimo)) return toast("Verifique os valores numéricos", "erro");
           if (dados.ncm && dados.ncm.length !== 8) return toast("O NCM deve ter 8 dígitos", "erro");
@@ -248,4 +278,22 @@ export default async function produtos(el) {
 
   await carregar();
   desenhar();
+}
+
+/** Reduz a foto (máx. 900 px, WebP) e envia para o armazenamento do cardápio. */
+async function enviarFoto(arquivo) {
+  if (!/^image\/(jpeg|png|webp)$/.test(arquivo.type)) throw new Error("Use uma foto JPG, PNG ou WebP");
+  if (arquivo.size > 15 * 1024 * 1024) throw new Error("Foto muito grande (máx. 15 MB)");
+  const bmp = await createImageBitmap(arquivo);
+  const escala = Math.min(1, 900 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(bmp.width * escala); c.height = Math.round(bmp.height * escala);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise((r) => c.toBlob(r, "image/webp", 0.82));
+  const tipo = blob?.type === "image/webp" ? "webp" : "jpeg";
+  const final = tipo === "webp" ? blob : await new Promise((r) => c.toBlob(r, "image/jpeg", 0.85));
+  const caminho = `${estado.empresa.id}/${crypto.randomUUID?.() || Date.now().toString(36)}.${tipo === "webp" ? "webp" : "jpg"}`;
+  const { error } = await sb.storage.from("cardapio").upload(caminho, final, { contentType: `image/${tipo}`, cacheControl: "31536000", upsert: false });
+  if (error) throw new Error(error.message || "Falha ao enviar a foto");
+  return sb.storage.from("cardapio").getPublicUrl(caminho).data.publicUrl;
 }

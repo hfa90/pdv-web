@@ -1,0 +1,43 @@
+/* App do garçom: pensado para o polegar (alvos grandes) e para telas de celular e tablet. */
+body.garcom { background: var(--bg); overscroll-behavior-y: contain; -webkit-tap-highlight-color: transparent; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.g-login { min-height: 100dvh; display: grid; place-items: center; padding: 1.25rem; background: var(--primary); }
+.g-login-card { background: var(--surface); border-radius: 20px; padding: 2rem 1.5rem; width: min(400px, 100%); text-align: center; display: grid; gap: .6rem; box-shadow: var(--shadow-pop); }
+.g-login-card img { margin: 0 auto; border-radius: 18px; }
+.g-login-card form { text-align: left; margin-top: .5rem; }
+
+.g-shell { min-height: 100dvh; padding-bottom: env(safe-area-inset-bottom); }
+.g-top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: .65rem; padding: calc(.6rem + env(safe-area-inset-top)) 1rem .6rem; background: var(--primary); color: #fff; }
+.g-top .avatar { background: rgba(255,255,255,.18); color: #fff; }
+.g-top-txt { display: grid; line-height: 1.2; min-width: 0; }
+.g-top-txt strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.g-top-txt span { font-size: var(--fs-xs); opacity: .85; }
+.g-top .btn { background: rgba(255,255,255,.14); color: #fff; border-color: transparent; }
+.g-top .btn svg { stroke: #fff; }
+.g-offline { background: var(--amber-soft); color: #6B4A00; padding: .55rem 1rem; font-size: var(--fs-sm); font-weight: 600; text-align: center; }
+.g-resumo { display: flex; gap: 1rem; padding: .8rem 1rem .2rem; font-size: var(--fs-sm); color: var(--muted); flex-wrap: wrap; }
+.g-resumo > span { display: inline-flex; align-items: center; gap: .35rem; }
+.g-filtros { padding: .5rem 1rem; }
+.g-filtros .seg { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); }
+.g-filtros .seg button { padding: .7rem .2rem; font-size: var(--fs-sm); }
+.g-areas { padding: 0 1rem .4rem; }
+.g-mesas { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: .65rem; padding: .5rem 1rem 1.5rem; }
+.g-mesa { position: relative; min-height: 104px; border: 2px solid var(--livre); background: var(--ok-soft); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .1rem; font: inherit; color: var(--ink); cursor: pointer; padding: .5rem .3rem; }
+.g-mesa:active { transform: scale(.96); }
+.g-num { font-size: 1.9rem; font-weight: 700; line-height: 1; }
+.g-total { font-weight: 700; font-variant-numeric: tabular-nums; font-size: .95rem; }
+.g-sub { font-size: .72rem; color: var(--muted); }
+.g-sub.demora { color: var(--danger); font-weight: 700; }
+.g-tag { position: absolute; top: 6px; right: 6px; background: var(--conta); color: #fff; font-size: .62rem; font-weight: 700; padding: .1rem .4rem; border-radius: 99px; text-transform: uppercase; }
+
+/* Detalhe da mesa em tela cheia */
+.g-detalhe { position: fixed; inset: 0; z-index: 30; background: var(--surface); overflow-y: auto; padding: calc(1rem + env(safe-area-inset-top)) 1rem calc(1.25rem + env(safe-area-inset-bottom)); display: grid; gap: .9rem; align-content: start; animation: subir .18s ease-out; }
+@keyframes subir { from { transform: translateY(24px); opacity: 0; } }
+body.com-detalhe { overflow: hidden; }
+.g-detalhe .md-acoes .btn { min-height: 52px; }
+.g-detalhe .md-acoes .btn.primary { min-height: 60px; font-size: 1.05rem; }
+
+@media (min-width: 760px) {
+  .g-mesas { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .g-detalhe { left: auto; width: 460px; box-shadow: var(--shadow-pop); }
+}

@@ -1,25 +1,32 @@
 // Configurações: dados da loja, impressora térmica, emissão fiscal e registro de atividades.
 import { sb, q, rpc } from "../api.js";
 import { estado, eh } from "../estado.js";
-import { html, render, $, $$, lerForm, lerNumero, toast, erro, ocupado, dataHora, docValido, somenteDigitos, formatarDoc } from "../ui.js";
+import { esc, html, render, $, $$, lerForm, lerNumero, toast, erro, ocupado, dataHora, docValido, somenteDigitos, formatarDoc } from "../ui.js";
 import { configImpressora, salvarConfigImpressora, imprimirTeste, abrirGaveta } from "../impressao/cupom.js";
 import { parearUSB, parearSerial, suportaUSB, suportaSerial } from "../impressao/escpos.js";
+import { TIPOS_CHAVE, normalizarChave, payloadPix, qrSvg, qrPronto } from "../../../assets/pix.js";
+import { raw } from "../ui.js";
+import { linkCardapio } from "../links.js";
 
 const ACOES = {
   "empresa.criar": "Criou a loja", "caixa.abrir": "Abriu o caixa", "caixa.fechar": "Fechou o caixa", "caixa.sangria": "Fez sangria",
   "caixa.suprimento": "Fez suprimento", "venda.cancelar": "Cancelou venda", "produto.preco": "Alterou preço", "usuario.criar": "Criou usuário",
   "usuario.alterar": "Alterou usuário", "usuario.senha": "Redefiniu senha", "fiscal.emitir": "Emitiu nota", "fiscal.cancelar": "Cancelou nota",
-  "fiscal.credenciais": "Alterou credenciais fiscais",
+  "fiscal.credenciais": "Alterou credenciais fiscais", "pix.mercado_pago": "Alterou cobrança PIX automática",
+  "mesa.transferir": "Transferiu mesa", "mesa.juntar": "Juntou mesas", "mesa.remover_item": "Tirou item da mesa",
+  "delivery.cancelar": "Cancelou pedido do delivery",
 };
 
 export default async function configuracoes(el) {
   const abas = [
     eh("admin", "gerente") && ["loja", "Loja"],
+    eh("admin", "gerente") && ["pix", "PIX"],
+    eh("admin", "gerente") && estado.conta?.delivery_contratado && ["delivery", "Delivery e cardápio"],
     ["impressora", "Impressora"],
     eh("admin") && ["fiscal", "Nota fiscal"],
     eh("admin", "gerente") && ["atividades", "Registro de atividades"],
   ].filter(Boolean);
-  let aba = abas[0][0];
+  let aba = abas.some(([k]) => k === location.hash.split("/")[2]) ? location.hash.split("/")[2] : abas[0][0];
 
   render(el, html`<div class="page" style="max-width:900px">
     <div class="page-head"><div><h1>Configurações</h1></div></div>
@@ -27,7 +34,7 @@ export default async function configuracoes(el) {
     <div id="corpo"></div></div>`);
   $$(".tabs button", el).forEach((b) => (b.onclick = () => { aba = b.dataset.aba; $$(".tabs button", el).forEach((x) => x.classList.toggle("ativo", x === b)); desenhar(); }));
 
-  function desenhar() { ({ loja, impressora, fiscal, atividades })[aba]().catch(erro); }
+  function desenhar() { ({ loja, pix, delivery, impressora, fiscal, atividades })[aba]().catch(erro); }
 
   // ---------- Loja ----------
   async function loja() {
@@ -103,6 +110,7 @@ export default async function configuracoes(el) {
           <label class="check"><input type="checkbox" name="viaPedido" ${c.viaPedido ? "checked" : ""}> Imprimir via do pedido ao salvar (cozinha)</label>
           <label class="check"><input type="checkbox" name="abrirGaveta" ${c.abrirGaveta ? "checked" : ""}> Abrir gaveta ao imprimir (USB/serial)</label>
           <label class="check"><input type="checkbox" name="acentos" ${c.acentos ? "checked" : ""}> Imprimir acentos (página 860)</label>
+          ${estado.conta?.garcom || estado.conta?.delivery_contratado ? html`<label class="check"><input type="checkbox" name="cozinha" ${c.cozinha ? "checked" : ""}> <span>Imprimir sozinho os pedidos do garçom e do delivery <span class="muted small">(deixe ligado em um só computador, o da cozinha ou do caixa)</span></span></label>` : ""}
         </div>
         <div class="row wrap">
           <button class="btn primary">Salvar</button>
@@ -118,10 +126,10 @@ export default async function configuracoes(el) {
         <p>No Windows, se o pareamento USB não listar a impressora, use o modo navegador com o driver do fabricante ou o modo serial (porta COM virtual).</p>
       </div></div>`);
     const f = $("#f-imp", el);
-    const atual = () => { const x = lerForm(f); return { modo: f.querySelector("[name=modo]:checked").value, largura: Number(x.largura), baudRate: Number(x.baudRate), autoImprimir: x.autoImprimir, viaPedido: x.viaPedido, abrirGaveta: x.abrirGaveta, acentos: x.acentos }; };
+    const atual = () => { const x = lerForm(f); return { modo: f.querySelector("[name=modo]:checked").value, largura: Number(x.largura), baudRate: Number(x.baudRate), autoImprimir: x.autoImprimir, viaPedido: x.viaPedido, abrirGaveta: x.abrirGaveta, acentos: x.acentos, cozinha: !!x.cozinha }; };
     const vis = () => { const m = atual().modo; $("#baud", el).hidden = m !== "serial"; $("#parear", el).hidden = m === "navegador"; $("#gaveta", el).hidden = m === "navegador"; };
     f.querySelectorAll("[name=modo]").forEach((r) => (r.onchange = vis)); vis();
-    f.onsubmit = (e) => { e.preventDefault(); salvarConfigImpressora(atual()); toast("Impressora configurada", "ok"); };
+    f.onsubmit = (e) => { e.preventDefault(); salvarConfigImpressora(atual()); window.dispatchEvent(new Event("pdv-impressora")); toast("Impressora configurada", "ok"); };
     $("#parear", el).onclick = async () => {
       const c2 = atual(); salvarConfigImpressora(c2);
       try { const nome = c2.modo === "usb" ? await parearUSB() : await parearSerial(c2.baudRate); toast(`Pareada: ${nome}`, "ok"); }
@@ -129,6 +137,144 @@ export default async function configuracoes(el) {
     };
     $("#teste", el).onclick = async (e) => { salvarConfigImpressora(atual()); await ocupado(e.currentTarget, () => imprimirTeste().catch(erro)); };
     $("#gaveta", el).onclick = () => abrirGaveta().catch(erro);
+  }
+
+
+  // ---------- PIX ----------
+  async function pix() {
+    const e = estado.empresa; const ro = !eh("admin");
+    const mp = await rpc("mercado_pago_status").catch(() => false);
+    render($("#corpo", el), html`<div class="stack-lg">
+      <form id="f-pix" class="panel panel-pad stack-lg">
+        <div><h2>Chave PIX da loja</h2><p class="muted">Com a chave cadastrada, o PDV mostra o QR Code com o valor exato quando o cliente escolhe PIX. O dinheiro cai direto na sua conta, sem intermediário e sem taxa.</p></div>
+        ${ro ? html`<div class="alerta info">Somente o administrador pode alterar a chave PIX.</div>` : ""}
+        <fieldset ${ro ? "disabled" : ""} style="border:0;padding:0;margin:0" class="stack-lg">
+        <div class="grid-2">
+          <label class="field"><span>Tipo de chave</span><select class="input" name="pix_tipo">
+            <option value="">Selecione</option>
+            ${TIPOS_CHAVE.map(([v, n]) => html`<option value="${v}" ${e.pix_tipo === v ? "selected" : ""}>${n}</option>`)}</select></label>
+          <label class="field"><span>Chave</span><input class="input" name="pix_chave" value="${e.pix_chave || ""}" autocomplete="off"></label>
+          <label class="field"><span>Nome do recebedor (até 25 letras)</span><input class="input" name="pix_nome" maxlength="25" value="${e.pix_nome || (e.nome_fantasia || e.razao_social || "").slice(0, 25)}"></label>
+          <label class="field"><span>Cidade (até 15 letras)</span><input class="input" name="pix_cidade" maxlength="15" value="${e.pix_cidade || (e.municipio || "").slice(0, 15)}"></label>
+        </div>
+        <div class="pix-previa" id="previa"></div>
+        ${ro ? "" : html`<div class="row wrap"><button class="btn primary">Salvar chave PIX</button>${e.pix_chave ? html`<button type="button" class="btn ghost" id="tirar-pix">Remover chave</button>` : ""}</div>`}
+        </fieldset>
+      </form>
+      <form id="f-mp" class="panel panel-pad stack">
+        <div class="row" style="justify-content:space-between;align-items:flex-start">
+          <div><h2>Confirmação automática (opcional)</h2>
+          <p class="muted">Com uma conta Mercado Pago, cada cobrança ganha um QR único e o sistema confirma o pagamento sozinho, no PDV e no cardápio digital. Sem isso, o caixa confere o PIX no celular e confirma.</p></div>
+          ${mp ? html`<span class="badge ok">ativo</span>` : html`<span class="badge">desligado</span>`}
+        </div>
+        <fieldset ${ro ? "disabled" : ""} style="border:0;padding:0;margin:0" class="stack">
+          <label class="field"><span>Access Token de produção do Mercado Pago</span>
+            <input class="input" name="token" type="password" autocomplete="off" placeholder="${mp ? "•••••••• (deixe vazio para manter)" : "APP_USR-..."}"></label>
+          <p class="hint">Mercado Pago › Seu negócio › Configurações › Credenciais. O token fica guardado no servidor e não volta para o navegador.</p>
+          ${ro ? "" : html`<div class="row wrap"><button class="btn">Salvar token</button>${mp ? html`<button type="button" class="btn ghost" id="tirar-mp">Desligar</button>` : ""}</div>`}
+        </fieldset>
+      </form></div>`);
+    const f = $("#f-pix", el);
+    await qrPronto();
+    const previa = () => {
+      const x = lerForm(f);
+      const alvo = $("#previa", el);
+      if (!x.pix_tipo || !x.pix_chave) return render(alvo, html`<p class="hint">Preencha tipo e chave para ver a prévia do QR.</p>`);
+      if (!normalizarChave(x.pix_tipo, x.pix_chave)) return render(alvo, html`<p class="hint" style="color:var(--danger)">Chave não confere com o tipo escolhido.</p>`);
+      const codigo = payloadPix({ tipo: x.pix_tipo, chave: x.pix_chave, nome: x.pix_nome, cidade: x.pix_cidade, valor: 1, txid: "TESTE" });
+      render(alvo, html`<div class="row" style="gap:1rem;align-items:center"><div class="qr-box sm">${raw(qrSvg(codigo, 140))}</div>
+        <p class="small muted">Prévia com R$ 1,00. Leia com o app do banco para conferir o nome antes de usar no caixa. Não precisa pagar.</p></div>`);
+    };
+    f.addEventListener("input", previa); previa();
+    f.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const x = lerForm(f);
+      const chave = normalizarChave(x.pix_tipo, x.pix_chave);
+      if (!chave) return toast("Chave PIX inválida para o tipo escolhido", "erro");
+      if (x.pix_nome.length < 2) return toast("Informe o nome do recebedor", "erro");
+      await ocupado(f.querySelector("button.primary"), async () => {
+        try {
+          estado.empresa = await q(sb.from("empresas").update({ pix_tipo: x.pix_tipo, pix_chave: chave, pix_nome: x.pix_nome, pix_cidade: x.pix_cidade || null }).eq("id", e.id).select().single());
+          toast("Chave PIX salva. O PDV já mostra o QR Code.", "ok"); pix().catch(erro);
+        } catch (err) { erro(err); }
+      });
+    };
+    $("#tirar-pix", el)?.addEventListener("click", async () => {
+      try { estado.empresa = await q(sb.from("empresas").update({ pix_tipo: null, pix_chave: null }).eq("id", e.id).select().single()); toast("Chave removida", "ok"); pix().catch(erro); } catch (err) { erro(err); }
+    });
+    const fm = $("#f-mp", el);
+    fm.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const tk = fm.token.value.trim();
+      if (!tk) return toast("Cole o Access Token", "erro");
+      if (!/^APP_USR-|^TEST-/.test(tk)) return toast("O token do Mercado Pago começa com APP_USR-", "erro");
+      try { await rpc("salvar_mercado_pago", { p_token: tk }); toast("Confirmação automática ligada", "ok"); pix().catch(erro); } catch (err) { erro(err); }
+    };
+    $("#tirar-mp", el)?.addEventListener("click", async () => {
+      try { await rpc("salvar_mercado_pago", { p_token: "" }); toast("Confirmação automática desligada", "ok"); pix().catch(erro); } catch (err) { erro(err); }
+    });
+  }
+
+  // ---------- Delivery e cardápio ----------
+  async function delivery() {
+    await qrPronto();
+    const e = estado.empresa; const ro = !eh("admin");
+    const c = { taxa_entrega: 0, pedido_minimo: 0, tempo_estimado: "40-60 min", entrega: true, retirada: true, mensagem: "", horario: "", ...(e.delivery_config || {}) };
+    const sugestao = (e.nome_fantasia || e.razao_social || "minha-loja").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+    const link = e.slug ? linkCardapio(e.slug) : "";
+    const v = (n) => String(Number(n || 0).toFixed(2)).replace(".", ",");
+    render($("#corpo", el), html`<div class="stack-lg">
+      ${link && e.delivery_ativo ? html`<div class="panel panel-pad row wrap" style="gap:1.25rem;align-items:center">
+        <div class="qr-box">${raw(qrSvg(link, 160))}</div>
+        <div class="stack grow" style="min-width:220px">
+          <h2>Seu cardápio digital está no ar</h2>
+          <a href="${link}" target="_blank" rel="noopener" class="link-quebra">${link}</a>
+          <div class="row wrap"><button class="btn sm" id="copiar">Copiar link</button><a class="btn sm" href="${link}" target="_blank" rel="noopener">Abrir</a><button class="btn sm" id="imp-qr">Imprimir QR para o balcão</button></div>
+          <p class="hint">Divulgue no WhatsApp, Instagram e nas mesas. Os pedidos chegam na tela Delivery e não pagam comissão.</p>
+        </div></div>` : ""}
+      <form id="f-del" class="panel panel-pad stack-lg">
+        ${ro ? html`<div class="alerta info">Somente o administrador pode alterar estas opções.</div>` : ""}
+        <fieldset ${ro ? "disabled" : ""} style="border:0;padding:0;margin:0" class="stack-lg">
+        <label class="check"><input type="checkbox" name="delivery_ativo" ${e.delivery_ativo ? "checked" : ""}> <strong>Receber pedidos pelo cardápio digital</strong></label>
+        <label class="field"><span>Endereço do cardápio</span>
+          <div class="row" style="gap:.4rem"><span class="muted small" style="white-space:nowrap">…/cardapio/?loja=</span><input class="input" name="slug" value="${e.slug || sugestao}" maxlength="40" pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]" required></div>
+          <small class="hint">Letras minúsculas, números e hífen. Ex.: padaria-do-ze</small></label>
+        <div class="grid-3">
+          <label class="field"><span>Taxa de entrega (R$)</span><input class="input" name="taxa_entrega" value="${v(c.taxa_entrega)}" inputmode="decimal"></label>
+          <label class="field"><span>Pedido mínimo (R$)</span><input class="input" name="pedido_minimo" value="${v(c.pedido_minimo)}" inputmode="decimal"></label>
+          <label class="field"><span>Tempo estimado</span><input class="input" name="tempo_estimado" value="${c.tempo_estimado}" maxlength="20"></label>
+        </div>
+        <div class="grid-2">
+          <label class="check"><input type="checkbox" name="entrega" ${c.entrega !== false ? "checked" : ""}> Faz entrega</label>
+          <label class="check"><input type="checkbox" name="retirada" ${c.retirada !== false ? "checked" : ""}> Cliente pode retirar na loja</label>
+        </div>
+        <label class="field"><span>Horário de atendimento (aparece no cardápio)</span><input class="input" name="horario" value="${c.horario}" maxlength="80" placeholder="Ter a dom, 18h às 23h"></label>
+        <label class="field"><span>Recado no topo do cardápio</span><input class="input" name="mensagem" value="${c.mensagem}" maxlength="140" placeholder="Ex.: Entregamos em todo o centro"></label>
+        ${!e.pix_chave ? html`<div class="alerta warn">Cadastre a chave PIX na aba PIX para o cliente pagar pelo cardápio.</div>` : ""}
+        <p class="hint">Escolha quais produtos aparecem no cardápio em Produtos › editar › “Mostrar no cardápio digital” (com foto e descrição).</p>
+        ${ro ? "" : html`<div><button class="btn primary">Salvar</button></div>`}
+        </fieldset></form></div>`);
+    const f = $("#f-del", el);
+    $("#copiar", el)?.addEventListener("click", () => navigator.clipboard?.writeText(link).then(() => toast("Link copiado", "ok")));
+    $("#imp-qr", el)?.addEventListener("click", () => imprimirQrCardapio(link));
+    f.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const x = lerForm(f);
+      const slug = x.slug.toLowerCase();
+      if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(slug)) return toast("Endereço inválido: use letras minúsculas, números e hífen", "erro");
+      const taxa = lerNumero(x.taxa_entrega), min = lerNumero(x.pedido_minimo);
+      if (!(taxa >= 0) || !(min >= 0)) return toast("Valores inválidos", "erro");
+      if (!x.entrega && !x.retirada) return toast("Marque entrega, retirada ou as duas", "erro");
+      await ocupado(f.querySelector("button.primary"), async () => {
+        try {
+          estado.empresa = await q(sb.from("empresas").update({
+            slug, delivery_ativo: x.delivery_ativo,
+            delivery_config: { ...c, taxa_entrega: taxa, pedido_minimo: min, tempo_estimado: x.tempo_estimado, entrega: x.entrega, retirada: x.retirada, horario: x.horario, mensagem: x.mensagem },
+          }).eq("id", e.id).select().single());
+          toast("Delivery configurado", "ok"); delivery().catch(erro);
+        } catch (err) { erro(/duplicate|empresas_slug/i.test(err.message) ? new Error("Este endereço já está em uso por outra loja. Escolha outro.") : err); }
+      });
+    };
   }
 
   // ---------- Fiscal ----------
@@ -205,4 +351,18 @@ export default async function configuracoes(el) {
   }
 
   desenhar();
+}
+
+/** Folha A4 com o QR do cardápio para colar no balcão ou nas mesas. */
+function imprimirQrCardapio(link) {
+  const nome = estado.empresa.nome_fantasia || estado.empresa.razao_social;
+  const f = document.createElement("iframe");
+  f.style.cssText = "position:fixed;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(f);
+  f.onload = () => setTimeout(() => { f.contentWindow.print(); setTimeout(() => f.remove(), 1000); }, 80);
+  f.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><style>
+    body{font-family:system-ui,sans-serif;text-align:center;padding:30mm 15mm;color:#111}
+    h1{font-size:30pt;margin:0 0 4mm} p{font-size:15pt;margin:2mm 0} svg{width:110mm;height:110mm;margin:10mm auto;display:block}
+    small{font-size:10pt;color:#555;word-break:break-all}</style></head><body>
+    <h1>${esc(nome)}</h1><p>Peça pelo celular</p>${qrSvg(link, 400)}<p><b>Aponte a câmera para o QR Code</b></p><small>${esc(link)}</small></body></html>`;
 }

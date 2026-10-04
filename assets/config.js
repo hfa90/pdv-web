@@ -25,6 +25,7 @@ export const PRECOS = {
   kitCompra: 3290,         // kit desktop vendido, instalado e configurado
   gavetaCompra: 590,       // gaveta vendida junto com o kit
   instalacao: 390,         // taxa de instalação (isenta no combo)
+  delivery: 49.9,          // cardápio digital + delivery, sem comissão por pedido (garçom/mesas já incluso para restaurantes)
   notaExcedente: 0.10,     // por NFC-e acima de 500/mês
 };
 

@@ -106,7 +106,7 @@ export function telaOnboarding(app, aoConcluir) {
       <label class="field"><span>Nome da loja</span><input class="input" name="loja" value="${meta.loja || ""}" required></label>
       <label class="field"><span>Tipo de negócio</span>
         <select class="input" name="segmento">
-          ${[["padaria","Padaria"],["mercadinho","Mercadinho"],["supermercado","Supermercado"],["lanchonete","Lanchonete"],["cafe","Café da manhã / cafeteria"],["restaurante","Restaurante"]]
+          ${[["padaria","Padaria"],["mercadinho","Mercadinho"],["supermercado","Supermercado"],["lanchonete","Lanchonete"],["cafe","Café da manhã / cafeteria"],["restaurante","Restaurante (com mesas e app do garçom)"]]
             .map(([v, n]) => html`<option value="${v}" ${meta.segmento === v ? "selected" : ""}>${n}</option>`)}
         </select></label>
       <div class="grid-2">

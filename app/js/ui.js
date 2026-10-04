@@ -106,7 +106,13 @@ export function lerForm(form) {
 
 // ---------- Toast ----------
 export function toast(msg, tipo = "") {
-  const box = document.getElementById("toasts");
+  // Com um modal aberto, o aviso vai dentro dele (senão ficaria atrás do fundo escuro)
+  const dlg = [...document.querySelectorAll("dialog[open]")].pop();
+  let box = document.getElementById("toasts");
+  if (dlg) {
+    box = dlg.querySelector(":scope > .toasts");
+    if (!box) { box = document.createElement("div"); box.className = "toasts"; box.setAttribute("role", "status"); dlg.appendChild(box); }
+  }
   const el = document.createElement("div");
   el.className = "toast " + tipo;
   el.textContent = msg;
@@ -120,7 +126,7 @@ export const erro = (e) => toast(e?.message || String(e), "erro");
  * Abre um modal. `corpo` é html``. `onPronto(dialog, fechar)` liga eventos.
  * Retorna Promise resolvida com o valor passado a fechar().
  */
-export function modal({ titulo, corpo, rodape, largo = false, onPronto }) {
+export function modal({ titulo, corpo, rodape, largo = false, fixo = false, onPronto }) {
   return new Promise((resolve) => {
     const d = document.createElement("dialog");
     d.className = "modal" + (largo ? " wide" : "");
@@ -134,7 +140,7 @@ export function modal({ titulo, corpo, rodape, largo = false, onPronto }) {
     const fechar = (v) => { resultado = v; d.close(); };
     d.addEventListener("close", () => { d.remove(); resolve(resultado); });
     d.querySelectorAll("[data-fechar]").forEach((b) => b.addEventListener("click", () => fechar()));
-    d.addEventListener("click", (e) => { if (e.target === d) fechar(); });
+    d.addEventListener("click", (e) => { if (e.target === d && !fixo) fechar(); });
     d.showModal();
     onPronto?.(d, fechar);
     const foco = d.querySelector("[autofocus]") || d.querySelector(".modal-body input, .modal-body select");

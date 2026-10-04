@@ -3,7 +3,7 @@
 // uma lista de "operações" e renderizado nos dois formatos.
 import { sb, q } from "../api.js";
 import { estado } from "../estado.js";
-import { esc, numero, dataHora, formatarDoc, qtd as fmtQtd, rotuloMesa } from "../ui.js";
+import { esc, numero, dataHora, hora, formatarDoc, qtd as fmtQtd, rotuloMesa } from "../ui.js";
 import { Escpos, enviar } from "./escpos.js";
 
 // ---------- Configuração (por terminal, salva no navegador) ----------
@@ -33,7 +33,7 @@ function cabecalhoEmpresa(ops) {
   ops.push({ t: "sep" });
 }
 
-export function layoutVenda(venda, doc) {
+export function layoutVenda(venda, doc, { conta = false } = {}) {
   const ops = [];
   cabecalhoEmpresa(ops);
   if (estado.conta?.status === "teste") ops.push({ t: "texto", s: "*** MODO TESTE · SEM VALOR ***", align: "centro", bold: true });
@@ -42,6 +42,9 @@ export function layoutVenda(venda, doc) {
   if (fiscal) {
     ops.push({ t: "texto", s: "DANFE NFC-e", align: "centro", bold: true });
     ops.push({ t: "texto", s: "Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica", align: "centro" });
+  } else if (aberta && conta) {
+    ops.push({ t: "texto", s: `CONTA · ${rotuloMesa(venda.identificador) || "Pedido " + venda.numero}`, align: "centro", bold: true, grande: true });
+    ops.push({ t: "texto", s: "Conferência · não é documento fiscal", align: "centro" });
   } else if (aberta) {
     ops.push({ t: "texto", s: venda.identificador ? `PEDIDO · ${rotuloMesa(venda.identificador)}` : "PEDIDO", align: "centro", bold: true, grande: true });
   } else {
@@ -62,6 +65,14 @@ export function layoutVenda(venda, doc) {
   if (Number(venda.desconto)) ops.push({ t: "cols", esq: "Desconto", dir: "-" + v2(venda.desconto) });
   if (Number(venda.acrescimo)) ops.push({ t: "cols", esq: "Acréscimo / serviço", dir: v2(venda.acrescimo) });
   ops.push({ t: "cols", esq: "TOTAL R$", dir: v2(venda.total), bold: true, grande: true });
+  if (conta) {
+    const taxa = Math.round(Number(venda.subtotal) * 10) / 100;
+    if (!Number(venda.acrescimo) && taxa > 0) {
+      ops.push({ t: "cols", esq: "Serviço 10% (opcional)", dir: v2(taxa) });
+      ops.push({ t: "cols", esq: "Total com serviço", dir: v2(Number(venda.total) + taxa), bold: true });
+    }
+    if (venda.pessoas > 1) ops.push({ t: "cols", esq: `Por pessoa (${venda.pessoas})`, dir: v2(Number(venda.total) / venda.pessoas) });
+  }
 
   if (!aberta && venda.pagamentos?.length) {
     ops.push({ t: "espaco" });
@@ -219,13 +230,13 @@ export async function abrirGaveta() {
 }
 
 /** Busca a venda completa e imprime (cupom fiscal se houver NFC-e autorizada). */
-export async function imprimirVenda(vendaId) {
+export async function imprimirVenda(vendaId, opcoes = {}) {
   const venda = await q(sb.from("vendas")
     .select("*, cliente:clientes(nome, cpf_cnpj), operador:perfis!vendas_operador_id_fkey(nome), itens:venda_itens(*), pagamentos:venda_pagamentos(*)")
     .eq("id", vendaId).single());
   const doc = await q(sb.from("documentos_fiscais").select("*").eq("venda_id", vendaId).eq("modelo", "65")
     .eq("status", "autorizado").order("created_at", { ascending: false }).limit(1).maybeSingle());
-  await imprimir(layoutVenda(venda, doc));
+  await imprimir(venda.status === "aberta" && ["delivery", "retirada"].includes(venda.canal) && !opcoes.conta ? layoutDelivery(venda) : layoutVenda(venda, doc, opcoes));
   return { venda, doc };
 }
 
@@ -239,3 +250,51 @@ export async function imprimirTeste() {
   ops.push({ t: "qr", s: "https://www.nfce.fazenda.gov.br" });
   return imprimir(ops);
 }
+
+const ENDERECO = (e) => e ? [[e.logradouro, e.numero].filter(Boolean).join(", "), e.complemento, e.bairro, e.cidade].filter(Boolean).join(" - ") : "";
+const PAG_PREVISTO = { pix: "PIX", dinheiro: "Dinheiro", cartao: "Cartão na entrega" };
+
+/** Via da cozinha: só os itens novos, letra grande, sem preços. */
+export function layoutCozinha(venda, itens, quem) {
+  const ops = [];
+  ops.push({ t: "texto", s: rotuloMesa(venda.identificador) || `Pedido ${venda.numero}`, align: "centro", bold: true, grande: true });
+  ops.push({ t: "texto", s: `${hora(new Date())} · pedido nº ${venda.numero}${quem ? " · " + quem : ""}`, align: "centro" });
+  ops.push({ t: "sep" });
+  itens.forEach((i) => {
+    ops.push({ t: "texto", s: `${fmtQtd(i.quantidade, i.unidade)}x ${i.descricao}`, bold: true, grande: true });
+    if (i.observacao) ops.push({ t: "texto", s: `  >> ${i.observacao}`, bold: true });
+  });
+  ops.push({ t: "sep" });
+  return ops;
+}
+
+/** Pedido do delivery/retirada: itens, cliente, endereço e pagamento. */
+export function layoutDelivery(venda) {
+  const ops = [];
+  cabecalhoEmpresa(ops);
+  ops.push({ t: "texto", s: `${venda.canal === "delivery" ? "ENTREGA" : "RETIRADA"} · Nº ${venda.numero}`, align: "centro", bold: true, grande: true });
+  ops.push({ t: "texto", s: dataHora(venda.created_at), align: "centro" });
+  ops.push({ t: "sep" });
+  (venda.itens || []).filter((i) => !i.removido).sort((a, b) => a.item - b.item).forEach((i) => {
+    ops.push({ t: "cols", esq: `${fmtQtd(i.quantidade, i.unidade)}x ${i.descricao}`, dir: v2(i.total), bold: true });
+    if (i.observacao) ops.push({ t: "texto", s: `   >> ${i.observacao}` });
+  });
+  ops.push({ t: "sep" });
+  ops.push({ t: "cols", esq: "Subtotal", dir: v2(venda.subtotal) });
+  if (Number(venda.taxa_entrega)) ops.push({ t: "cols", esq: "Entrega", dir: v2(venda.taxa_entrega) });
+  if (Number(venda.desconto)) ops.push({ t: "cols", esq: "Desconto", dir: "-" + v2(venda.desconto) });
+  ops.push({ t: "cols", esq: "TOTAL R$", dir: v2(venda.total), bold: true, grande: true });
+  ops.push({ t: "texto", s: `Pagamento: ${PAG_PREVISTO[venda.forma_prevista] || "-"}${venda.pagamento_status === "pago" ? " (PAGO)" : " (cobrar)"}`, bold: true });
+  if (venda.troco_para) ops.push({ t: "texto", s: `Troco para ${v2(venda.troco_para)} (levar ${v2(Number(venda.troco_para) - Number(venda.total))})`, bold: true });
+  ops.push({ t: "sep" });
+  ops.push({ t: "texto", s: `Cliente: ${venda.cliente_nome || "-"}`, bold: true });
+  if (venda.cliente_telefone) ops.push({ t: "texto", s: `Tel: ${venda.cliente_telefone.replace(/(\d{2})(\d{4,5})(\d{4})/, "($1) $2-$3")}` });
+  if (venda.endereco) {
+    ops.push({ t: "texto", s: ENDERECO(venda.endereco), bold: true });
+    if (venda.endereco.referencia) ops.push({ t: "texto", s: `Ref.: ${venda.endereco.referencia}` });
+  }
+  if (venda.observacao) ops.push({ t: "texto", s: `Obs: ${venda.observacao}`, bold: true });
+  return ops;
+}
+export const enderecoTexto = ENDERECO;
+export const pagamentoPrevisto = (f) => PAG_PREVISTO[f] || f || "";

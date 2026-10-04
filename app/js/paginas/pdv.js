@@ -4,9 +4,10 @@
 // Leitor: "3*789..." multiplica a quantidade; etiquetas de balança (EAN-13 iniciado em 2) são lidas automaticamente.
 import { sb, q, rpc, fn, todos } from "../api.js";
 import { estado, eh, atualizarCaixa } from "../estado.js";
-import { html, render, $, $$, dinheiro, qtd as fmtQtd, lerNumero, toast, erro, modal, confirmar, pedirTexto, ocupado, docValido, somenteDigitos, formatarDoc, hora, rotuloMesa } from "../ui.js";
+import { raw, debounce, html, render, $, $$, dinheiro, qtd as fmtQtd, lerNumero, toast, erro, modal, confirmar, pedirTexto, ocupado, docValido, somenteDigitos, formatarDoc, hora, rotuloMesa } from "../ui.js";
 import { icone } from "../icons.js";
 import { configImpressora, imprimir, imprimirVenda, layoutVenda, nomeForma } from "../impressao/cupom.js";
+import { payloadPix, qrSvg, qrPronto, txidVenda } from "../../../assets/pix.js";
 
 const FRACIONADOS = ["KG", "G", "L", "ML", "M"];
 const FORMAS = [
@@ -15,7 +16,9 @@ const FORMAS = [
 ];
 const r2 = (n) => Math.round(n * 100) / 100;
 
-export default async function pdv(el) {
+const CANAL = { mesa: "Mesa", delivery: "Delivery", retirada: "Retirada", balcao: "Balcão" };
+
+export default async function pdv(el, params = []) {
   const chaveCarrinho = "pdv-carrinho-" + estado.perfil.id;
   const podeReceber = !eh("atendente");
 
@@ -24,7 +27,10 @@ export default async function pdv(el) {
   let venda = carregarCarrinho();
   let sel = venda.itens.length - 1;
 
-  function novaVenda() { return { venda_id: null, numero: null, identificador: "", cliente: null, cpf: "", desconto: 0, acrescimo: 0, observacao: "", itens: [] }; }
+  function novaVenda() { return { venda_id: null, numero: null, alterado_em: null, canal: null, pre_pago: 0, identificador: "", cliente: null, cpf: "", desconto: 0, acrescimo: 0, observacao: "", itens: [] }; }
+  // Cobrança PIX automática (Mercado Pago) ligada nesta loja?
+  let pixAuto = false;
+  if (!eh("atendente")) rpc("mercado_pago_status").then((v) => (pixAuto = !!v)).catch(() => {});
   function carregarCarrinho() {
     try { const v = JSON.parse(localStorage.getItem(chaveCarrinho)); if (v?.itens) return v; } catch { /* vazio */ }
     return novaVenda();
@@ -349,6 +355,7 @@ export default async function pdv(el) {
     pagamentos, desconto: venda.desconto, acrescimo: venda.acrescimo,
     cliente_id: venda.cliente?.id || null, cpf_cnpj: venda.cpf || null,
     identificador: venda.identificador || null, observacao: venda.observacao || null,
+    ...(venda.venda_id && venda.alterado_em ? { alterado_em: venda.alterado_em } : {}),
   });
 
   // ---------- Pedidos / comandas ----------
@@ -360,16 +367,21 @@ export default async function pdv(el) {
       toast(`Pedido nº ${r.numero} salvo · ${rotuloMesa(venda.identificador)}`, "ok");
       if (configImpressora().viaPedido) imprimirVenda(r.id).catch(erro);
       limpar(false); contarPedidos();
-    } catch (e) { erro(e); }
+    } catch (e) {
+      erro(e);
+      if (/outro aparelho/.test(e.message) && venda.venda_id) { const id = venda.venda_id; venda.itens = []; await carregarPedido(id).catch(erro); }
+    }
   }
 
   async function abrirPedidos() {
-    const lista = await q(sb.from("vendas").select("id,numero,identificador,total,created_at,operador:perfis!vendas_operador_id_fkey(nome)")
+    const lista = await q(sb.from("vendas").select("id,numero,identificador,canal,total,created_at,status_pedido,pagamento_status,cliente_nome,operador:perfis!vendas_operador_id_fkey(nome)")
       .eq("status", "aberta").order("created_at"));
     await modal({
       titulo: "Pedidos e comandas abertos",
       corpo: lista.length ? html`<div class="table-wrap"><table class="table"><thead><tr><th>Mesa/comanda</th><th>Pedido</th><th>Desde</th><th>Atendente</th><th class="r">Total</th></tr></thead>
-        <tbody>${lista.map((v) => html`<tr class="click" data-id="${v.id}"><td><strong>${rotuloMesa(v.identificador) || "—"}</strong></td><td>nº ${v.numero}</td><td>${hora(v.created_at)}</td><td>${v.operador?.nome || ""}</td><td class="r">${dinheiro(v.total)}</td></tr>`)}</tbody></table></div>`
+        <tbody>${lista.map((v) => html`<tr class="click" data-id="${v.id}"><td><strong>${rotuloMesa(v.identificador) || "—"}</strong>
+          ${v.canal && v.canal !== "balcao" ? html` <span class="badge canal-${v.canal}">${CANAL[v.canal]}</span>` : ""}${v.pagamento_status === "pago" ? html` <span class="badge ok">pago</span>` : ""}</td>
+          <td>nº ${v.numero}</td><td>${hora(v.created_at)}</td><td>${v.operador?.nome || v.cliente_nome || ""}</td><td class="r">${dinheiro(v.total)}</td></tr>`)}</tbody></table></div>`
         : html`<div class="empty"><p>Nenhum pedido aberto.</p><p class="small">Use “Salvar pedido” para guardar uma mesa ou comanda e continuar depois.</p></div>`,
       largo: true,
       onPronto: (d, fechar) => d.querySelectorAll("tr[data-id]").forEach((tr) => (tr.onclick = () => fechar(tr.dataset.id))),
@@ -381,8 +393,11 @@ export default async function pdv(el) {
     if (venda.itens.length && !venda.venda_id && !(await confirmar("O cupom atual tem itens que não foram salvos. Substituir pelo pedido?", { ok: "Substituir" }))) return;
     const v = await q(sb.from("vendas").select("*, cliente:clientes(id,nome,cpf_cnpj), itens:venda_itens(*)").eq("id", id).single());
     const mapa = new Map(produtos.map((p) => [p.id, p]));
+    if (v.status !== "aberta") { toast(`Este pedido já está ${v.status}`, "erro"); return; }
     venda = {
-      venda_id: v.id, numero: v.numero, identificador: v.identificador || "", cliente: v.cliente, cpf: v.cpf_cnpj_consumidor || "",
+      venda_id: v.id, numero: v.numero, alterado_em: v.alterado_em, canal: v.canal,
+      pre_pago: v.pagamento_status === "pago" ? Number(v.total) : 0,
+      identificador: v.identificador || "", cliente: v.cliente, cpf: v.cpf_cnpj_consumidor || "",
       desconto: Number(v.desconto) - v.itens.filter((i) => !i.removido).reduce((a, i) => a + Number(i.desconto), 0),
       acrescimo: Number(v.acrescimo), observacao: v.observacao || "",
       itens: v.itens.filter((i) => !i.removido).sort((a, b) => a.item - b.item).map((i) => ({
@@ -392,6 +407,7 @@ export default async function pdv(el) {
     };
     sel = venda.itens.length - 1;
     atualizarCupom();
+    if (venda.pre_pago) toast("Este pedido já foi pago por PIX no cardápio digital", "ok");
   }
 
   // ---------- Pagamento ----------
@@ -404,6 +420,12 @@ export default async function pdv(el) {
     const t = total();
     const pagamentos = [];
     let forma = "dinheiro";
+    // Pedido do delivery já pago online: entra como PIX recebido
+    if (venda.pre_pago) pagamentos.push({ forma: "pix", valor: Math.min(t, r2(venda.pre_pago)) });
+    const e = estado.empresa;
+    const temChave = !!(e.pix_chave && e.pix_tipo);
+    await qrPronto(1500);
+    let pararPix = () => {};
 
     const resultado = await modal({
       titulo: "Receber pagamento",
@@ -416,6 +438,7 @@ export default async function pdv(el) {
           <button class="btn lg">Adicionar</button>
         </form>
         <div class="atalhos-valor" id="atalhos"></div>
+        <div class="pix-area" id="pix-area" hidden></div>
         <div class="pag-lista" id="pags"></div>
         <div class="pag-resumo" id="resumo"></div>
         <div class="grid-2">
@@ -426,8 +449,80 @@ export default async function pdv(el) {
       rodape: html`<button class="btn" data-fechar>Voltar</button><button class="btn primary lg" id="concluir" disabled>Concluir venda</button>`,
       onPronto: (d, fechar) => {
         const f = d.querySelector("#f-pag");
+        const areaPix = d.querySelector("#pix-area");
+        let cobranca = null; // { id, valor } — cobrança automática em andamento
+        let timerPix = null;
+        pararPix = () => { clearTimeout(timerPix); timerPix = null; cobranca = null; };
         const pago = () => r2(pagamentos.reduce((a, p) => a + p.valor, 0));
         const falta = () => Math.max(0, r2(t - pago()));
+        // ----- PIX: QR Code com o valor -----
+        const valorPix = () => { const v = lerNumero(f.valor.value); return v > 0 ? Math.min(r2(v), falta()) : falta(); };
+        const desenharPix = async () => {
+          if (forma !== "pix" || falta() <= 0) { areaPix.hidden = true; pararPix(); return; }
+          areaPix.hidden = false;
+          const valor = valorPix();
+          if (pixAuto) {
+            if (cobranca?.valor === valor) return;
+            pararPix();
+            render(areaPix, html`<div class="pix-carregando"><span class="spinner"></span> Gerando cobrança PIX de ${dinheiro(valor)}…</div>`);
+            try {
+              const c = await fn("pagamentos", { acao: "pix_criar", valor, descricao: `Venda ${venda.numero || ""} ${estado.empresa.nome_fantasia || ""}`.trim() });
+              if (forma !== "pix" || !d.open) return;
+              cobranca = { id: c.id, valor };
+              mostrarQr(c.qr_code, valor, true);
+              const verificar = async () => {
+                if (!cobranca || cobranca.id !== c.id || !d.open) return;
+                try {
+                  const st = await fn("pagamentos", { acao: "pix_status", payment_id: c.id });
+                  if (st.status === "approved") {
+                    pararPix(); adicionar(valor, "pix");
+                    toast(`PIX de ${dinheiro(valor)} confirmado`, "ok"); return;
+                  }
+                  if (["rejected", "cancelled", "expired"].includes(st.status)) { pararPix(); desenharPix(); return; }
+                } catch { /* tenta de novo */ }
+                timerPix = setTimeout(verificar, 3000);
+              };
+              timerPix = setTimeout(verificar, 3000);
+            } catch (err) {
+              render(areaPix, html`<div class="alerta warn">Não foi possível gerar a cobrança automática (${err.message}).${temChave ? " Usando a chave PIX da loja." : ""}</div><div id="pix-alt"></div>`);
+              cobranca = { id: null, valor };
+              if (temChave) mostrarQr(codigoEstatico(valor), valor, false, areaPix.querySelector("#pix-alt"));
+            }
+            return;
+          }
+          if (!temChave) {
+            render(areaPix, html`<div class="alerta info">Para mostrar o QR Code do PIX, cadastre a chave da loja em
+              ${eh("admin", "gerente") ? html`<a href="#/configuracoes/pix" data-fechar>Configurações › PIX</a>` : "Configurações › PIX (peça ao gerente)"}.
+              Você ainda pode lançar o PIX recebido em “Adicionar”.</div>`);
+            return;
+          }
+          try { mostrarQr(codigoEstatico(valor), valor, false); }
+          catch (err) { render(areaPix, html`<div class="alerta warn">${err.message}</div>`); }
+        };
+        const codigoEstatico = (valor) => payloadPix({ tipo: e.pix_tipo, chave: e.pix_chave, nome: e.pix_nome || e.nome_fantasia || e.razao_social, cidade: e.pix_cidade || e.municipio, valor, txid: txidVenda("PDV", venda.numero) });
+        const mostrarQr = (codigo, valor, auto, alvo = areaPix) => {
+          const bloco = html`<div class="qr-box">${raw(qrSvg(codigo, 210))}</div>
+            <div class="stack grow" style="gap:.5rem;min-width:200px">
+              <div><div class="muted small">PIX para ${e.pix_nome || e.nome_fantasia || "a loja"}</div><div class="pix-valor">${dinheiro(valor)}</div></div>
+              <div class="pix-status ${auto ? "auto" : ""}">${auto ? html`<span class="pulso"></span> Aguardando pagamento · confirma sozinho` : "Mostre o QR ao cliente e confira o crédito no app do banco."}</div>
+              <div class="row wrap" style="gap:.4rem">
+                <button type="button" class="btn sm" data-pix="copiar">Copiar código</button>
+                <button type="button" class="btn sm" data-pix="imprimir">${icone("imprimir", 'width="16" height="16"')} Imprimir QR</button>
+              </div>
+              <button type="button" class="btn ${auto ? "" : "primary"}" data-pix="ok">${auto ? "Confirmar manualmente" : "PIX recebido"} · ${dinheiro(valor)}</button>
+            </div>`;
+          render(alvo, html`<div class="row wrap pix-linha">${bloco}</div>`);
+          alvo.querySelector('[data-pix="copiar"]').onclick = () => navigator.clipboard?.writeText(codigo).then(() => toast("Código PIX copiado", "ok"), () => toast("Não foi possível copiar", "erro"));
+          alvo.querySelector('[data-pix="imprimir"]').onclick = () => imprimir([
+            { t: "texto", s: estado.empresa.nome_fantasia || estado.empresa.razao_social, align: "centro", bold: true },
+            { t: "texto", s: "PAGUE COM PIX", align: "centro", bold: true, grande: true },
+            { t: "texto", s: dinheiro(valor), align: "centro", bold: true, grande: true },
+            { t: "qr", s: codigo }, { t: "texto", s: "Abra o app do banco e leia o QR Code", align: "centro" },
+          ]).catch(erro);
+          alvo.querySelector('[data-pix="ok"]').onclick = () => { pararPix(); adicionar(valor, "pix"); };
+        };
+        const desenharPixDepois = debounce(desenharPix, 500);
+
         const atualizar = () => {
           d.querySelectorAll(".forma").forEach((b) => b.classList.toggle("ativo", b.dataset.f === forma));
           f.valor.value = falta() ? String(falta().toFixed(2)).replace(".", ",") : "";
@@ -443,14 +538,17 @@ export default async function pdv(el) {
             <div class="${troco ? "troco" : ""}"><span class="small">Troco</span><b>${dinheiro(troco)}</b></div>`);
           d.querySelector("#concluir").disabled = falta() > 0;
           if (falta() > 0) f.valor.select(); else d.querySelector("#concluir").focus();
+          desenharPix();
         };
-        const adicionar = (valor) => {
+        const adicionar = (valor, fm = forma) => {
           if (!(valor > 0)) return toast("Informe o valor", "erro");
-          if (forma !== "dinheiro" && valor > falta() + 1e-9) return toast("Só pagamento em dinheiro pode gerar troco", "erro");
-          const ex = pagamentos.find((p) => p.forma === forma);
-          if (ex) ex.valor = r2(ex.valor + valor); else pagamentos.push({ forma, valor: r2(valor) });
+          if (fm !== "dinheiro" && valor > falta() + 1e-9) return toast("Só pagamento em dinheiro pode gerar troco", "erro");
+          const ex = pagamentos.find((p) => p.forma === fm);
+          if (ex) ex.valor = r2(ex.valor + valor); else pagamentos.push({ forma: fm, valor: r2(valor) });
+          if (fm === "pix" && forma === "pix" && falta() > 0) forma = "dinheiro";
           atualizar();
         };
+        f.valor.addEventListener("input", () => { if (forma === "pix") desenharPixDepois(); });
         d.querySelectorAll(".forma").forEach((b) => (b.onclick = () => { forma = b.dataset.f; atualizar(); }));
         f.onsubmit = (e) => { e.preventDefault(); if (!f.valor.value && falta() === 0) return d.querySelector("#concluir").click(); adicionar(lerNumero(f.valor.value)); };
         d.querySelector("#concluir").onclick = () => fechar({
@@ -464,6 +562,7 @@ export default async function pdv(el) {
         atualizar();
       },
     });
+    pararPix();
     if (!resultado) return focarBusca();
     await concluir(resultado);
   }
@@ -471,7 +570,11 @@ export default async function pdv(el) {
   async function concluir({ pagamentos, imprimir: deveImprimir, nfce }) {
     let r;
     try { r = await rpc("registrar_venda", { p: payload(true, pagamentos) }); }
-    catch (e) { erro(e); return; }
+    catch (e) {
+      erro(e);
+      if (/outro aparelho/.test(e.message) && venda.venda_id) { const id = venda.venda_id; venda.itens = []; await carregarPedido(id).catch(erro); }
+      return;
+    }
 
     limpar(false); contarPedidos();
     // Atualiza estoque local para refletir a venda
@@ -569,6 +672,11 @@ export default async function pdv(el) {
   atualizarCupom();
   desenharAvisoCaixa();
   try { await carregarProdutos(); contarPedidos(); } catch (e) { erro(e); }
+  // Vindo da tela de Mesas ou Delivery: #/pdv/<id do pedido>
+  if (/^[0-9a-f-]{36}$/i.test(params[0] || "")) {
+    history.replaceState(null, "", "#/pdv");
+    if (venda.venda_id !== params[0]) { if (venda.venda_id) venda = novaVenda(); await carregarPedido(params[0]).catch(erro); }
+  }
   focarBusca();
 
   return () => document.removeEventListener("keydown", teclas);

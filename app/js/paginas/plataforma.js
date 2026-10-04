@@ -70,7 +70,9 @@ export default async function plataforma(el) {
   }
 
   async function lojas() {
-    const lista = await rpc("plataforma_lojas");
+    const [lista, mods] = await Promise.all([rpc("plataforma_lojas"), rpc("plataforma_lojas_modulos").catch(() => [])]);
+    const porId = Object.fromEntries((mods || []).map((m) => [m.id, m]));
+    lista.forEach((l) => Object.assign(l, porId[l.id] || {}));
     render($("#corpo", el), html`<div class="panel">${lista.length ? html`<div class="table-wrap"><table class="table">
       <thead><tr><th>Loja</th><th>Contato</th><th>Situação</th><th>Plano</th><th class="r">Vendas</th><th>Última venda</th><th></th></tr></thead>
       <tbody>${lista.map((l) => {
@@ -99,6 +101,13 @@ export default async function plataforma(el) {
           <label class="field"><span>Mensalidade (R$)</span><input class="input" name="valor" inputmode="decimal" value="${valorBr(l.valor_mensal ?? PLANOS.find(([k]) => k === planoAtual)[2])}"></label>
         </div>
         <button type="button" class="btn primary" data-a="ativar">Ativar cliente</button>
+        <h3 style="margin-top:.5rem">Módulos</h3>
+        <div class="grid-2">
+          <label class="check"><input type="checkbox" name="m_delivery" ${l.modulos?.delivery ? "checked" : ""}> Delivery e cardápio digital</label>
+          <label class="check"><input type="checkbox" name="m_garcom" ${l.segmento === "restaurante" || l.modulos?.garcom ? "checked" : ""} ${l.segmento === "restaurante" ? "disabled" : ""}> App do garçom e mesas ${l.segmento === "restaurante" ? html`<span class="muted small">(incluso p/ restaurante)</span>` : ""}</label>
+        </div>
+        <p class="hint">Durante o teste o delivery já fica liberado. ${l.slug ? html`Cardápio: <code>${l.slug}</code> ${l.delivery_ativo ? "(no ar)" : "(desligado pela loja)"}` : ""}</p>
+        <button type="button" class="btn" data-a="modulos">Salvar módulos</button>
         <h3 style="margin-top:.5rem">Teste</h3>
         <div class="row"><select class="input" name="dias" style="max-width:140px"><option value="3">3 dias</option><option value="7" selected>7 dias</option><option value="15">15 dias</option></select>
           <button type="button" class="btn" data-a="estender">Estender teste</button></div>
@@ -108,11 +117,15 @@ export default async function plataforma(el) {
       onPronto: (d, fechar) => {
         const f = d.querySelector("form");
         f.plano.onchange = () => { f.valor.value = valorBr(Number(f.plano.selectedOptions[0].dataset.v)); };
-        d.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => fechar({ a: b.dataset.a, plano: f.plano.value, valor: lerNumero(f.valor.value), dias: Number(f.dias.value) })));
+        d.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => fechar({ a: b.dataset.a, plano: f.plano.value, valor: lerNumero(f.valor.value), dias: Number(f.dias.value), modulos: { delivery: f.m_delivery.checked, garcom: f.m_garcom.checked } })));
       },
     });
     if (!acao) return;
     if (["suspender", "cancelar"].includes(acao.a) && !(await confirmar(`Confirmar: ${acao.a} a loja ${l.loja}? As vendas ficam bloqueadas.`, { perigo: true, ok: "Confirmar" }))) return;
+    if (acao.a === "modulos") {
+      try { await rpc("plataforma_modulos", { p_id: l.id, p_modulos: acao.modulos }); toast("Módulos atualizados", "ok"); desenhar(); } catch (e) { erro(e); }
+      return;
+    }
     try {
       await rpc("plataforma_atualizar_loja", { p_id: l.id, p_acao: acao.a, p_plano: acao.plano, p_valor: acao.valor, p_dias: acao.dias });
       toast("Loja atualizada", "ok"); kpis(); desenhar();
