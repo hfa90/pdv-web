@@ -828,3 +828,5 @@ label.chip { cursor: pointer; }
   .drop-xml { flex-direction: column; text-align: center; }
 }
 .resumo-cols { align-items: start; }
+.btn.lg.icon-btn { width: 56px; padding: 0; justify-content: center; }
+.btn svg { flex-shrink: 0; }
