@@ -10,6 +10,8 @@ import { configImpressora, imprimir, imprimirVenda, layoutVenda, nomeForma } fro
 import { payloadPix, qrSvg, qrPronto, txidVenda } from "../../../assets/pix.js";
 import { balancaAtiva, configBalanca, lerEtiquetaBalanca, aoMudar as aoMudarBalanca } from "../balanca.js";
 import { pesar } from "../pesagem.js";
+import { calcularPromocoes } from "../promocoes-calc.js";
+import { abrirGaveta } from "../impressao/cupom.js";
 import {
   novoId, estaOnline, ehErroDeRede, marcarRede, comTempo, salvarCatalogo, lerCatalogo, enfileirarVenda, aoEnviarVenda,
   agendarRascunho, descartarRascunho, aoMudarRascunho, rascunhosDeOutros, assumirRascunho,
@@ -57,7 +59,27 @@ export default async function pdv(el, params = []) {
   const jaPago = () => r2((venda.pagamentos || []).reduce((a, p) => a + p.valor, 0));
 
   const subtotal = () => r2(venda.itens.reduce((a, i) => a + r2(i.quantidade * i.preco), 0));
-  const total = () => r2(subtotal() - venda.desconto + venda.acrescimo);
+  // Promoções: mesma regra do servidor (promocoes-calc.js). Durante o pagamento vale o horário
+  // em que a tela de pagamento abriu (venda.ref_promo), que também vai para o servidor.
+  let promocoesAtivas = [];
+  const chavePromo = () => "lis-promocoes-" + estado.empresa.id;
+  const promos = () => {
+    const mapa = new Map(produtos.map((p) => [p.id, p]));
+    return calcularPromocoes(promocoesAtivas, venda.itens.map((i, k) => ({ i: k + 1, produto_id: i.produto_id, categoria_id: mapa.get(i.produto_id)?.categoria_id || null, quantidade: i.quantidade, preco: i.preco })),
+      venda.ref_promo ? new Date(venda.ref_promo) : new Date(), estado.empresa.fuso);
+  };
+  const descontoPromo = () => r2([...promos().values()].reduce((a, x) => a + x.desconto, 0));
+  const total = () => r2(subtotal() - descontoPromo() - venda.desconto + venda.acrescimo);
+  async function carregarPromocoes() {
+    try {
+      const { data, error } = await comTempo(sb.from("promocoes").select("*").eq("ativo", true), 10000);
+      if (error) throw error;
+      promocoesAtivas = data || [];
+      try { localStorage.setItem(chavePromo(), JSON.stringify(promocoesAtivas)); } catch { /* sem espaço */ }
+    } catch {
+      try { promocoesAtivas = JSON.parse(localStorage.getItem(chavePromo())) || []; } catch { promocoesAtivas = []; }
+    }
+  }
 
   // ---------- Estrutura ----------
   render(el, html`
@@ -67,6 +89,7 @@ export default async function pdv(el, params = []) {
           <label class="pdv-busca">${icone("busca")}
             <input class="input" id="busca" placeholder="Buscar produto ou passar o código de barras" autocomplete="off" aria-label="Buscar produto"></label>
           <button class="balanca-chip" id="chip-bal" hidden title="Balança">${icone("balanca", 'width="16" height="16"')}<span class="pt"></span><span id="chip-bal-txt">Balança</span></button>
+          ${podeReceber ? html`<button class="btn lg icon-btn" id="btn-gaveta" title="Abrir gaveta (fica registrado)" aria-label="Abrir gaveta">${icone("gaveta", 'width="20" height="20"')}</button>` : ""}
           <button class="btn lg" id="btn-pedidos" title="Pedidos e comandas abertos">${icone("comanda", 'width="20" height="20"')}<span id="n-pedidos">Pedidos</span></button>
         </div>
         <div id="aviso-caixa"></div>
@@ -86,6 +109,7 @@ export default async function pdv(el, params = []) {
           <div class="cupom-itens" id="itens"></div>
           <div class="cupom-rodape">
             <div class="linha-valor"><span>Subtotal</span><span id="v-sub"></span></div>
+            <div class="linha-valor promo" id="l-promo"><span>Promoções</span><span id="v-promo"></span></div>
             <div class="linha-valor" id="l-desc"><span>Desconto</span><span id="v-desc"></span></div>
             <div class="linha-valor" id="l-acr"><span>Acréscimo</span><span id="v-acr"></span></div>
             <div class="total"><span class="total-label">Total</span><span class="total-valor" id="v-total"></span></div>
@@ -232,10 +256,12 @@ export default async function pdv(el, params = []) {
       render(box, html`<div class="cupom-vazio">${icone("cesta")}<strong>Cupom vazio</strong>
         <span class="small">Toque em um produto ou passe o código de barras.</span></div>`);
     } else {
+      const pr = promos();
       render(box, html`${venda.itens.map((i, idx) => html`
         <div class="item ${idx === sel ? "sel" : ""}" data-i="${idx}">
           <div><div class="item-nome">${i.nome}</div>
-            <div class="item-det">${fmtQtd(i.quantidade, i.unidade)} ${i.unidade.toLowerCase()} × ${dinheiro(i.preco)}${i.observacao ? html` · ${i.observacao}` : ""}</div></div>
+            <div class="item-det">${fmtQtd(i.quantidade, i.unidade)} ${i.unidade.toLowerCase()} × ${dinheiro(i.preco)}${i.observacao ? html` · ${i.observacao}` : ""}</div>
+            ${pr.get(idx + 1) ? html`<div class="item-promo">${icone("etiqueta", 'width="13" height="13"')} ${pr.get(idx + 1).promocao} −${dinheiro(pr.get(idx + 1).desconto)}</div>` : ""}</div>
           <div class="item-total">${dinheiro(r2(i.quantidade * i.preco))}</div>
           ${idx === sel ? html`<div class="item-acoes">
             <div class="qtd"><button data-a="menos" aria-label="Diminuir">−</button>
@@ -274,6 +300,9 @@ export default async function pdv(el, params = []) {
     $("#v-acr", el).textContent = dinheiro(venda.acrescimo);
     $("#l-desc", el).hidden = !venda.desconto;
     $("#l-acr", el).hidden = !venda.acrescimo;
+    const dp = descontoPromo();
+    $("#v-promo", el).textContent = "−" + dinheiro(dp);
+    $("#l-promo", el).hidden = !dp;
     $("#v-total", el).textContent = dinheiro(total());
     const pg = jaPago();
     $("#l-pago", el).hidden = !pg;
@@ -283,7 +312,7 @@ export default async function pdv(el, params = []) {
   function removerItem(idx) {
     venda.itens.splice(idx, 1);
     sel = Math.min(sel, venda.itens.length - 1);
-    if (venda.desconto > subtotal()) venda.desconto = 0;
+    if (venda.desconto > subtotal() - descontoPromo()) venda.desconto = 0;
     atualizarCupom();
     focarBusca();
   }
@@ -330,7 +359,7 @@ export default async function pdv(el, params = []) {
           let desc = lerNumero(f.desc.value); const acr = lerNumero(f.acr.value);
           if (f.tipo.value === "p") desc = r2(subtotal() * desc / 100);
           if (!(desc >= 0) || !(acr >= 0)) return toast("Valor inválido", "erro");
-          if (desc > subtotal()) return toast("Desconto maior que o subtotal", "erro");
+          if (desc > subtotal() - descontoPromo()) return toast("Desconto maior que o valor dos itens (já com promoções)", "erro");
           if (desc / subtotal() * 100 > limite + 1e-9) return toast(`Desconto acima do seu limite (${limite}%)`, "erro");
           fechar({ desc: r2(desc), acr: r2(acr) });
         };
@@ -472,6 +501,8 @@ export default async function pdv(el, params = []) {
     if (!estado.caixa) { await atualizarCaixa(); if (!estado.caixa) { desenharAvisoCaixa(); return toast("Abra o caixa para receber", "erro"); } }
     const fiscalAtivo = !!estado.fiscal?.habilitado;
     const cfg = configImpressora();
+    venda.ref_promo = new Date().toISOString();
+    atualizarCupom();
     const t = total();
     // Pagamentos ficam na própria venda: sobrevivem a fechar esta janela, queda de energia
     // e troca de aparelho (o que o cliente já pagou nunca se perde).
@@ -598,9 +629,10 @@ export default async function pdv(el, params = []) {
           if (falta() > 0) f.valor.select(); else d.querySelector("#concluir").focus();
           desenharPix();
         };
-        const adicionar = (valor, fm = forma) => {
+        const adicionar = async (valor, fm = forma) => {
           if (!(valor > 0)) return toast("Informe o valor", "erro");
           if (fm !== "dinheiro" && valor > falta() + 1e-9) return toast("Só pagamento em dinheiro pode gerar troco", "erro");
+          if (fm === "crediario" && !(await podeFiado(valor))) return;
           const ex = pagamentos.find((p) => p.forma === fm);
           if (ex) ex.valor = r2(ex.valor + valor); else pagamentos.push({ forma: fm, valor: r2(valor) });
           atualizarCupom(); salvarCarrinho(true);
@@ -622,15 +654,37 @@ export default async function pdv(el, params = []) {
       },
     });
     pararPix();
-    if (!resultado) return focarBusca();
+    if (!resultado) { delete venda.ref_promo; atualizarCupom(); return focarBusca(); }
     await concluir(resultado);
+  }
+
+  /** Fiado: precisa do cliente identificado e respeita limite/bloqueio (o servidor confere de novo). */
+  async function podeFiado(valor) {
+    if (!venda.cliente?.id) {
+      toast("Para vender no fiado, escolha o cliente", "erro");
+      await definirCliente();
+      if (!venda.cliente?.id) return false;
+    }
+    if (!estaOnline()) return true; // sem internet o limite é conferido quando a venda for enviada
+    try {
+      const s = await comTempo(rpc("fiado_saldo_cliente", { p_cliente: venda.cliente.id }), 6000);
+      if (!s) return true;
+      const gestor = eh("admin", "gerente");
+      if (s.bloqueado && !gestor) { toast(`Fiado bloqueado para ${venda.cliente.nome}. Fale com o gerente.`, "erro"); return false; }
+      if (s.limite != null && Number(s.saldo) + valor > Number(s.limite) + 1e-9) {
+        if (!gestor) { toast(`Limite do fiado: ${venda.cliente.nome} deve ${dinheiro(s.saldo)} e o limite é ${dinheiro(s.limite)}`, "erro"); return false; }
+        return confirmar(`${venda.cliente.nome} já deve ${dinheiro(s.saldo)} e o limite é ${dinheiro(s.limite)}. Liberar mesmo assim?`, { titulo: "Acima do limite", ok: "Liberar" });
+      }
+      if (Number(s.saldo) > 0) toast(`${venda.cliente.nome} já devia ${dinheiro(s.saldo)} · passa a dever ${dinheiro(Number(s.saldo) + valor)}`);
+    } catch { /* sem resposta: o servidor confere */ }
+    return true;
   }
 
   async function concluir({ pagamentos, imprimir: deveImprimir, nfce }) {
     const totalCliente = total();
     const p = {
       ...payload(true, pagamentos), id_local: venda.id_local, total_cliente: totalCliente,
-      sessao_id: estado.caixa?.id || null, realizada_em: new Date().toISOString(),
+      sessao_id: estado.caixa?.id || null, realizada_em: venda.ref_promo || new Date().toISOString(),
     };
     let r;
     if (!estaOnline()) return concluirOffline(p, pagamentos, deveImprimir, nfce);
@@ -681,8 +735,8 @@ export default async function pdv(el, params = []) {
     const numeroLocal = "OFF-" + venda.id_local.slice(0, 6).toUpperCase();
     const vendaLocal = {
       status: "finalizada", numero: numeroLocal, finalizada_em: p.realizada_em, operador: { nome: estado.perfil.nome },
-      itens: venda.itens.map((i, idx) => ({ item: idx + 1, descricao: i.nome, unidade: i.unidade, quantidade: i.quantidade, preco_unitario: i.preco, desconto: 0, total: r2(i.quantidade * i.preco), observacao: i.observacao })),
-      subtotal: subtotal(), desconto: venda.desconto, acrescimo: venda.acrescimo, total: totalCliente,
+      itens: (() => { const pr = promos(); return venda.itens.map((i, idx) => { const d = pr.get(idx + 1)?.desconto || 0; return { item: idx + 1, descricao: i.nome, unidade: i.unidade, quantidade: i.quantidade, preco_unitario: i.preco, desconto: d, total: r2(i.quantidade * i.preco - d), observacao: i.observacao }; }); })(),
+      subtotal: subtotal(), desconto: r2(venda.desconto + descontoPromo()), acrescimo: venda.acrescimo, total: totalCliente,
       pagamentos: pagamentos.map((x) => ({ forma: x.forma, valor: x.valor })), troco,
       cpf_cnpj_consumidor: venda.cpf || null, cliente: venda.cliente, identificador: venda.identificador, observacao: venda.observacao,
     };
@@ -808,6 +862,13 @@ export default async function pdv(el, params = []) {
   document.addEventListener("keydown", teclas);
 
   $("#btn-pedidos", el).onclick = () => abrirPedidos().catch(erro);
+  $("#btn-gaveta", el)?.addEventListener("click", async () => {
+    const motivo = await pedirTexto({ titulo: "Abrir gaveta", rotulo: "Motivo", valor: "", ok: "Abrir", dica: "Ex.: troco, sangria, conferência. Fica no registro de atividades." });
+    if (motivo == null) return focarBusca();
+    rpc("registrar_gaveta", { p_motivo: motivo || null }).catch(() => {});
+    abrirGaveta().catch((e) => toast("Gaveta: " + e.message, "erro"));
+    focarBusca();
+  });
   $("#btn-ident", el).onclick = definirIdentificador;
   $("#btn-cliente", el).onclick = definirCliente;
   $("#btn-desc", el).onclick = aplicarDesconto;
@@ -844,7 +905,7 @@ export default async function pdv(el, params = []) {
 
   atualizarCupom();
   desenharAvisoCaixa();
-  try { await carregarProdutos(); contarPedidos(); } catch (e) { erro(e); }
+  try { await Promise.all([carregarProdutos(), carregarPromocoes()]); atualizarCupom(); contarPedidos(); } catch (e) { erro(e); }
   verRascunhosDeOutros();
   const tirarEnvio = aoEnviarVenda(({ item, resposta }) => {
     toast(resposta.ja_registrada ? `Venda ${item.numero_local} já estava no sistema (nº ${resposta.numero}). Nada em dobro.` : `Venda feita sem internet enviada: ${item.numero_local} → nº ${resposta.numero}${Number(resposta.ajuste) ? ` (ajuste de preço ${dinheiro(resposta.ajuste)})` : ""}`, "ok");

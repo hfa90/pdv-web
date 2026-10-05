@@ -791,3 +791,40 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 .cupom-rodape .ja-pago { color: var(--ok); font-weight: 600; }
 .cupom-rodape .ja-pago[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { .rede-status.off::before { animation: none; } }
+
+/* ---------- Gestão (compras, financeiro, fiado, alertas, validade, promoções) ---------- */
+.item-promo { font-size: var(--fs-xs); color: var(--ok); font-weight: 600; display: inline-flex; gap: .25rem; align-items: center; margin-top: .1rem; }
+.cupom-rodape .promo { color: var(--ok); }
+.cupom-rodape .linha-valor[hidden] { display: none; }
+.drop-xml { display: flex; gap: 1rem; align-items: center; cursor: pointer; border: 2px dashed var(--line-strong); color: var(--muted); }
+.drop-xml strong { color: var(--ink); }
+.drop-xml.sobre, .drop-xml:hover { border-color: var(--primary); background: var(--primary-soft); }
+.nf-tabela td { vertical-align: top; }
+.nf-tabela .nf-ignorado { opacity: .5; }
+.nf-info { display: flex; flex-wrap: wrap; gap: .35rem .9rem; align-items: center; font-size: var(--fs-sm); color: var(--muted); }
+.nf-info strong { color: var(--ink); }
+.dre td { padding-top: .6rem; padding-bottom: .6rem; }
+.dre .dre-total td { font-weight: 700; background: var(--surface-2); font-size: 1.02rem; }
+.dre .dre-desp td:first-child { padding-left: 1.75rem; }
+.fluxo-barras { display: grid; gap: 3px; }
+.fluxo-barras span { display: block; height: 6px; border-radius: 3px; min-width: 0; }
+.fluxo-barras .e { background: var(--ok); }
+.fluxo-barras .s { background: var(--danger); }
+.conf-linha { display: grid; grid-template-columns: 1fr 150px auto; gap: .75rem; align-items: center; padding-bottom: .6rem; border-bottom: 1px solid var(--line); }
+.alertas-lista { display: grid; }
+.alerta-item { display: flex; gap: .75rem; align-items: center; padding: .8rem 1.25rem; border-bottom: 1px solid var(--line); }
+.alerta-item:last-child { border-bottom: 0; }
+.alerta-item.alto { background: color-mix(in srgb, var(--danger-soft) 55%, transparent); }
+.resumo-prev .resumo-total { font-size: 2.2rem; font-weight: 700; margin-top: .2rem; font-variant-numeric: tabular-nums; }
+.resumo-prev .resumo-h { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 1.2rem 0 .3rem; }
+.resumo-linha { display: flex; justify-content: space-between; gap: 1rem; padding: .35rem 0; border-bottom: 1px solid var(--line); font-size: var(--fs-sm); }
+.resumo-linha strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.txt-danger { color: var(--danger); }
+.txt-ok { color: var(--ok); }
+.link-x { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 0 0 .25rem; font-size: .8em; }
+label.chip { cursor: pointer; }
+@media (max-width: 900px) {
+  .conf-linha { grid-template-columns: 1fr 120px; }
+  .drop-xml { flex-direction: column; text-align: center; }
+}
+.resumo-cols { align-items: start; }

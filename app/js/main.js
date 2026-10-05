@@ -35,6 +35,12 @@ const PAGINAS = {
   conta: () => import("./paginas/conta.js"),
   configuracoes: () => import("./paginas/configuracoes.js"),
   plataforma: () => import("./paginas/plataforma.js"),
+  fiado: () => import("./paginas/fiado.js"),
+  promocoes: () => import("./paginas/promocoes.js"),
+  compras: () => import("./paginas/compras.js"),
+  validade: () => import("./paginas/validade.js"),
+  financeiro: () => import("./paginas/financeiro.js"),
+  alertas: () => import("./paginas/alertas.js"),
 };
 
 const app = document.getElementById("app");

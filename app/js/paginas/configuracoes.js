@@ -139,7 +139,7 @@ export default async function configuracoes(el) {
       catch (e) { if (e.name !== "NotFoundError") erro(e); }
     };
     $("#teste", el).onclick = async (e) => { salvarConfigImpressora(atual()); await ocupado(e.currentTarget, () => imprimirTeste().catch(erro)); };
-    $("#gaveta", el).onclick = () => abrirGaveta().catch(erro);
+    $("#gaveta", el).onclick = () => { rpc("registrar_gaveta", { p_motivo: "teste em Configurações" }).catch(() => {}); abrirGaveta().catch(erro); };
   }
 
 

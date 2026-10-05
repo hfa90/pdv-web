@@ -27,6 +27,22 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 - **Minha assinatura** (administrador/gerente): plano, próximo pagamento, faturas com link de pagamento, pendências da loja, uso do mês e pedidos de pacotes adicionais.
 - **Menu lateral recolhível** (só ícones, abre ao passar o mouse; botão para fixar aberto) e **tema escuro** (sistema e site; segue o tema do aparelho até a pessoa escolher).
 
+## Gestão para o dono
+
+- **Compras › Entrada de nota (XML)**: lê o XML da NF-e do fornecedor, reconhece os produtos (código de barras ou "de-para" do fornecedor, aprendido na primeira nota), converte caixa/fardo em unidades, atualiza custo (com frete, IPI e ST rateados), mostra a nova margem e sugere preço, cria produtos novos, registra lotes com validade e lança as parcelas em contas a pagar. Nunca lança a mesma nota duas vezes.
+- **Compras › Sugestão de compra / Curva ABC / Parados**: quanto comprar de cada produto (média de venda × dias de cobertura + mínimo − estoque), agrupado por fornecedor com pedido pronto para WhatsApp; produtos classe A/B/C; dinheiro parado na prateleira.
+- **Fiado**: crediário vira dívida do cliente com prazo e limite (o caixa não passa do limite; gerente libera), extrato, recebimento (dinheiro entra no caixa), recibo, cobrança pelo WhatsApp com PIX copia e cola e ajuste de saldo antigo.
+- **Financeiro**: lucro real (faturamento − custo dos itens no dia da venda − taxas da maquininha − perdas − despesas), fluxo de caixa dia a dia, contas a pagar (com repetição mensal), conferência de PIX/cartão (digitando os totais ou importando o extrato OFX/CSV, PIX a PIX) e taxas por forma de pagamento.
+- **Alertas**: antifraude por operador comparado com a média da loja (cancelamentos, descontos, itens tirados de comanda, gaveta aberta sem venda, faltas de caixa recorrentes, venda em dinheiro cancelada logo depois) e **resumo do dia por e-mail** no horário escolhido.
+- **Validade e perdas**: lotes com validade (as vendas consomem primeiro o que vence antes), painel do que está vencendo, baixa como perda e relatório de perdas por motivo e produto.
+- **Promoções**: leve X pague Y, preço/percentual por dia e horário, atacado a partir de X unidades e combos. O PDV aplica sozinho (também offline) e o servidor confere com a mesma regra (`app/js/promocoes-calc.js` ↔ `private.calcular_promocoes`).
+
+### Resumo diário por e-mail (configuração única)
+
+1. Execute `supabase/migrations/011_gestao.sql` e `012_agendar_resumo.sql` (pg_cron chama a função de hora em hora).
+2. Crie uma conta no [Resend](https://resend.com), verifique o domínio do remetente e, em **Supabase › Edge Functions › Secrets**, cadastre `RESEND_API_KEY` e `RESEND_FROM` (ex.: `Lis PDV <resumo@seudominio.com.br>`).
+3. A função `resumo-diario` já está publicada. Cada loja liga o envio em **Alertas › Resumo do dia**.
+
 ## Sem internet, queda de energia e troca de aparelho
 
 - **Queda de energia / bateria**: o cupom em andamento (itens **e pagamentos já recebidos**) é gravado no aparelho a cada toque. Ao religar, a venda volta exatamente como estava. Nada é estornado.
@@ -92,12 +108,14 @@ app/js/estado.js               sessão e permissões por nível
 app/js/ui.js                   html seguro, formatação, modais, toasts
 app/js/main.js                 rotas e layout
 app/js/paginas/*.js            uma tela por arquivo
+app/js/promocoes-calc.js       regra das promoções (espelho do SQL)
+app/js/gestao-ui.js            período, abas, CSV e WhatsApp das telas de gestão
 app/js/contingencia.js         modo offline, fila de vendas e venda em andamento entre aparelhos
 app/sw.js                      service worker do sistema (abre sem internet)
 app/js/impressao/escpos.js     comandos ESC/POS + WebUSB/Serial
 app/js/impressao/cupom.js      layout dos cupons (navegador e térmica)
 supabase/migrations/*.sql  banco, RLS e regras de negócio
-supabase/functions/*       Edge Functions (usuarios, fiscal, teste, pagamentos)
+supabase/functions/*       Edge Functions (usuarios, fiscal, teste, pagamentos, resumo-diario)
 assets/pix.js              gerador de PIX copia e cola + QR (usado por PDV, garçom e cardápio)
 app/js/mesa-detalhe.js     detalhe da mesa (compartilhado entre a tela Mesas e o app do garçom)
 app/js/seletor.js          seletor de itens para mesas
