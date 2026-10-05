@@ -852,7 +852,8 @@ export default async function pdv(el, params = []) {
     if (e.key === "Escape") { e.preventDefault(); limpar(); return; }
     const noCampo = e.target.matches("input, textarea, select") && e.target !== inpBusca;
     if (noCampo) return;
-    if (e.key === "Delete" && sel >= 0) { e.preventDefault(); removerItem(sel); }
+    // Delete com texto na busca apaga o texto, não o item do cupom.
+    if (e.key === "Delete" && sel >= 0 && !(e.target === inpBusca && inpBusca.value)) { e.preventDefault(); removerItem(sel); }
     if ((e.key === "ArrowDown" || e.key === "ArrowUp") && venda.itens.length && !inpBusca.value) {
       e.preventDefault();
       sel = Math.max(0, Math.min(venda.itens.length - 1, sel + (e.key === "ArrowDown" ? 1 : -1)));
