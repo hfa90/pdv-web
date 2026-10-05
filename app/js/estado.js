@@ -1,5 +1,6 @@
 // Estado da sessão e regras de acesso por nível (espelham as regras do banco).
 import { sb, q } from "./api.js";
+import { salvarContextoLocal, lerContextoLocal, usuarioDaSessaoLocal, ehErroDeRede, marcarRede, comTempo } from "./contingencia.js";
 
 export const estado = {
   usuario: null,   // auth.users
@@ -9,6 +10,7 @@ export const estado = {
   caixa: null,     // sessão de caixa aberta do operador
   conta: null,     // situação comercial: teste, ativo, bloqueio
   adminPlataforma: false, // fornecedor do sistema
+  offline: false,  // abriu sem internet usando a cópia local do contexto
 };
 
 export const PAPEIS = {
@@ -51,7 +53,28 @@ export const eh = (...papeis) => papeis.includes(papel());
 export const rotaInicial = () => (eh("admin", "gerente") ? "painel" : "pdv");
 
 export async function carregarContexto() {
-  const { data: { user } } = await sb.auth.getUser();
+  try {
+    const ok = await carregarContextoOnline();
+    estado.offline = false;
+    if (estado.perfil) salvarContextoLocal();
+    return ok;
+  } catch (e) {
+    if (!ehErroDeRede(e)) throw e;
+    // Sem internet: abre com a última cópia do contexto deste aparelho
+    const uid = usuarioDaSessaoLocal();
+    const c = uid && lerContextoLocal(uid);
+    if (!c) throw new Error("Sem internet. O primeiro acesso neste aparelho precisa de conexão; depois o caixa funciona mesmo offline.");
+    estado.usuario = c.usuario; estado.perfil = c.perfil; estado.empresa = c.empresa; estado.fiscal = c.fiscal;
+    estado.caixa = c.caixa; estado.conta = c.conta; estado.adminPlataforma = !!c.adminPlataforma;
+    estado.offline = true;
+    marcarRede(false);
+    return true;
+  }
+}
+
+async function carregarContextoOnline() {
+  const { data: { user }, error } = await comTempo(sb.auth.getUser(), 10000);
+  if (error && ehErroDeRede(error)) throw error;
   estado.usuario = user;
   if (!user) return false;
   estado.adminPlataforma = !!(await sb.rpc("sou_admin_plataforma")).data;
@@ -69,15 +92,27 @@ export async function carregarContexto() {
   return true;
 }
 
+/** Sessão de caixa aberta. Sem internet, mantém a última conhecida. */
 export async function atualizarCaixa() {
   if (!estado.perfil) return null;
-  estado.caixa = await q(sb.from("caixa_sessoes").select("*")
-    .eq("operador_id", estado.perfil.id).eq("status", "aberto").maybeSingle());
+  try {
+    estado.caixa = await q(comTempo(sb.from("caixa_sessoes").select("*")
+      .eq("operador_id", estado.perfil.id).eq("status", "aberto").maybeSingle(), 10000));
+    salvarContextoLocal();
+  } catch (e) {
+    if (!ehErroDeRede(e)) throw e;
+    marcarRede(false);
+  }
   return estado.caixa;
 }
 
 export async function atualizarConta() {
-  estado.conta = (await sb.rpc("situacao_conta")).data || null;
+  try {
+    const { data, error } = await comTempo(sb.rpc("situacao_conta"), 10000);
+    if (error && ehErroDeRede(error)) return estado.conta;
+    estado.conta = data || null;
+    salvarContextoLocal();
+  } catch { /* sem rede: mantém a situação conhecida */ }
   return estado.conta;
 }
 
@@ -91,4 +126,5 @@ export function diasDeTeste() {
 export function limparEstado() {
   Object.keys(estado).forEach((k) => (estado[k] = null));
   estado.adminPlataforma = false;
+  estado.offline = false;
 }

@@ -36,7 +36,7 @@
   --sidebar-mini: 72px;
   --on-primary: #FFFFFF;
   --on-ink: #FFFFFF;
-  --warn-ink: var(--warn-ink);
+  --warn-ink: #8A5300;
   --ocupada-soft: var(--ocupada-soft);
   --paper: #FFFFFF;
   --overlay: rgba(24, 33, 31, .45);
@@ -773,3 +773,21 @@ input[type="range"] { accent-color: var(--primary); width: 100%; }
 .pacote > .row { width: 100%; }
 .etiqueta { align-content: center; }
 .etiqueta > svg, .etiqueta .e-linha svg { max-height: calc(100% - 10mm); width: auto; }
+
+/* ---------- Contingência: sem internet / fila de vendas ---------- */
+.rede-status {
+  position: fixed; left: 50%; bottom: 1rem; transform: translateX(-50%); z-index: 1001;
+  max-width: calc(100vw - 2rem); padding: .55rem 1rem; border-radius: 999px; border: 0; cursor: pointer;
+  font: inherit; font-size: var(--fs-sm); font-weight: 600; box-shadow: var(--shadow-pop);
+  display: inline-flex; align-items: center; gap: .5rem;
+}
+.rede-status[hidden] { display: none; }
+.rede-status::before { content: ""; width: .6rem; height: .6rem; border-radius: 50%; background: currentColor; flex: none; }
+.rede-status.off { background: var(--amber-soft); color: var(--warn-ink); outline: 1px solid color-mix(in srgb, var(--warn-ink) 30%, transparent); }
+.rede-status.off::before { animation: pulsar 1.4s ease-in-out infinite; }
+.rede-status.enviando { background: var(--primary-soft); color: var(--primary); }
+.rede-status.erro { background: var(--danger-soft); color: var(--danger); }
+@keyframes pulsar { 50% { opacity: .25; } }
+.cupom-rodape .ja-pago { color: var(--ok); font-weight: 600; }
+.cupom-rodape .ja-pago[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .rede-status.off::before { animation: none; } }

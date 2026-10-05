@@ -4,6 +4,7 @@ import { estado, eh, atualizarCaixa } from "../estado.js";
 import { html, render, $, $$, dinheiro, dataHora, lerNumero, toast, erro, modal, ocupado, confirmar } from "../ui.js";
 import { icone } from "../icons.js";
 import { imprimir, layoutFechamento, nomeForma } from "../impressao/cupom.js";
+import { fila, sincronizarFila, abrirPainelFila } from "../contingencia.js";
 
 export default async function caixa(el) {
   async function desenhar() {
@@ -90,6 +91,16 @@ export default async function caixa(el) {
   }
 
   async function fechar(resumo) {
+    // Vendas feitas sem internet precisam chegar antes, senão o fechamento sai sem elas
+    if (fila().some((x) => x.operador_id === estado.perfil.id)) {
+      await sincronizarFila().catch(() => {});
+      const pend = fila().filter((x) => x.operador_id === estado.perfil.id);
+      if (pend.length) {
+        toast(`Há ${pend.length} venda(s) feita(s) sem internet ainda não enviada(s). Envie antes de fechar o caixa.`, "erro");
+        return abrirPainelFila();
+      }
+      await desenhar(); return toast("Vendas offline enviadas. Confira o resumo e feche o caixa.", "ok");
+    }
     const { count } = await sb.from("vendas").select("id", { count: "exact", head: true }).eq("status", "aberta");
     const r = await modal({
       titulo: "Fechar caixa",

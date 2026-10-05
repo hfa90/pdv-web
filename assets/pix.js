@@ -17,10 +17,15 @@ export function crc16(texto) {
   return crc.toString(16).toUpperCase().padStart(4, "0");
 }
 
-/** Remove acentos e caracteres fora do padrão do BR Code. */
+/**
+ * Remove acentos, pontuação e símbolos e passa para maiúsculas.
+ * O padrão EMV aceita alguns símbolos, mas vários apps de banco recusam o QR quando
+ * nome/cidade têm ponto, vírgula, barra ou hífen (ex.: "Hayden Supermercado.").
+ * Só letras sem acento, números e espaço funcionam em todos os bancos.
+ */
 const limpar = (s, max) => String(s || "")
-  .normalize("NFD").replace(/[̀-ͯ]/g, "")
-  .replace(/[^A-Za-z0-9 .,\-/]/g, "").replace(/\s+/g, " ").trim().slice(0, max).trim();
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .replace(/[^A-Za-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().toUpperCase().slice(0, max).trim();
 
 /** Normaliza a chave conforme o tipo (o banco do pagador recusa formatos errados). */
 export function normalizarChave(tipo, chave) {
@@ -49,7 +54,12 @@ export function payloadPix({ tipo, chave, nome, cidade, valor, txid, mensagem })
   if (!k) throw new Error("Chave PIX inválida. Confira em Configurações › PIX.");
   const info = mensagem ? limpar(mensagem, Math.max(0, 99 - 22 - k.length - 8)) : "";
   const conta = campo("00", "br.gov.bcb.pix") + campo("01", k) + (info ? campo("02", info) : "");
-  const id = (String(txid || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 25)) || "***";
+  // QR estático: o identificador (txid) fica sempre "***". Vários bancos (Nubank, Itaú,
+  // Caixa, PicPay…) recusam ou não conseguem pagar um QR estático com txid personalizado,
+  // que só é aceito quando a cobrança é registrada no banco (QR dinâmico).
+  // O parâmetro txid foi mantido só por compatibilidade e é ignorado.
+  void txid;
+  const id = "***";
   let s = campo("00", "01")
     + campo("26", conta)
     + campo("52", "0000")

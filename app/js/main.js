@@ -2,9 +2,21 @@
 import { sb } from "./api.js";
 import { estado, carregarContexto, limparEstado, pode, rotaInicial, ROTAS, PAPEIS, atualizarConta, diasDeTeste } from "./estado.js";
 import { linkWhatsApp, MARCA } from "./config.js";
-import { html, render, $, $$, iniciais, carregando, erro } from "./ui.js";
+import { html, render, $, $$, iniciais, carregando, erro, confirmar } from "./ui.js";
 import { icone } from "./icons.js";
 import { telaLogin, telaOnboarding, telaNovaSenha } from "./paginas/login.js";
+import { iniciarContingencia, ehErroDeRede, limparContextoLocal } from "./contingencia.js";
+
+// Service worker: guarda os arquivos do sistema para abrir e vender sem internet
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+  navigator.serviceWorker.register("./sw.js").then(async (reg) => {
+    await navigator.serviceWorker.ready;
+    // Guarda também as bibliotecas que esta página já baixou (Supabase, QR Code, fontes)
+    const urls = performance.getEntriesByType("resource").map((r) => r.name)
+      .filter((u) => /^https:\/\/(cdn\.jsdelivr\.net|cdnjs\.cloudflare\.com|fonts\.(googleapis|gstatic)\.com)\//.test(u));
+    (reg.active || navigator.serviceWorker.controller)?.postMessage({ tipo: "guardar", urls });
+  }).catch(() => {});
+}
 
 // Carregamento sob demanda: cada tela só baixa quando é aberta.
 const PAGINAS = {
@@ -74,6 +86,7 @@ function montarShell() {
   $("#btn-tema").onclick = () => window.lisTema?.alternar();
   ligarMenuRecolhivel();
   desenharAvisoConta();
+  iniciarContingencia();
   import("./cozinha.js").then((m) => m.iniciarCozinha()).catch(() => {});
   if (pode("delivery")) import("./avisos.js").then((m) => m.iniciarAvisos()).catch(() => {});
 }
@@ -169,6 +182,16 @@ async function iniciar() {
     montarShell();
     navegar();
   } catch (e) {
+    if (ehErroDeRede(e) || /Sem internet/.test(e.message)) {
+      // Sem internet e sem cópia local: não desloga, espera a conexão voltar
+      render(app, html`<div class="page" style="max-width:520px;margin:10vh auto;text-align:center">
+        <div class="alerta warn">${e.message}</div>
+        <p class="muted small" style="margin-top:1rem">Assim que a internet voltar, o sistema abre sozinho.</p>
+        <button class="btn primary" id="tentar">Tentar de novo</button></div>`);
+      $("#tentar").onclick = iniciar;
+      window.addEventListener("online", iniciar, { once: true });
+      return;
+    }
     erro(e);
     await sb.auth.signOut();
     limparEstado();
@@ -177,8 +200,11 @@ async function iniciar() {
 }
 
 async function sair() {
+  const { fila } = await import("./contingencia.js");
+  if (fila().length && !(await confirmar(`Há ${fila().length} venda(s) feita(s) sem internet ainda não enviada(s). Elas ficam guardadas neste aparelho e são enviadas quando você entrar de novo com internet.`, { titulo: "Sair com vendas pendentes?", ok: "Sair mesmo assim" }))) return;
   sb.removeAllChannels?.();
   await sb.auth.signOut();
+  limparContextoLocal();
   limparEstado();
   location.hash = "";
   iniciar();

@@ -10,6 +10,10 @@ import { configImpressora, imprimir, imprimirVenda, layoutVenda, nomeForma } fro
 import { payloadPix, qrSvg, qrPronto, txidVenda } from "../../../assets/pix.js";
 import { balancaAtiva, configBalanca, lerEtiquetaBalanca, aoMudar as aoMudarBalanca } from "../balanca.js";
 import { pesar } from "../pesagem.js";
+import {
+  novoId, estaOnline, ehErroDeRede, marcarRede, comTempo, salvarCatalogo, lerCatalogo, enfileirarVenda, aoEnviarVenda,
+  agendarRascunho, descartarRascunho, aoMudarRascunho, rascunhosDeOutros, assumirRascunho,
+} from "../contingencia.js";
 
 const FRACIONADOS = ["KG", "G", "L", "ML", "M"];
 const FORMAS = [
@@ -29,15 +33,28 @@ export default async function pdv(el, params = []) {
   let venda = carregarCarrinho();
   let sel = venda.itens.length - 1;
 
-  function novaVenda() { return { venda_id: null, numero: null, alterado_em: null, canal: null, pre_pago: 0, identificador: "", cliente: null, cpf: "", desconto: 0, acrescimo: 0, observacao: "", itens: [] }; }
+  // id_local: identidade da venda desde o primeiro item (evita duplicar ao reenviar e permite
+  // continuar em outro aparelho). pagamentos: o que o cliente já pagou, guardado a cada lançamento.
+  function novaVenda() { return { id_local: novoId(), venda_id: null, numero: null, alterado_em: null, canal: null, pre_pago: 0, identificador: "", cliente: null, cpf: "", desconto: 0, acrescimo: 0, observacao: "", itens: [], pagamentos: [] }; }
   // Cobrança PIX automática (Mercado Pago) ligada nesta loja?
   let pixAuto = false;
   if (!eh("atendente")) rpc("mercado_pago_status").then((v) => (pixAuto = !!v)).catch(() => {});
   function carregarCarrinho() {
-    try { const v = JSON.parse(localStorage.getItem(chaveCarrinho)); if (v?.itens) return v; } catch { /* vazio */ }
+    try {
+      const v = JSON.parse(localStorage.getItem(chaveCarrinho));
+      if (v?.itens) { v.id_local ||= novoId(); v.pagamentos ||= []; return v; }
+    } catch { /* vazio */ }
     return novaVenda();
   }
-  function salvarCarrinho() { try { localStorage.setItem(chaveCarrinho, JSON.stringify(venda)); } catch { /* sem armazenamento */ } }
+  // Gravado a cada alteração: se a energia cair ou a bateria acabar, a venda volta igual
+  // ao religar. Com internet, vai também para o servidor (outro aparelho pode continuar).
+  function salvarCarrinho(pagamentoNovo = false) {
+    try { localStorage.setItem(chaveCarrinho, JSON.stringify(venda)); } catch { /* sem armazenamento */ }
+    const temAlgo = venda.itens.length || venda.pagamentos?.length;
+    if (temAlgo) { venda.rascunho = true; agendarRascunho(venda, total(), pagamentoNovo); }
+    else if (venda.rascunho) { venda.rascunho = false; descartarRascunho(venda.id_local); }
+  }
+  const jaPago = () => r2((venda.pagamentos || []).reduce((a, p) => a + p.valor, 0));
 
   const subtotal = () => r2(venda.itens.reduce((a, i) => a + r2(i.quantidade * i.preco), 0));
   const total = () => r2(subtotal() - venda.desconto + venda.acrescimo);
@@ -53,6 +70,7 @@ export default async function pdv(el, params = []) {
           <button class="btn lg" id="btn-pedidos" title="Pedidos e comandas abertos">${icone("comanda", 'width="20" height="20"')}<span id="n-pedidos">Pedidos</span></button>
         </div>
         <div id="aviso-caixa"></div>
+        <div id="aviso-rasc"></div>
         <div class="chips" id="chips" role="tablist" aria-label="Categorias"></div>
         <div class="grid-produtos" id="grid" aria-label="Produtos"></div>
       </section>
@@ -71,6 +89,7 @@ export default async function pdv(el, params = []) {
             <div class="linha-valor" id="l-desc"><span>Desconto</span><span id="v-desc"></span></div>
             <div class="linha-valor" id="l-acr"><span>Acréscimo</span><span id="v-acr"></span></div>
             <div class="total"><span class="total-label">Total</span><span class="total-valor" id="v-total"></span></div>
+            <div class="linha-valor ja-pago" id="l-pago" hidden><span>Já pago</span><span id="v-pago"></span></div>
             <div class="cupom-acoes">
               <button class="btn" id="btn-desc">Desconto <span class="kbd">F6</span></button>
               <button class="btn" id="btn-salvar">${eh("atendente") ? "Enviar pedido" : "Salvar pedido"} <span class="kbd">F8</span></button>
@@ -85,10 +104,20 @@ export default async function pdv(el, params = []) {
 
   // ---------- Dados ----------
   async function carregarProdutos() {
-    [categorias, produtos] = await Promise.all([
-      q(sb.from("categorias").select("*").eq("ativo", true).order("ordem").order("nome")),
-      todos(() => sb.from("produtos").select("id,nome,codigo,codigo_barras,preco_venda,unidade,categoria_id,favorito,controla_estoque,estoque_atual").eq("ativo", true).order("nome")),
-    ]);
+    try {
+      [categorias, produtos] = await comTempo(Promise.all([
+        q(sb.from("categorias").select("*").eq("ativo", true).order("ordem").order("nome")),
+        todos(() => sb.from("produtos").select("id,nome,codigo,codigo_barras,preco_venda,unidade,categoria_id,favorito,controla_estoque,estoque_atual").eq("ativo", true).order("nome")),
+      ]), 20000);
+      salvarCatalogo(categorias, produtos);
+    } catch (e) {
+      // Sem internet: usa a lista de produtos guardada neste aparelho
+      const c = lerCatalogo();
+      if (!ehErroDeRede(e) || !c) throw e;
+      marcarRede(false);
+      [categorias, produtos] = [c.categorias || [], c.produtos || []];
+      toast(`Sem internet: usando os produtos salvos neste aparelho (${new Date(c.salvo_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })})`);
+    }
     porBarras = new Map(produtos.filter((p) => p.codigo_barras).map((p) => [p.codigo_barras, p]));
     porCodigo = new Map(produtos.filter((p) => p.codigo).map((p) => [String(p.codigo).replace(/^0+/, "").toLowerCase(), p]));
     if (filtroCat === "todos" && produtos.some((p) => p.favorito)) filtroCat = "fav";
@@ -96,8 +125,11 @@ export default async function pdv(el, params = []) {
   }
 
   async function contarPedidos() {
-    const { count } = await sb.from("vendas").select("id", { count: "exact", head: true }).eq("status", "aberta");
-    $("#n-pedidos", el).textContent = count ? `Pedidos (${count})` : "Pedidos";
+    if (!estaOnline()) return;
+    try {
+      const { count } = await comTempo(sb.from("vendas").select("id", { count: "exact", head: true }).eq("status", "aberta"), 10000);
+      $("#n-pedidos", el).textContent = count ? `Pedidos (${count})` : "Pedidos";
+    } catch { /* sem rede */ }
   }
 
   function desenharAvisoCaixa() {
@@ -115,7 +147,7 @@ export default async function pdv(el, params = []) {
     const valor = lerNumero(v);
     if (!(valor >= 0)) return toast("Valor inválido", "erro");
     try { await rpc("abrir_caixa", { p_valor: valor, p_terminal: localStorage.getItem("pdv-terminal") || null }); await atualizarCaixa(); toast("Caixa aberto", "ok"); desenharAvisoCaixa(); }
-    catch (e) { erro(e); }
+    catch (e) { erro(ehErroDeRede(e) ? new Error("Sem internet: abrir o caixa precisa de conexão. Depois de aberto, ele funciona mesmo offline.") : e); }
   }
 
   // ---------- Catálogo ----------
@@ -243,6 +275,9 @@ export default async function pdv(el, params = []) {
     $("#l-desc", el).hidden = !venda.desconto;
     $("#l-acr", el).hidden = !venda.acrescimo;
     $("#v-total", el).textContent = dinheiro(total());
+    const pg = jaPago();
+    $("#l-pago", el).hidden = !pg;
+    $("#v-pago", el).textContent = `${dinheiro(pg)} · falta ${dinheiro(Math.max(0, r2(total() - pg)))}`;
   }
 
   function removerItem(idx) {
@@ -354,6 +389,7 @@ export default async function pdv(el, params = []) {
 
   async function limpar(perguntar = true) {
     if (perguntar && venda.itens.length && !(await confirmar("Descartar os itens deste cupom?", { titulo: "Limpar cupom", ok: "Descartar", perigo: true }))) return focarBusca();
+    if (perguntar && venda.pagamentos?.length && !(await confirmar(`Este cupom já tem ${dinheiro(jaPago())} recebidos. Descartar mesmo assim? Devolva o valor ao cliente.`, { titulo: "Pagamento já recebido", ok: "Descartar", perigo: true }))) return focarBusca();
     venda = novaVenda(); sel = -1; atualizarCupom(); focarBusca();
   }
 
@@ -382,18 +418,27 @@ export default async function pdv(el, params = []) {
   }
 
   async function abrirPedidos() {
+    if (!estaOnline()) return toast("Sem internet: pedidos, comandas e vendas de outros aparelhos aparecem quando a conexão voltar", "erro");
+    const rascs = podeReceber ? await rascunhosDeOutros().catch(() => []) : [];
     const lista = await q(sb.from("vendas").select("id,numero,identificador,canal,total,created_at,status_pedido,pagamento_status,cliente_nome,operador:perfis!vendas_operador_id_fkey(nome)")
       .eq("status", "aberta").order("created_at"));
     await modal({
       titulo: "Pedidos e comandas abertos",
-      corpo: lista.length ? html`<div class="table-wrap"><table class="table"><thead><tr><th>Mesa/comanda</th><th>Pedido</th><th>Desde</th><th>Atendente</th><th class="r">Total</th></tr></thead>
+      corpo: html`${rascs.length ? html`<h3 class="small muted" style="margin:0 0 .4rem">Vendas em andamento em outros aparelhos</h3>
+        <div class="table-wrap" style="margin-bottom:1rem"><table class="table"><thead><tr><th>Aparelho</th><th>Operador</th><th>Itens</th><th class="r">Total</th><th class="r">Já pago</th><th>Atualizada</th></tr></thead>
+        <tbody>${rascs.map((r) => html`<tr class="click" data-rasc="${r.id}"><td><strong>${r.aparelho_nome || "—"}</strong></td><td>${r.operador_nome || ""}</td><td>${r.itens}</td>
+          <td class="r">${dinheiro(r.total)}</td><td class="r">${dinheiro(r.pago)}</td><td>${hora(r.atualizado_em)}</td></tr>`)}</tbody></table></div>
+        <h3 class="small muted" style="margin:0 0 .4rem">Pedidos e comandas</h3>` : ""}${lista.length ? html`<div class="table-wrap"><table class="table"><thead><tr><th>Mesa/comanda</th><th>Pedido</th><th>Desde</th><th>Atendente</th><th class="r">Total</th></tr></thead>
         <tbody>${lista.map((v) => html`<tr class="click" data-id="${v.id}"><td><strong>${rotuloMesa(v.identificador) || "—"}</strong>
           ${v.canal && v.canal !== "balcao" ? html` <span class="badge canal-${v.canal}">${CANAL[v.canal]}</span>` : ""}${v.pagamento_status === "pago" ? html` <span class="badge ok">pago</span>` : ""}</td>
           <td>nº ${v.numero}</td><td>${hora(v.created_at)}</td><td>${v.operador?.nome || v.cliente_nome || ""}</td><td class="r">${dinheiro(v.total)}</td></tr>`)}</tbody></table></div>`
-        : html`<div class="empty"><p>Nenhum pedido aberto.</p><p class="small">Use “Salvar pedido” para guardar uma mesa ou comanda e continuar depois.</p></div>`,
+        : html`<div class="empty"><p>Nenhum pedido aberto.</p><p class="small">Use “Salvar pedido” para guardar uma mesa ou comanda e continuar depois.</p></div>`}`,
       largo: true,
-      onPronto: (d, fechar) => d.querySelectorAll("tr[data-id]").forEach((tr) => (tr.onclick = () => fechar(tr.dataset.id))),
-    }).then(async (id) => { if (id) await carregarPedido(id); });
+      onPronto: (d, fechar) => {
+        d.querySelectorAll("tr[data-id]").forEach((tr) => (tr.onclick = () => fechar(tr.dataset.id)));
+        d.querySelectorAll("tr[data-rasc]").forEach((tr) => (tr.onclick = () => fechar({ rasc: tr.dataset.rasc })));
+      },
+    }).then(async (id) => { if (id?.rasc) await continuarAqui(id.rasc); else if (id) await carregarPedido(id); });
     focarBusca();
   }
 
@@ -402,7 +447,9 @@ export default async function pdv(el, params = []) {
     const v = await q(sb.from("vendas").select("*, cliente:clientes(id,nome,cpf_cnpj), itens:venda_itens(*)").eq("id", id).single());
     const mapa = new Map(produtos.map((p) => [p.id, p]));
     if (v.status !== "aberta") { toast(`Este pedido já está ${v.status}`, "erro"); return; }
+    if (venda.rascunho && venda.id_local) descartarRascunho(venda.id_local);
     venda = {
+      id_local: novoId(), pagamentos: [],
       venda_id: v.id, numero: v.numero, alterado_em: v.alterado_em, canal: v.canal,
       pre_pago: v.pagamento_status === "pago" ? Number(v.total) : 0,
       identificador: v.identificador || "", cliente: v.cliente, cpf: v.cpf_cnpj_consumidor || "",
@@ -426,10 +473,13 @@ export default async function pdv(el, params = []) {
     const fiscalAtivo = !!estado.fiscal?.habilitado;
     const cfg = configImpressora();
     const t = total();
-    const pagamentos = [];
+    // Pagamentos ficam na própria venda: sobrevivem a fechar esta janela, queda de energia
+    // e troca de aparelho (o que o cliente já pagou nunca se perde).
+    venda.pagamentos ||= [];
+    const pagamentos = venda.pagamentos;
     let forma = "dinheiro";
     // Pedido do delivery já pago online: entra como PIX recebido
-    if (venda.pre_pago) pagamentos.push({ forma: "pix", valor: Math.min(t, r2(venda.pre_pago)) });
+    if (venda.pre_pago && !pagamentos.some((p) => p.pre)) pagamentos.push({ forma: "pix", valor: Math.min(t, r2(venda.pre_pago)), pre: true });
     const e = estado.empresa;
     const temChave = !!(e.pix_chave && e.pix_tipo);
     await qrPronto(1500);
@@ -539,7 +589,7 @@ export default async function pdv(el, params = []) {
           d.querySelectorAll("[data-v]").forEach((b) => (b.onclick = () => adicionar(Number(b.dataset.v))));
           render(d.querySelector("#pags"), html`${pagamentos.map((p, i) => html`<div class="pag-linha"><span>${nomeForma(p.forma)}</span>
             <span class="row" style="gap:.5rem"><strong>${dinheiro(p.valor)}</strong><button type="button" class="btn sm ghost icon-btn" data-rem="${i}" aria-label="Remover">✕</button></span></div>`)}`);
-          d.querySelectorAll("[data-rem]").forEach((b) => (b.onclick = () => { pagamentos.splice(Number(b.dataset.rem), 1); atualizar(); }));
+          d.querySelectorAll("[data-rem]").forEach((b) => (b.onclick = () => { pagamentos.splice(Number(b.dataset.rem), 1); atualizarCupom(); salvarCarrinho(true); atualizar(); }));
           const troco = Math.max(0, r2(pago() - t));
           render(d.querySelector("#resumo"), html`<div><span class="small">Pago</span><b>${dinheiro(pago())}</b></div>
             <div class="${falta() ? "falta" : ""}"><span class="small">Falta</span><b>${dinheiro(falta())}</b></div>
@@ -553,6 +603,7 @@ export default async function pdv(el, params = []) {
           if (fm !== "dinheiro" && valor > falta() + 1e-9) return toast("Só pagamento em dinheiro pode gerar troco", "erro");
           const ex = pagamentos.find((p) => p.forma === fm);
           if (ex) ex.valor = r2(ex.valor + valor); else pagamentos.push({ forma: fm, valor: r2(valor) });
+          atualizarCupom(); salvarCarrinho(true);
           if (fm === "pix" && forma === "pix" && falta() > 0) forma = "dinheiro";
           atualizar();
         };
@@ -576,13 +627,23 @@ export default async function pdv(el, params = []) {
   }
 
   async function concluir({ pagamentos, imprimir: deveImprimir, nfce }) {
+    const totalCliente = total();
+    const p = {
+      ...payload(true, pagamentos), id_local: venda.id_local, total_cliente: totalCliente,
+      sessao_id: estado.caixa?.id || null, realizada_em: new Date().toISOString(),
+    };
     let r;
-    try { r = await rpc("registrar_venda", { p: payload(true, pagamentos) }); }
+    if (!estaOnline()) return concluirOffline(p, pagamentos, deveImprimir, nfce);
+    try { r = await comTempo(rpc("registrar_venda", { p }), 15000); marcarRede(true); }
     catch (e) {
+      // Caiu a internet (ou demorou demais): a venda vai para a fila e é enviada depois.
+      // Se o servidor chegou a gravar, o reenvio com o mesmo id_local não duplica.
+      if (ehErroDeRede(e)) return concluirOffline(p, pagamentos, deveImprimir, nfce);
       erro(e);
       if (/outro aparelho/.test(e.message) && venda.venda_id) { const id = venda.venda_id; venda.itens = []; await carregarPedido(id).catch(erro); }
       return;
     }
+    if (r.ja_registrada) toast(`Esta venda já estava registrada (nº ${r.numero}). Nada foi lançado em dobro.`, "ok");
 
     limpar(false); contarPedidos();
     // Atualiza estoque local para refletir a venda
@@ -610,6 +671,88 @@ export default async function pdv(el, params = []) {
     });
     focarBusca();
   }
+
+  /** Sem internet: guarda a venda na fila, imprime o comprovante e libera o caixa. */
+  async function concluirOffline(p, pagamentos, deveImprimir, nfce) {
+    marcarRede(false);
+    const totalCliente = total();
+    const pago = r2(pagamentos.reduce((a, x) => a + x.valor, 0));
+    const troco = Math.max(0, r2(pago - totalCliente));
+    const numeroLocal = "OFF-" + venda.id_local.slice(0, 6).toUpperCase();
+    const vendaLocal = {
+      status: "finalizada", numero: numeroLocal, finalizada_em: p.realizada_em, operador: { nome: estado.perfil.nome },
+      itens: venda.itens.map((i, idx) => ({ item: idx + 1, descricao: i.nome, unidade: i.unidade, quantidade: i.quantidade, preco_unitario: i.preco, desconto: 0, total: r2(i.quantidade * i.preco), observacao: i.observacao })),
+      subtotal: subtotal(), desconto: venda.desconto, acrescimo: venda.acrescimo, total: totalCliente,
+      pagamentos: pagamentos.map((x) => ({ forma: x.forma, valor: x.valor })), troco,
+      cpf_cnpj_consumidor: venda.cpf || null, cliente: venda.cliente, identificador: venda.identificador, observacao: venda.observacao,
+    };
+    enfileirarVenda({ id_local: venda.id_local, payload: { ...p, offline: true }, total: totalCliente, troco, nfce: !!nfce, numero_local: numeroLocal, venda_local: vendaLocal });
+    descartarRascunho(venda.id_local); // o servidor também apaga o rascunho quando a venda chegar
+    venda.rascunho = false;
+    limpar(false);
+    if (deveImprimir) {
+      imprimir([...layoutVenda(vendaLocal, null), { t: "espaco" },
+        { t: "texto", s: "VENDA EM CONTINGENCIA (SEM INTERNET)", align: "centro", bold: true },
+        { t: "texto", s: "Registrada neste caixa e enviada ao sistema quando a conexao voltar.", align: "centro" }])
+        .catch((e) => toast("Impressão: " + e.message, "erro"));
+    }
+    await modal({
+      titulo: "Venda salva sem internet",
+      corpo: html`<div class="stack" style="text-align:center">
+        <p class="muted">Total ${dinheiro(totalCliente)} · nº provisório ${numeroLocal}</p>
+        ${troco > 0 ? html`<div><div class="muted">Troco</div><div class="total-valor" style="font-size:3rem">${dinheiro(troco)}</div></div>` : html`<div class="total-valor" style="font-size:2rem">Pago</div>`}
+        <div class="alerta warn" style="text-align:left">A venda ficou guardada neste aparelho e será enviada sozinha quando a internet voltar (com a data e hora de agora).${nfce ? " A NFC-e será emitida no envio." : ""} Não limpe os dados do navegador até lá.</div>
+      </div>`,
+      rodape: html`<button class="btn primary lg" data-fechar autofocus>Nova venda</button>`,
+    });
+    focarBusca();
+  }
+
+  // ---------- Venda em andamento em outro aparelho ----------
+  async function verRascunhosDeOutros() {
+    const alvo = $("#aviso-rasc", el);
+    if (!alvo || !estaOnline() || venda.itens.length || !podeReceber) { if (alvo) render(alvo, ""); return; }
+    const lista = (await rascunhosDeOutros().catch(() => [])).filter((r) => Date.now() - new Date(r.atualizado_em) < 12 * 3600e3);
+    if (!lista.length || venda.itens.length) return render(alvo, "");
+    const r = lista.find((x) => x.operador_id === estado.perfil.id) || lista[0];
+    render(alvo, html`<div class="alerta info row wrap" style="justify-content:space-between;gap:.5rem">
+      <span><strong>Venda em andamento em outro aparelho</strong> · ${r.aparelho_nome || "aparelho"} · ${r.operador_nome || ""}<br>
+        <span class="small">${r.itens} ${r.itens === 1 ? "item" : "itens"} · ${dinheiro(r.total)}${Number(r.pago) ? ` · já pago ${dinheiro(r.pago)}` : ""} · ${hora(r.atualizado_em)}</span></span>
+      <span class="row" style="gap:.4rem">${lista.length > 1 ? html`<button class="btn sm ghost" id="rasc-todos">Ver ${lista.length}</button>` : ""}
+        <button class="btn sm primary" id="rasc-continuar">Continuar aqui</button></span></div>`);
+    $("#rasc-continuar", el).onclick = () => continuarAqui(r.id);
+    $("#rasc-todos", el)?.addEventListener("click", () => abrirPedidos().catch(erro));
+  }
+
+  async function continuarAqui(id) {
+    if (venda.itens.length && !(await confirmar("O cupom atual será substituído pela venda do outro aparelho.", { titulo: "Continuar venda aqui", ok: "Substituir" }))) return;
+    try {
+      const dados = await assumirRascunho(id);
+      const antigo = venda;
+      venda = { ...novaVenda(), ...dados, id_local: id, pagamentos: dados.pagamentos || [] };
+      delete venda.total; delete venda.salvo_em; delete venda.aparelho_nome;
+      if (antigo.rascunho && antigo.id_local !== id) descartarRascunho(antigo.id_local);
+      sel = venda.itens.length - 1;
+      atualizarCupom(true);
+      render($("#aviso-rasc", el), "");
+      toast(`Venda trazida para este aparelho${jaPago() ? ` · já pago ${dinheiro(jaPago())}` : ""}`, "ok");
+      focarBusca();
+    } catch (e) { erro(e); verRascunhosDeOutros(); }
+  }
+
+  // O servidor avisa quando outro aparelho assumiu (ou concluiu) a venda que está aqui
+  aoMudarRascunho(async (r) => {
+    if (r.id_local !== venda.id_local) return;
+    document.querySelectorAll("dialog[open]").forEach((d) => d.close());
+    venda = novaVenda(); sel = -1; atualizarCupom();
+    await modal({
+      titulo: r.situacao === "finalizada" ? "Venda já concluída" : "Venda continuada em outro aparelho",
+      corpo: html`<p>${r.situacao === "finalizada" ? `Esta venda já foi concluída (nº ${r.numero}) em outro aparelho.` : `Esta venda foi assumida por ${r.aparelho_nome || "outro aparelho"}${r.operador_nome ? ` (${r.operador_nome})` : ""}.`}
+        Este aparelho começou um cupom novo.</p>`,
+      rodape: html`<button class="btn primary" data-fechar autofocus>Entendi</button>`,
+    });
+    focarBusca();
+  });
 
   // ---------- Leitor de código de barras ----------
   function processarEntrada(texto) {
@@ -672,9 +815,15 @@ export default async function pdv(el, params = []) {
   $("#btn-receber", el)?.addEventListener("click", receber);
 
   // Itens do cupom guardados num pedido podem ter sido finalizados em outro terminal
-  if (venda.venda_id) {
-    const { data } = await sb.from("vendas").select("status").eq("id", venda.venda_id).maybeSingle();
-    if (data?.status !== "aberta") venda = novaVenda();
+  if (venda.venda_id && estaOnline()) {
+    try {
+      const { data, error } = await comTempo(sb.from("vendas").select("status").eq("id", venda.venda_id).maybeSingle(), 8000);
+      if (!error && data?.status !== "aberta") venda = novaVenda();
+    } catch { /* sem rede: mantém o cupom */ }
+  }
+  // Venda recuperada depois de queda de energia / fechar o navegador
+  if (venda.itens.length || venda.pagamentos?.length) {
+    setTimeout(() => toast(`Venda em andamento recuperada: ${venda.itens.length} ${venda.itens.length === 1 ? "item" : "itens"}${jaPago() ? ` · já pago ${dinheiro(jaPago())}` : ""}`, "ok"), 300);
   }
 
   // Indicador da balança na barra do PDV
@@ -696,6 +845,13 @@ export default async function pdv(el, params = []) {
   atualizarCupom();
   desenharAvisoCaixa();
   try { await carregarProdutos(); contarPedidos(); } catch (e) { erro(e); }
+  verRascunhosDeOutros();
+  const tirarEnvio = aoEnviarVenda(({ item, resposta }) => {
+    toast(resposta.ja_registrada ? `Venda ${item.numero_local} já estava no sistema (nº ${resposta.numero}). Nada em dobro.` : `Venda feita sem internet enviada: ${item.numero_local} → nº ${resposta.numero}${Number(resposta.ajuste) ? ` (ajuste de preço ${dinheiro(resposta.ajuste)})` : ""}`, "ok");
+    carregarProdutos().catch(() => {}); contarPedidos();
+  });
+  const aoVoltarRede = (e) => { if (e.detail?.online) { verRascunhosDeOutros(); contarPedidos(); } };
+  window.addEventListener("contingencia", aoVoltarRede);
   // Vindo da tela de Mesas ou Delivery: #/pdv/<id do pedido>
   if (/^[0-9a-f-]{36}$/i.test(params[0] || "")) {
     history.replaceState(null, "", "#/pdv");
@@ -703,7 +859,10 @@ export default async function pdv(el, params = []) {
   }
   focarBusca();
 
-  return () => { document.removeEventListener("keydown", teclas); tirarBal(); window.removeEventListener("pdv-balanca", recarregarBal); };
+  return () => {
+    document.removeEventListener("keydown", teclas); tirarBal(); window.removeEventListener("pdv-balanca", recarregarBal);
+    tirarEnvio(); window.removeEventListener("contingencia", aoVoltarRede); aoMudarRascunho(null);
+  };
 }
 
 // Exposto para a tela de Vendas reimprimir pedidos

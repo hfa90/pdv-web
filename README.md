@@ -27,6 +27,15 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 - **Minha assinatura** (administrador/gerente): plano, próximo pagamento, faturas com link de pagamento, pendências da loja, uso do mês e pedidos de pacotes adicionais.
 - **Menu lateral recolhível** (só ícones, abre ao passar o mouse; botão para fixar aberto) e **tema escuro** (sistema e site; segue o tema do aparelho até a pessoa escolher).
 
+## Sem internet, queda de energia e troca de aparelho
+
+- **Queda de energia / bateria**: o cupom em andamento (itens **e pagamentos já recebidos**) é gravado no aparelho a cada toque. Ao religar, a venda volta exatamente como estava. Nada é estornado.
+- **Sem internet**: o sistema abre e vende com a cópia local (service worker `app/sw.js`, catálogo e sessão guardados). Vendas concluídas offline entram numa fila e são enviadas sozinhas quando a conexão volta, com a data/hora real. Um aviso na tela mostra "Sem internet · N vendas aguardando envio". PIX estático continua funcionando (o QR é gerado no aparelho; o celular do cliente usa a internet dele). Abrir/fechar caixa e NFC-e precisam de conexão (a NFC-e é emitida no envio).
+- **Nunca duplica**: cada venda tem um `id_local`. Reenviar (fila, energia caiu no meio do envio, outro aparelho concluindo a mesma venda) devolve a venda já registrada.
+- **Pane no computador do caixa**: com internet, a venda em andamento também fica no servidor. Em outro computador, tablet ou celular, entre com o mesmo usuário e abra **Vender**: aparece "Venda em andamento em outro aparelho" → **Continuar aqui** (também em **Pedidos**). O aparelho antigo, se voltar, é avisado e começa um cupom novo.
+- O caixa só fecha depois que as vendas offline daquele operador forem enviadas.
+- Banco: `supabase/migrations/010_contingencia.sql` (colunas `id_local`/`offline` em vendas, tabela `vendas_rascunho`, funções `salvar_rascunho`, `assumir_rascunho`, `descartar_rascunho` e `registrar_venda` idempotente).
+
 ## Segurança
 
 - Multiempresa com isolamento por **Row Level Security** em todas as tabelas.
@@ -83,6 +92,8 @@ app/js/estado.js               sessão e permissões por nível
 app/js/ui.js                   html seguro, formatação, modais, toasts
 app/js/main.js                 rotas e layout
 app/js/paginas/*.js            uma tela por arquivo
+app/js/contingencia.js         modo offline, fila de vendas e venda em andamento entre aparelhos
+app/sw.js                      service worker do sistema (abre sem internet)
 app/js/impressao/escpos.js     comandos ESC/POS + WebUSB/Serial
 app/js/impressao/cupom.js      layout dos cupons (navegador e térmica)
 supabase/migrations/*.sql  banco, RLS e regras de negócio

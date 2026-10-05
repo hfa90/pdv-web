@@ -1,12 +1,13 @@
 // Service worker do app do garçom: abre rápido e funciona com internet instável.
 // Arquivos do app: rede primeiro (pega atualizações) e cópia local se cair a conexão.
 // Dados (Supabase) nunca são guardados aqui: sempre vêm do servidor.
-const VERSAO = "garcom-v1";
+const VERSAO = "garcom-v2";
 const ESSENCIAIS = [
   "./", "./index.html", "./app.js", "./garcom.css", "./manifest.webmanifest",
   "./icones/icone-192.png", "./icones/icone-512.png",
   "../app/css/app.css", "../app/js/api.js", "../app/js/config.js", "../app/js/estado.js", "../app/js/ui.js",
   "../app/js/icons.js", "../app/js/seletor.js", "../app/js/mesa-detalhe.js", "../app/js/links.js", "../assets/config.js",
+  "../app/js/contingencia.js", "../assets/dispositivo.js",
 ];
 
 self.addEventListener("install", (e) => {
