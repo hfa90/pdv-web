@@ -7,6 +7,8 @@ import { parearUSB, parearSerial, suportaUSB, suportaSerial } from "../impressao
 import { TIPOS_CHAVE, normalizarChave, payloadPix, qrSvg, qrPronto } from "../../../assets/pix.js";
 import { raw } from "../ui.js";
 import { linkCardapio } from "../links.js";
+import { PROTOCOLOS, configBalanca, salvarConfigBalanca, parearBalanca, lerPeso, suportaBalanca, fechar as fecharBalanca } from "../balanca.js";
+import { icone } from "../icons.js";
 
 const ACOES = {
   "empresa.criar": "Criou a loja", "caixa.abrir": "Abriu o caixa", "caixa.fechar": "Fechou o caixa", "caixa.sangria": "Fez sangria",
@@ -23,6 +25,7 @@ export default async function configuracoes(el) {
     eh("admin", "gerente") && ["pix", "PIX"],
     eh("admin", "gerente") && estado.conta?.delivery_contratado && ["delivery", "Delivery e cardápio"],
     ["impressora", "Impressora"],
+    ["balanca", "Balança"],
     eh("admin") && ["fiscal", "Nota fiscal"],
     eh("admin", "gerente") && ["atividades", "Registro de atividades"],
   ].filter(Boolean);
@@ -34,7 +37,7 @@ export default async function configuracoes(el) {
     <div id="corpo"></div></div>`);
   $$(".tabs button", el).forEach((b) => (b.onclick = () => { aba = b.dataset.aba; $$(".tabs button", el).forEach((x) => x.classList.toggle("ativo", x === b)); desenhar(); }));
 
-  function desenhar() { ({ loja, pix, delivery, impressora, fiscal, atividades })[aba]().catch(erro); }
+  function desenhar() { ({ loja, pix, delivery, impressora, balanca, fiscal, atividades })[aba]().catch(erro); }
 
   // ---------- Loja ----------
   async function loja() {
@@ -139,6 +142,83 @@ export default async function configuracoes(el) {
     $("#gaveta", el).onclick = () => abrirGaveta().catch(erro);
   }
 
+
+  // ---------- Balança ----------
+  async function balanca() {
+    const c = configBalanca();
+    render($("#corpo", el), html`<div class="stack-lg">
+      <form id="f-bal" class="panel panel-pad stack-lg">
+        <div class="row" style="align-items:flex-start;gap:1rem">
+          <div class="modulo-ic">${icone("balanca", 'width="26" height="26"')}</div>
+          <div class="grow"><h2>Balança no caixa</h2>
+            <p class="muted small">Pão, frios, comida e sorvete por quilo: ao tocar no produto vendido por KG o PDV lê o peso direto da balança, sem digitar.
+            Configuração deste computador (cada caixa guarda a sua).</p></div>
+        </div>
+        ${suportaBalanca() ? "" : html`<div class="alerta warn">Este navegador não acessa portas seriais. Abra o sistema no Google Chrome ou no Microsoft Edge do computador do caixa.</div>`}
+        <label class="check"><input type="checkbox" name="ativa" ${c.ativa ? "checked" : ""}> <strong>Usar balança neste caixa</strong></label>
+        <div class="grid-2">
+          <label class="field"><span>Marca / protocolo</span><select class="input" name="protocolo">
+            ${Object.entries(PROTOCOLOS).map(([k, v]) => html`<option value="${k}" ${c.protocolo === k ? "selected" : ""}>${v.nome}</option>`)}</select></label>
+          <label class="field"><span>Velocidade (baud)</span><select class="input" name="baudRate">
+            ${[2400, 4800, 9600, 19200].map((b) => html`<option ${Number(c.baudRate) === b ? "selected" : ""}>${b}</option>`)}</select></label>
+          <label class="field"><span>Paridade</span><select class="input" name="paridade">
+            ${[["none", "Nenhuma (8N1)"], ["even", "Par (8E1)"], ["odd", "Ímpar (8O1)"]].map(([k, n]) => html`<option value="${k}" ${c.paridade === k ? "selected" : ""}>${n}</option>`)}</select></label>
+          <label class="field"><span>Bits de dados</span><select class="input" name="dataBits">
+            ${[8, 7].map((b) => html`<option ${Number(c.dataBits) === b ? "selected" : ""}>${b}</option>`)}</select></label>
+        </div>
+        <label class="check"><input type="checkbox" name="autoConfirmar" ${c.autoConfirmar ? "checked" : ""}> Lançar o item sozinho quando o peso estabilizar</label>
+        <div class="row wrap">
+          <button class="btn primary">Salvar</button>
+          <button type="button" class="btn" id="b-parear">${icone("link", 'width="18" height="18"')} Parear balança</button>
+          <button type="button" class="btn" id="b-testar">${icone("balanca", 'width="18" height="18"')} Ler peso agora</button>
+        </div>
+        <div class="peso-visor" id="b-visor" hidden><div class="pv-info"><span>Leitura</span><span id="b-sit">—</span></div><div class="pv-peso"><span id="b-peso">0,000</span><small>kg</small></div></div>
+      </form>
+
+      <form id="f-etq" class="panel panel-pad stack">
+        <h2>Etiquetas da balança (código de barras)</h2>
+        <p class="muted small">Balanças que imprimem etiqueta (Toledo Prix 4, Filizola Platina, Urano…) geram um EAN-13 começando com 2. O PDV lê no leitor de código de barras normalmente. O código do produto na balança deve ser o mesmo campo <strong>Código</strong> do cadastro.</p>
+        <div class="grid-2">
+          <label class="field"><span>A etiqueta traz</span><select class="input" name="etiquetaTipo">
+            <option value="preco" ${c.etiquetaTipo === "preco" ? "selected" : ""}>Preço total (mais comum)</option>
+            <option value="peso" ${c.etiquetaTipo === "peso" ? "selected" : ""}>Peso em gramas</option></select></label>
+          <label class="field"><span>Dígitos do código do produto</span><select class="input" name="etiquetaDigitos">
+            <option value="5" ${Number(c.etiquetaDigitos) !== 4 ? "selected" : ""}>5 dígitos · 2 CCCCC VVVVV D</option>
+            <option value="4" ${Number(c.etiquetaDigitos) === 4 ? "selected" : ""}>4 dígitos · 2 CCCC VVVVVV D</option></select></label>
+        </div>
+        <div><button class="btn">Salvar formato da etiqueta</button></div>
+      </form>
+
+      <div class="panel panel-pad stack small">
+        <h3>Como ligar</h3>
+        <p>1. Ligue o cabo da balança no computador (serial/COM ou adaptador USB-serial) e instale o driver do adaptador, se houver.</p>
+        <p>2. Na balança, deixe a comunicação no protocolo da marca (Toledo: P03 · Filizola/Urano: protocolo padrão de PDV) e anote a velocidade (normalmente 9600 ou 4800).</p>
+        <p>3. Clique em <strong>Parear balança</strong>, escolha a porta COM da balança e depois em <strong>Ler peso agora</strong> com algo sobre o prato.</p>
+        <p>Sem balança à mão? Escolha <strong>Simulador</strong> para treinar a equipe.</p>
+      </div></div>`);
+    const f = $("#f-bal", el), fe = $("#f-etq", el);
+    const atual = () => { const x = lerForm(f); return { ativa: x.ativa, protocolo: x.protocolo, baudRate: Number(x.baudRate), paridade: x.paridade, dataBits: Number(x.dataBits), autoConfirmar: x.autoConfirmar }; };
+    f.protocolo.onchange = () => { f.baudRate.value = String(PROTOCOLOS[f.protocolo.value]?.baud || 9600); };
+    f.onsubmit = (e) => { e.preventDefault(); salvarConfigBalanca(atual()); toast("Balança configurada", "ok"); };
+    fe.onsubmit = (e) => { e.preventDefault(); const x = lerForm(fe); salvarConfigBalanca({ etiquetaTipo: x.etiquetaTipo, etiquetaDigitos: Number(x.etiquetaDigitos) }); toast("Formato da etiqueta salvo", "ok"); };
+    $("#b-parear", el).onclick = async () => {
+      salvarConfigBalanca({ ...atual(), ativa: true }); f.ativa.checked = true;
+      try { toast(await parearBalanca(), "ok"); } catch (e) { if (e.name !== "NotFoundError") erro(e); }
+    };
+    $("#b-testar", el).onclick = async (ev) => {
+      salvarConfigBalanca(atual());
+      const visor = $("#b-visor", el); visor.hidden = false;
+      await ocupado(ev.currentTarget, async () => {
+        try {
+          const r = await lerPeso({ timeout: 2000 });
+          $("#b-peso", el).textContent = (r.peso ?? 0).toFixed(3).replace(".", ",");
+          $("#b-sit", el).textContent = r.erro || (r.estavel ? "Estável" : "Instável");
+          visor.classList.toggle("instavel", !r.estavel || !!r.erro);
+        } catch (e) { $("#b-sit", el).textContent = e.message; visor.classList.add("instavel"); }
+      });
+    };
+    return () => fecharBalanca();
+  }
 
   // ---------- PIX ----------
   async function pix() {

@@ -22,6 +22,11 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 - **Cozinha**: um computador pode imprimir sozinho os itens lançados pelos garçons e os pedidos do delivery.
 - **Delivery e cardápio digital** (`cardapio/?loja=endereco`): cardápio com fotos, sacola, entrega ou retirada, CEP automático, PIX, e acompanhamento do pedido em tempo real (recebido, em preparo, saiu, entregue). A loja gerencia em um quadro por etapa com aviso sonoro.
 
+- **Balança integrada** (Configurações › Balança): Toledo, Filizola, Urano, Elgin ou envio contínuo pela porta serial/USB (Web Serial, Chrome/Edge). Produtos por KG abrem o visor de pesagem no PDV e entram sozinhos quando o peso estabiliza. Também lê etiquetas de balança com preço ou peso (EAN-13 iniciado em 2, código de 4 ou 5 dígitos). Modo simulador para treinar sem balança.
+- **Códigos e etiquetas**: gerador interativo de EAN-13, EAN-8, Code 128, ITF-14 e QR Code (texto/link, PIX da loja, WhatsApp, Wi-Fi, cardápio), com pré-visualização ao vivo, cor e estilo do QR, código interno válido, gravação no cadastro do produto, impressão em etiqueta térmica ou folha A4 (Pimaco 6180), fila de impressão e download PNG/SVG.
+- **Minha assinatura** (administrador/gerente): plano, próximo pagamento, faturas com link de pagamento, pendências da loja, uso do mês e pedidos de pacotes adicionais.
+- **Menu lateral recolhível** (só ícones, abre ao passar o mouse; botão para fixar aberto) e **tema escuro** (sistema e site; segue o tema do aparelho até a pessoa escolher).
+
 ## Segurança
 
 - Multiempresa com isolamento por **Row Level Security** em todas as tabelas.
@@ -54,7 +59,11 @@ O registro dos testes (`testes_gratis`) nunca é apagado. Tentativas repetidas v
 
 ## Painel do fornecedor
 
-O menu **Plataforma** aparece só para os e-mails da tabela `plataforma_admins`. Ali ficam os contatos captados, as lojas em teste e os clientes, com as ações ativar plano, estender teste, suspender e cancelar.
+O menu **Plataforma** aparece só para os e-mails da tabela `plataforma_admins`. Ali ficam:
+
+- **Faturamento dos clientes**: quanto cada loja faturou hoje, na semana, no mês ou em qualquer período, filtrando por setor; ranking, vendas por dia/hora, por setor e por forma de pagamento, detalhe por loja (mais vendidos) e exportação CSV. Leitura só por funções do banco que conferem `plataforma_admins`.
+- **Lojas**: ativar plano, dia de vencimento, módulos, estender teste, suspender e cancelar.
+- **Contatos (leads)**, **Cobranças** (gerar mensalidades do mês, fatura avulsa, link/código de pagamento, registrar recebimento) e **Pedidos de pacotes** (aprovar/recusar, somar na mensalidade, liberar módulos).
 
 ## Configuração comercial
 

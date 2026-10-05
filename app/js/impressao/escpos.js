@@ -1,6 +1,8 @@
 // Gerador de comandos ESC/POS (padrão das impressoras térmicas: Epson, Elgin, Bematech, Daruma,
 // Tanca, Knup, Jetway e genéricas) e transportes WebUSB / Web Serial.
 
+import { lembrarPorta, acharPorta, CHAVE_IMPRESSORA, CHAVE_BALANCA } from "../serial-portas.js";
+
 const ESC = 0x1b, GS = 0x1d, LF = 0x0a;
 
 // Mapeamento para a página de código 860 (Português) — usado quando "remover acentos" está desligado
@@ -79,7 +81,8 @@ export async function parearUSB() {
 
 export async function parearSerial(baudRate = 9600) {
   serialPort = await navigator.serial.requestPort();
-  await serialPort.open({ baudRate });
+  await lembrarPorta(CHAVE_IMPRESSORA, serialPort);
+  if (!serialPort.writable) await serialPort.open({ baudRate });
   return "Porta serial/Bluetooth";
 }
 
@@ -90,7 +93,7 @@ async function obterUSB() {
 }
 
 async function obterSerial(baudRate) {
-  if (!serialPort) serialPort = (await navigator.serial.getPorts())[0] || null;
+  if (!serialPort) serialPort = await acharPorta(CHAVE_IMPRESSORA, CHAVE_BALANCA);
   if (!serialPort) throw new Error("Nenhuma impressora serial pareada. Vá em Configurações > Impressora.");
   if (!serialPort.writable) await serialPort.open({ baudRate });
   return serialPort;

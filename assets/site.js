@@ -185,3 +185,122 @@ fContato.addEventListener("submit", async (e) => {
   } catch (err) { mensagem(msg, esc(err.message)); }
   finally { botao.disabled = false; }
 });
+
+// =====================================================================
+// Interações da página: tema, revelar ao rolar, palavra que gira,
+// abas por segmento, contadores, balança animada e paralaxe do topo.
+// =====================================================================
+const semMovimento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+document.documentElement.classList.add("js-on");
+
+// Tema claro/escuro
+$("#tema-site")?.addEventListener("click", () => window.lisTema?.alternar());
+
+// Topo com borda ao rolar
+const topo = $(".topo");
+const aoRolar = () => topo?.classList.toggle("rolado", scrollY > 8);
+addEventListener("scroll", aoRolar, { passive: true }); aoRolar();
+
+// Revelar ao entrar na tela
+const obs = "IntersectionObserver" in window ? new IntersectionObserver((ents) => {
+  ents.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("visivel"); obs.unobserve(e.target); } });
+}, { threshold: .12, rootMargin: "0px 0px -40px 0px" }) : null;
+$$(".revelar").forEach((el, i) => {
+  el.style.transitionDelay = `${(i % 4) * 70}ms`;
+  if (obs && !semMovimento) obs.observe(el); else el.classList.add("visivel");
+});
+
+// Palavra que gira no título
+const giro = $("#giro");
+const palavras = ["padaria", "mercadinho", "lanchonete", "cafeteria", "sorveteria", "restaurante", "loja"];
+if (giro && !semMovimento) {
+  let i = 0;
+  setInterval(() => {
+    giro.classList.add("saindo");
+    setTimeout(() => {
+      i = (i + 1) % palavras.length;
+      giro.textContent = palavras[i];
+      giro.classList.remove("saindo"); giro.classList.add("entrando");
+      requestAnimationFrame(() => requestAnimationFrame(() => giro.classList.remove("entrando")));
+    }, 330);
+  }, 2400);
+}
+
+// Contadores
+const contar = (el) => {
+  const alvo = Number(el.dataset.conta) || 0;
+  if (semMovimento || !alvo) { el.textContent = alvo; return; }
+  const ini = performance.now(), dur = 1100;
+  const passo = (t) => { const p = Math.min(1, (t - ini) / dur); el.textContent = Math.round(alvo * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(passo); };
+  requestAnimationFrame(passo);
+};
+const obsConta = "IntersectionObserver" in window ? new IntersectionObserver((ents) => ents.forEach((e) => { if (e.isIntersecting) { contar(e.target); obsConta.unobserve(e.target); } }), { threshold: .6 }) : null;
+$$("[data-conta]").forEach((el) => (obsConta ? obsConta.observe(el) : contar(el)));
+
+// Abas por segmento
+const SEG = {
+  padaria: { c: "#E07A1F", t: "Pão por unidade, frios por peso e café no balcão", img: "assets/img/pdv.webp",
+    l: ["Pão francês e frios lidos direto da balança", "Etiqueta de balança lida no leitor de código de barras", "Favoritos na tela para o café da manhã sair rápido", "Encomendas e comandas com observação"] },
+  mercado: { c: "#16A34A", t: "Leitor de código de barras, balança e fila andando", img: "assets/img/pagamento.webp",
+    l: ["Passou o código, entrou no cupom: até com 3× na frente", "Hortifruti por quilo com balança integrada", "Etiquetas de gôndola com código de barras e preço", "Estoque baixa sozinho e avisa quando comprar"] },
+  lanchonete: { c: "#E5484D", t: "Comandas com observação direto para a cozinha", img: "assets/img/pedidos.webp",
+    l: ["“Sem cebola” impresso na via da cozinha", "Pedido por senha, mesa ou nome", "Delivery próprio com cardápio digital e PIX", "Fechamento de caixa que bate certinho"] },
+  cafe: { c: "#8B5E3C", t: "Favoritos na tela e pedido saindo rápido", img: "assets/img/caixa.webp",
+    l: ["Botões grandes para tela touch", "Pagamento dividido: parte PIX, parte cartão", "QR Code do Wi-Fi e do cardápio na mesa", "Relatório dos horários de pico"] },
+  restaurante: { c: "#7C5CFF", t: "Mesas, garçom no celular e conta dividida", img: "assets/img/mesas.webp",
+    l: ["Mapa do salão com mesas livres, ocupadas e pedindo a conta", "App do garçom que instala no celular", "Comida por quilo pesada na balança do caixa", "Taxa de serviço e conta por pessoa"] },
+  sorvete: { c: "#2E9BFF", t: "Sorvete e açaí por peso, sem digitar nada", img: "assets/img/celular.webp",
+    l: ["Coloque o pote na balança: o peso entra sozinho no cupom", "Tara descontada na própria balança", "Cardápio digital para pedidos de delivery", "PIX com QR Code no valor exato"] },
+};
+const painel = $("#seg-painel");
+function mostrarSeg(k) {
+  const d = SEG[k]; if (!d || !painel) return;
+  $$("#seg-abas button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.seg === k)));
+  painel.classList.add("trocando");
+  setTimeout(() => {
+    painel.style.setProperty("--seg-c", d.c);
+    $("#seg-titulo").textContent = d.t;
+    $("#seg-lista").innerHTML = d.l.map((x) => `<li>${esc(x)}</li>`).join("");
+    $("#seg-img").src = d.img;
+    painel.classList.remove("trocando");
+  }, semMovimento ? 0 : 200);
+}
+$$("#seg-abas button").forEach((b) => {
+  b.addEventListener("click", () => mostrarSeg(b.dataset.seg));
+  b.addEventListener("keydown", (e) => {
+    if (!["ArrowRight", "ArrowLeft"].includes(e.key)) return;
+    const bs = $$("#seg-abas button"); const i = bs.indexOf(b) + (e.key === "ArrowRight" ? 1 : -1);
+    const n = bs[(i + bs.length) % bs.length]; n.focus(); mostrarSeg(n.dataset.seg);
+  });
+});
+mostrarSeg("padaria");
+
+// Balança animada (hero e bento)
+const pesos = ["0,482", "1,035", "0,257", "0,760", "0,318"];
+let ip = 0;
+const pesoHero = $("#peso-demo"), pesoBento = $("#peso-bento");
+if (!semMovimento) setInterval(() => { ip = (ip + 1) % pesos.length; if (pesoHero) pesoHero.textContent = pesos[ip]; }, 2600);
+if (pesoBento) {
+  const animarBal = () => {
+    const alvo = 0.3 + Math.random() * 1.2; const ini = performance.now();
+    const passo = (t) => { const p = Math.min(1, (t - ini) / 900); const v = alvo * (1 - Math.pow(1 - p, 3)) + (p < 1 ? (Math.random() - .5) * .02 : 0);
+      pesoBento.textContent = Math.max(0, v).toFixed(3).replace(".", ","); if (p < 1) requestAnimationFrame(passo); };
+    requestAnimationFrame(passo);
+  };
+  if (!semMovimento) { animarBal(); setInterval(animarBal, 3200); } else pesoBento.textContent = "0,482";
+}
+
+// Paralaxe leve na janela do topo
+const vis = $("#hero-visual"), janela = vis?.querySelector(".janela");
+if (vis && janela && !semMovimento && matchMedia("(pointer: fine)").matches) {
+  vis.addEventListener("mousemove", (e) => {
+    const r = vis.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - .5, y = (e.clientY - r.top) / r.height - .5;
+    janela.style.transform = `rotateY(${-7 + x * 8}deg) rotateX(${3 - y * 6}deg)`;
+  });
+  vis.addEventListener("mouseleave", () => { janela.style.transform = ""; });
+}
+
+// Total do simulador pulsa quando muda
+const totalSim = $("#sim-total");
+if (totalSim) new MutationObserver(() => { totalSim.classList.remove("pulsou"); void totalSim.offsetWidth; totalSim.classList.add("pulsou"); }).observe(totalSim, { childList: true });

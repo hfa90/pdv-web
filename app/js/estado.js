@@ -29,10 +29,12 @@ export const ROTAS = {
   caixa:         { titulo: "Caixa",         icone: "caixa",      papeis: ["admin", "gerente", "caixa"] },
   vendas:        { titulo: "Vendas",        icone: "vendas",     papeis: ["admin", "gerente", "caixa"] },
   produtos:      { titulo: "Produtos",      icone: "produtos",   papeis: ["admin", "gerente"] },
+  etiquetas:     { titulo: "Códigos e etiquetas", icone: "barras", papeis: ["admin", "gerente"] },
   estoque:       { titulo: "Estoque",       icone: "estoque",    papeis: ["admin", "gerente"] },
   clientes:      { titulo: "Clientes",      icone: "clientes",   papeis: TODOS },
   relatorios:    { titulo: "Relatórios",    icone: "relatorios", papeis: ["admin", "gerente"] },
   usuarios:      { titulo: "Usuários",      icone: "usuarios",   papeis: ["admin", "gerente"] },
+  conta:         { titulo: "Minha assinatura", icone: "assinatura", papeis: ["admin", "gerente"] },
   configuracoes: { titulo: "Configurações", icone: "config",     papeis: ["admin", "gerente", "caixa"] },
   plataforma:    { titulo: "Plataforma",    icone: "plataforma", papeis: [], soFornecedor: true },
 };

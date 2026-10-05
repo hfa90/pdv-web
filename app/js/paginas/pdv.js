@@ -8,6 +8,8 @@ import { raw, debounce, html, render, $, $$, dinheiro, qtd as fmtQtd, lerNumero,
 import { icone } from "../icons.js";
 import { configImpressora, imprimir, imprimirVenda, layoutVenda, nomeForma } from "../impressao/cupom.js";
 import { payloadPix, qrSvg, qrPronto, txidVenda } from "../../../assets/pix.js";
+import { balancaAtiva, configBalanca, lerEtiquetaBalanca, aoMudar as aoMudarBalanca } from "../balanca.js";
+import { pesar } from "../pesagem.js";
 
 const FRACIONADOS = ["KG", "G", "L", "ML", "M"];
 const FORMAS = [
@@ -47,6 +49,7 @@ export default async function pdv(el, params = []) {
         <div class="pdv-top">
           <label class="pdv-busca">${icone("busca")}
             <input class="input" id="busca" placeholder="Buscar produto ou passar o código de barras" autocomplete="off" aria-label="Buscar produto"></label>
+          <button class="balanca-chip" id="chip-bal" hidden title="Balança">${icone("balanca", 'width="16" height="16"')}<span class="pt"></span><span id="chip-bal-txt">Balança</span></button>
           <button class="btn lg" id="btn-pedidos" title="Pedidos e comandas abertos">${icone("comanda", 'width="20" height="20"')}<span id="n-pedidos">Pedidos</span></button>
         </div>
         <div id="aviso-caixa"></div>
@@ -159,11 +162,16 @@ export default async function pdv(el, params = []) {
   async function adicionarProduto(p, quantidade = null) {
     if (!p) return;
     if (quantidade == null) {
-      if (FRACIONADOS.includes(p.unidade)) {
+      if (FRACIONADOS.includes(p.unidade) && ["KG", "G"].includes(p.unidade) && balancaAtiva()) {
+        const r = await pesar(p);
+        if (r === undefined) return focarBusca();
+        if (r !== "manual") quantidade = r;
+      }
+      if (quantidade == null && FRACIONADOS.includes(p.unidade)) {
         const v = await pedirTexto({ titulo: p.nome, rotulo: `Quantidade (${p.unidade.toLowerCase()})`, valor: "", ok: "Adicionar", dica: `${dinheiro(p.preco_venda)} por ${p.unidade.toLowerCase()}. Ex.: 0,350` });
         if (v == null) return focarBusca();
         quantidade = lerNumero(v);
-      } else quantidade = 1;
+      } else if (quantidade == null) quantidade = 1;
     }
     if (!(quantidade > 0)) { toast("Quantidade inválida", "erro"); return focarBusca(); }
     if (!FRACIONADOS.includes(p.unidade)) quantidade = Math.round(quantidade);
@@ -613,15 +621,15 @@ export default async function pdv(el, params = []) {
     const p = porBarras.get(t) || porCodigo.get(t.replace(/^0+/, "").toLowerCase());
     if (p) { adicionarProduto(p, mult ?? (FRACIONADOS.includes(p.unidade) ? null : 1)); return true; }
 
-    // Etiqueta de balança: 2 CCCCC VVVVV D (EAN-13). C = código do produto, V = preço total em centavos
-    if (/^2\d{12}$/.test(t)) {
-      const cod = t.slice(1, 6).replace(/^0+/, "");
-      const prod = porCodigo.get(cod.toLowerCase());
+    // Etiqueta de balança: 2 CCCCC VVVVV D (EAN-13). C = código do produto, V = preço total (centavos) ou peso (gramas)
+    const etq = lerEtiquetaBalanca(t);
+    if (etq) {
+      const prod = porCodigo.get(etq.codigo.toLowerCase());
       if (prod) {
-        const valor = Number(t.slice(6, 11)) / 100;
-        const quant = FRACIONADOS.includes(prod.unidade) && prod.preco_venda > 0 ? Math.round((valor / prod.preco_venda) * 1000) / 1000 : 1;
-        adicionarProduto(prod, quant);
-        return true;
+        let quant;
+        if (etq.peso != null) quant = prod.unidade === "G" ? Math.round(etq.peso * 1000) : etq.peso;
+        else quant = FRACIONADOS.includes(prod.unidade) && prod.preco_venda > 0 ? Math.round((etq.preco / prod.preco_venda) * 1000) / 1000 : 1;
+        if (quant > 0) { adicionarProduto(prod, quant); return true; }
       }
     }
     if (/^\d{8,14}$/.test(t)) { toast(`Código ${t} não cadastrado`, "erro"); inpBusca.select(); return true; }
@@ -669,6 +677,22 @@ export default async function pdv(el, params = []) {
     if (data?.status !== "aberta") venda = novaVenda();
   }
 
+  // Indicador da balança na barra do PDV
+  const chipBal = $("#chip-bal", el);
+  const desenharBalanca = (st) => {
+    const c = configBalanca();
+    chipBal.hidden = !c.ativa;
+    if (!c.ativa) return;
+    const on = c.protocolo === "simulador" || !!st?.conectada;
+    chipBal.classList.toggle("on", on);
+    $("#chip-bal-txt", el).textContent = c.protocolo === "simulador" ? "Simulador" : on ? (st?.ultimo?.peso != null ? `${st.ultimo.peso.toFixed(3).replace(".", ",")} kg` : "Balança") : "Balança desligada";
+  };
+  chipBal.onclick = () => { location.hash = "#/configuracoes/balanca"; };
+  const tirarBal = aoMudarBalanca(desenharBalanca);
+  const recarregarBal = () => desenharBalanca(null);
+  window.addEventListener("pdv-balanca", recarregarBal);
+  desenharBalanca(null);
+
   atualizarCupom();
   desenharAvisoCaixa();
   try { await carregarProdutos(); contarPedidos(); } catch (e) { erro(e); }
@@ -679,7 +703,7 @@ export default async function pdv(el, params = []) {
   }
   focarBusca();
 
-  return () => document.removeEventListener("keydown", teclas);
+  return () => { document.removeEventListener("keydown", teclas); tirarBal(); window.removeEventListener("pdv-balanca", recarregarBal); };
 }
 
 // Exposto para a tela de Vendas reimprimir pedidos

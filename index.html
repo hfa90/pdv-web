@@ -15,6 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="assets/tema.js"></script>
   <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
@@ -24,6 +25,7 @@
   <div class="largura topo-in">
     <a class="logo" href="#" aria-label="Lis PDV, início"><span class="logo-m">L</span><span data-marca>Lis PDV</span></a>
     <nav class="menu" aria-label="Seções">
+      <a href="#recursos">Recursos</a>
       <a href="#vantagens">Vantagens</a>
       <a href="#restaurantes">Restaurantes</a>
       <a href="#kit">O que vem no kit</a>
@@ -31,6 +33,10 @@
       <a href="#duvidas">Dúvidas</a>
     </nav>
     <div class="topo-acoes">
+      <button class="tema-site" id="tema-site" type="button" aria-label="Alternar tema claro e escuro" title="Tema claro/escuro">
+        <svg class="ic-sol" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <svg class="ic-lua" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg>
+      </button>
       <a class="link-discreto" href="app/">Entrar</a>
       <a class="botao primario" href="#teste">Testar grátis</a>
     </div>
@@ -41,34 +47,116 @@
 
 <!-- ============ ABERTURA ============ -->
 <section class="hero">
+  <div class="hero-fundo" aria-hidden="true"><span class="b1"></span><span class="b2"></span><span class="b3"></span><span class="grade"></span></div>
   <div class="largura hero-in">
-    <div class="hero-texto">
-      <h1>O caixa da sua loja, pronto para vender.</h1>
+    <div class="hero-texto revelar">
+      <a class="pilula" href="#recursos"><span class="pilula-tag">Novo</span> Balança integrada, etiquetas com QR Code e modo escuro <span aria-hidden="true">→</span></a>
+      <h1>O caixa da sua<br><span class="giro" aria-live="off"><span class="giro-palavra" id="giro">padaria</span></span><br><span class="h1-fim">pronto para vender.</span></h1>
       <p class="hero-sub">Computador, impressora térmica, leitor de código de barras e o sistema, instalados na sua loja e com manutenção inclusa. Você paga uma mensalidade e cuida só de vender.</p>
       <div class="hero-ctas">
-        <a class="botao primario grande" href="#teste">Testar grátis por 7 dias</a>
+        <a class="botao primario grande brilho" href="#teste">Testar grátis por 7 dias</a>
         <a class="botao contorno grande" href="#planos">Ver planos e preços</a>
       </div>
-      <p class="hero-nota">Sem cartão de crédito. Sua loja de teste já vem com produtos de exemplo: em 2 minutos você está vendendo.</p>
+      <ul class="confianca-mini">
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/><path d="m4 4 16 16"/></svg>Sem cartão de crédito</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 4 5.5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10v-6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>Dados protegidos</li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/></svg>Suporte no WhatsApp</li>
+      </ul>
     </div>
-    <div class="hero-visual" aria-hidden="true">
-      <div class="tela"><img src="assets/img/pdv.webp" alt="" width="1600" height="937"></div>
+    <div class="hero-visual revelar" aria-hidden="true" id="hero-visual">
+      <div class="janela">
+        <div class="janela-barra"><i></i><i></i><i></i><span>lispdv.app/vender</span></div>
+        <img src="assets/img/pdv.webp" alt="" width="1600" height="937">
+      </div>
+      <div class="flutua f-pix"><span class="f-ic verde"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></span><div><small>PIX recebido</small><b>R$ 48,90</b></div></div>
+      <div class="flutua f-bal"><span class="f-ic ambar"><svg viewBox="0 0 24 24"><path d="M5 20h14l-1.6-9H6.6z"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg></span><div><small>Balança · Pão francês</small><b><span id="peso-demo">0,482</span> kg</b></div></div>
+      <div class="flutua f-venda"><span class="f-ic roxo"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span><div><small>Hoje</small><b>+18% vendas</b></div></div>
       <div class="cupom-flutua serrilha"><img src="assets/img/cupom.webp" alt="" width="520" height="1064"></div>
     </div>
   </div>
 </section>
 
+<!-- ============ NÚMEROS ============ -->
+<section class="numeros" aria-label="Em números">
+  <div class="largura numeros-in">
+    <div class="revelar"><b data-conta="2">0</b><span>minutos para a primeira venda</span></div>
+    <div class="revelar"><b data-conta="7">0</b><span>dias de teste grátis, sem cartão</span></div>
+    <div class="revelar"><b><span data-conta="0">0</span>%</b><span>de comissão no delivery</span></div>
+    <div class="revelar"><b><span data-conta="24">0</span>h</b><span>na nuvem: acesse de onde estiver</span></div>
+  </div>
+</section>
+
 <!-- ============ PARA QUEM ============ -->
-<section class="segmentos" aria-labelledby="t-seg">
+<section class="segmentos secao" aria-labelledby="t-seg">
   <div class="largura">
-    <h2 id="t-seg" class="t-menor">Feito para o balcão de quem vende todo dia</h2>
-    <ul class="seg-lista">
-      <li><strong>Padaria</strong><span>Pão por unidade, frios por peso e café no balcão.</span></li>
-      <li><strong>Mercadinho e supermercado</strong><span>Leitor de código de barras e etiqueta de balança.</span></li>
-      <li><strong>Lanchonete</strong><span>Comandas com observação para a cozinha.</span></li>
-      <li><strong>Café da manhã</strong><span>Favoritos na tela e pedido saindo rápido.</span></li>
-      <li><strong>Restaurante</strong><span>Mesas, taxa de serviço e conta dividida.</span></li>
-    </ul>
+    <p class="selo-secao">Para o seu tipo de negócio</p>
+    <h2 id="t-seg" class="t-secao">Feito para o balcão de quem vende todo dia</h2>
+    <div class="seg-abas" role="tablist" aria-label="Tipos de negócio" id="seg-abas">
+      <button role="tab" aria-selected="true" data-seg="padaria" style="--c:#E07A1F"><span class="dot"></span>Padaria</button>
+      <button role="tab" aria-selected="false" data-seg="mercado" style="--c:#16A34A"><span class="dot"></span>Mercado</button>
+      <button role="tab" aria-selected="false" data-seg="lanchonete" style="--c:#E5484D"><span class="dot"></span>Lanchonete</button>
+      <button role="tab" aria-selected="false" data-seg="cafe" style="--c:#8B5E3C"><span class="dot"></span>Café</button>
+      <button role="tab" aria-selected="false" data-seg="restaurante" style="--c:#7C5CFF"><span class="dot"></span>Restaurante</button>
+      <button role="tab" aria-selected="false" data-seg="sorvete" style="--c:#2E9BFF"><span class="dot"></span>Sorveteria e açaí</button>
+    </div>
+    <div class="seg-painel" id="seg-painel" role="tabpanel">
+      <div class="seg-texto">
+        <h3 id="seg-titulo">Pão por unidade, frios por peso e café no balcão</h3>
+        <ul class="lista-check" id="seg-lista"></ul>
+        <a class="botao primario" href="#teste">Testar na minha loja</a>
+      </div>
+      <figure class="seg-img"><img id="seg-img" src="assets/img/pdv.webp" alt="" width="1600" height="937" loading="lazy"></figure>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RECURSOS (BENTO) ============ -->
+<section id="recursos" class="secao recursos">
+  <div class="largura">
+    <p class="selo-secao">Tudo num sistema só</p>
+    <h2 class="t-secao">Recursos que fazem a fila andar</h2>
+    <p class="lead">Do leitor de código de barras ao relatório do fim do mês, cada detalhe pensado para o caixa ser rápido e o dono ter controle.</p>
+    <div class="bento">
+      <article class="b-card grande revelar" style="--c:#136F63">
+        <span class="b-ic"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6"/><circle cx="10" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg></span>
+        <h3>Venda em segundos</h3>
+        <p>Leitor, favoritos na tela, atalhos de teclado e pagamento dividido. Troco calculado sozinho.</p>
+        <img src="assets/img/pagamento.webp" alt="Tela de pagamento com PIX e dinheiro" width="1100" height="982" loading="lazy">
+      </article>
+      <article class="b-card revelar" style="--c:#E07A1F">
+        <span class="b-ic"><svg viewBox="0 0 24 24"><path d="M5 20h14l-1.6-9H6.6z"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/><path d="M12 14.5v2"/></svg></span>
+        <h3>Balança integrada</h3>
+        <p>Pão, frios, comida e sorvete por quilo: o peso vem direto da balança Toledo, Filizola, Urano ou Elgin. Também lê etiqueta de balança.</p>
+        <div class="b-visor"><span>PESO</span><b id="peso-bento">0,000</b><small>kg</small></div>
+      </article>
+      <article class="b-card revelar" style="--c:#7C5CFF">
+        <span class="b-ic"><svg viewBox="0 0 24 24"><path d="M4 7V5h3M17 5h3v2M20 17v2h-3M7 19H4v-2"/><path d="M8 8.5v7M10.5 8.5v7M13 8.5v7M16 8.5v7"/></svg></span>
+        <h3>Código de barras e QR Code</h3>
+        <p>Gere EAN-13, Code 128 e QR (PIX, Wi-Fi, WhatsApp, cardápio) e imprima etiquetas de gôndola na hora.</p>
+        <div class="b-barras" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      </article>
+      <article class="b-card revelar" style="--c:#2E9BFF">
+        <span class="b-ic"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></span>
+        <h3>Nota fiscal no mesmo clique</h3>
+        <p>NFC-e e NF-e com QR Code saindo direto da impressora térmica.</p>
+      </article>
+      <article class="b-card revelar" style="--c:#E5484D">
+        <span class="b-ic"><svg viewBox="0 0 24 24"><circle cx="5.5" cy="17" r="3"/><circle cx="18.5" cy="17" r="3"/><path d="M8.5 17h6l3-6h-4l-2-4H9M14.5 17 12 11H6.5"/></svg></span>
+        <h3>Delivery sem comissão</h3>
+        <p>Cardápio digital com PIX e acompanhamento do pedido em tempo real.</p>
+      </article>
+      <article class="b-card largo revelar" style="--c:#16A34A">
+        <span class="b-ic"><svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></span>
+        <h3>Saiba quanto a loja ganha</h3>
+        <p>Faturamento do dia, da semana e do mês, horários de pico, mais vendidos e lucro estimado. Do caixa ou do celular.</p>
+        <div class="b-grafico" aria-hidden="true"><i style="--h:38%"></i><i style="--h:52%"></i><i style="--h:44%"></i><i style="--h:70%"></i><i style="--h:63%"></i><i style="--h:88%"></i><i style="--h:76%"></i><i style="--h:94%"></i></div>
+      </article>
+      <article class="b-card revelar escuro-card" style="--c:#34C3AE">
+        <span class="b-ic"><svg viewBox="0 0 24 24"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z"/></svg></span>
+        <h3>Modo escuro elegante</h3>
+        <p>Menos cansaço na vista no turno da noite. Um clique e o sistema todo muda.</p>
+      </article>
+    </div>
   </div>
 </section>
 
@@ -78,19 +166,6 @@
     <h2 class="t-secao">Menos fila no caixa, mais controle no fim do dia</h2>
 
     <div class="recurso">
-      <div class="recurso-texto">
-        <h3>Venda em segundos</h3>
-        <p>Passe o código no leitor, toque no produto favorito ou leia a etiqueta da balança. O sistema soma, calcula o troco e aceita pagamento dividido: parte no PIX, parte no dinheiro.</p>
-        <ul class="lista-check">
-          <li>Atalhos de teclado para quem é rápido no caixa</li>
-          <li>Produtos por quilo com o peso digitado ou lido da etiqueta</li>
-          <li>Mesas e comandas que o garçom lança pelo celular</li>
-        </ul>
-      </div>
-      <figure class="recurso-img"><img src="assets/img/pagamento.webp" alt="Tela de pagamento com PIX e dinheiro e troco calculado" width="1100" height="982" loading="lazy"></figure>
-    </div>
-
-    <div class="recurso invertido">
       <div class="recurso-texto">
         <h3>Caixa que fecha certo</h3>
         <p>Cada operador abre o próprio caixa com o fundo de troco. Sangrias e suprimentos ficam registrados, e no fechamento o sistema mostra quanto deveria ter na gaveta e se faltou ou sobrou dinheiro.</p>
@@ -103,7 +178,7 @@
       <figure class="recurso-img"><img src="assets/img/fechar-caixa.webp" alt="Tela de fechamento de caixa com conferência" width="900" height="823" loading="lazy"></figure>
     </div>
 
-    <div class="recurso">
+    <div class="recurso invertido">
       <div class="recurso-texto">
         <h3>Nota fiscal no mesmo clique</h3>
         <p>Emita a NFC-e na hora da venda e entregue o cupom com QR Code direto da impressora térmica. Para empresas que pedem nota completa, a NF-e sai pelo mesmo sistema.</p>
@@ -116,7 +191,7 @@
       <figure class="recurso-img cupom-fig"><img src="assets/img/cupom.webp" alt="Cupom fiscal NFC-e impresso na térmica" width="520" height="1064" loading="lazy"></figure>
     </div>
 
-    <div class="recurso invertido">
+    <div class="recurso">
       <div class="recurso-texto">
         <h3>Saiba quanto a loja ganha</h3>
         <p>O painel mostra o faturamento do dia, os horários de pico, o que mais vende e o lucro estimado. O estoque baixa sozinho a cada venda e avisa quando é hora de comprar.</p>
@@ -174,6 +249,24 @@
     <div class="rest-pix">
       <strong>PIX com QR Code no caixa</strong>
       <span>Cadastre sua chave e o PDV mostra o QR com o valor exato da venda. Sem maquininha, sem taxa.</span>
+    </div>
+  </div>
+</section>
+
+<section class="secao confianca" aria-labelledby="t-conf">
+  <div class="largura">
+    <div class="conf-in">
+      <div class="revelar">
+        <p class="selo-secao">Segurança e confiança</p>
+        <h2 id="t-conf" class="t-secao">Seu caixa não pode parar. A gente leva isso a sério.</h2>
+        <p class="lead">Regras de segurança aplicadas no servidor, cada loja isolada das outras e gente de verdade para ajudar quando você precisar.</p>
+      </div>
+      <div class="conf-grade">
+        <div class="conf-item revelar" style="--c:#136F63"><span class="b-ic"><svg viewBox="0 0 24 24"><path d="M12 2.5 4 5.5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10v-6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></span><strong>Cada loja isolada</strong><p>Ninguém de fora vê suas vendas. Preço e desconto validados no servidor, não no navegador.</p></div>
+        <div class="conf-item revelar" style="--c:#2E9BFF"><span class="b-ic"><svg viewBox="0 0 24 24"><path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 2.5 8.2"/><path d="M12 12v9M8 17l4 4 4-4"/></svg></span><strong>Cópia de segurança</strong><p>Tudo na nuvem com backup automático. Se o computador quebrar, nada se perde.</p></div>
+        <div class="conf-item revelar" style="--c:#7C5CFF"><span class="b-ic"><svg viewBox="0 0 24 24"><path d="M6 2.5h12v19l-2.5-1.6-2.3 1.6-2.2-1.6-2.3 1.6L6 21.5z"/><path d="M9 7.5h6M9 11h6M9 14.5h4"/></svg></span><strong>Tudo registrado</strong><p>Cancelamentos só com gerente e motivo. Cada ação fica no registro de atividades.</p></div>
+        <div class="conf-item revelar" style="--c:#E07A1F"><span class="b-ic"><svg viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1"/><rect x="2.5" y="13" width="4.5" height="6" rx="1.5"/><rect x="17" y="13" width="4.5" height="6" rx="1.5"/></svg></span><strong>Suporte humano</strong><p>Atendimento pelo WhatsApp, instalação na loja e troca de equipamento em até 2 dias úteis.</p></div>
+      </div>
     </div>
   </div>
 </section>

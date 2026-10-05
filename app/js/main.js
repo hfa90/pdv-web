@@ -19,6 +19,8 @@ const PAGINAS = {
   clientes: () => import("./paginas/clientes.js"),
   relatorios: () => import("./paginas/relatorios.js"),
   usuarios: () => import("./paginas/usuarios.js"),
+  etiquetas: () => import("./paginas/etiquetas.js"),
+  conta: () => import("./paginas/conta.js"),
   configuracoes: () => import("./paginas/configuracoes.js"),
   plataforma: () => import("./paginas/plataforma.js"),
 };
@@ -27,27 +29,35 @@ const app = document.getElementById("app");
 let limparPagina = null;
 let modoRecuperacao = false;
 
+const CHAVE_MENU = "lis-menu";
+const modoMenu = () => { try { return localStorage.getItem(CHAVE_MENU) || "auto"; } catch { return "auto"; } };
+
 function montarShell() {
   const p = estado.perfil;
   const nomeLoja = estado.empresa?.nome_fantasia || estado.empresa?.razao_social || "";
+  const modo = modoMenu();
   render(app, html`
-    <div class="shell">
-      <aside class="sidebar" id="sidebar">
+    <div class="shell menu-${modo}">
+      <aside class="sidebar ${modo === "auto" ? "recolhida" : ""}" id="sidebar">
         <div class="brand">
           <div class="brand-mark">${iniciais(nomeLoja).slice(0, 1)}</div>
           <div><div class="brand-name">${nomeLoja}</div><div class="brand-sub">Ponto de venda</div></div>
+          <button class="btn ghost icon-btn btn-fixar" id="btn-fixar" title="${modo === "auto" ? "Manter menu aberto" : "Recolher menu automaticamente"}" aria-label="Fixar ou recolher o menu">${icone("recolher")}</button>
         </div>
         <nav class="nav" aria-label="Menu principal">
           ${Object.entries(ROTAS).filter(([r]) => pode(r)).map(([r, def]) =>
-            html`<a href="#/${r}" data-rota="${r}">${icone(def.icone)}<span>${def.titulo}</span></a>`)}
+            html`<a href="#/${r}" data-rota="${r}" title="${def.titulo}">${icone(def.icone)}<span>${def.titulo}</span></a>`)}
         </nav>
         <div class="sidebar-foot">
           <div id="aviso-conta"></div>
-          <div class="user-chip">
+          <button class="btn ghost block btn-tema" id="btn-tema" style="justify-content:flex-start" title="Alternar tema claro/escuro">
+            <span id="ic-tema">${icone(window.lisTema?.atual() === "escuro" ? "lua" : "sol", 'width="18" height="18"')}</span>
+            <span class="tema-rotulo">Tema escuro</span><span class="tema-switch" aria-hidden="true"></span></button>
+          <div class="user-chip" title="${p.nome}">
             <div class="avatar">${iniciais(p.nome)}</div>
             <div class="grow small"><div style="font-weight:600">${p.nome}</div><div class="muted">${PAPEIS[p.papel].nome}</div></div>
           </div>
-          <button class="btn ghost block" id="btn-sair" style="justify-content:flex-start">${icone("sair", 'width="18" height="18"')} Sair</button>
+          <button class="btn ghost block btn-sair" id="btn-sair" style="justify-content:flex-start" title="Sair">${icone("sair", 'width="18" height="18"')} <span class="sair-rotulo">Sair</span></button>
         </div>
       </aside>
       <div class="main">
@@ -61,9 +71,44 @@ function montarShell() {
     </div>`);
   $("#btn-sair").onclick = sair;
   $("#btn-menu").onclick = () => $("#sidebar").classList.toggle("aberta");
+  $("#btn-tema").onclick = () => window.lisTema?.alternar();
+  ligarMenuRecolhivel();
   desenharAvisoConta();
   import("./cozinha.js").then((m) => m.iniciarCozinha()).catch(() => {});
   if (pode("delivery")) import("./avisos.js").then((m) => m.iniciarAvisos()).catch(() => {});
+}
+
+window.addEventListener("tema", (e) => {
+  const alvo = document.getElementById("ic-tema");
+  if (alvo) render(alvo, icone(e.detail === "escuro" ? "lua" : "sol", 'width="18" height="18"'));
+});
+
+/** Menu lateral: no modo automático abre ao passar o mouse e recolhe ao sair. */
+function ligarMenuRecolhivel() {
+  const shell = $(".shell"), side = $("#sidebar");
+  let t = null;
+  const abrir = () => { clearTimeout(t); t = setTimeout(() => side.classList.remove("recolhida"), 70); };
+  const fechar = (porMouse) => { clearTimeout(t); t = setTimeout(() => {
+    if (side.matches(":hover")) return;
+    if (!porMouse && side.contains(document.activeElement)) return;
+    side.classList.add("recolhida");
+    if (porMouse && side.contains(document.activeElement)) document.activeElement.blur();
+  }, 260); };
+  const auto = () => shell.classList.contains("menu-auto");
+  side.addEventListener("mouseenter", () => auto() && abrir());
+  side.addEventListener("mouseleave", () => auto() && fechar(true));
+  side.addEventListener("focusin", () => auto() && abrir());
+  side.addEventListener("focusout", (e) => { if (auto() && !side.contains(e.relatedTarget)) fechar(false); });
+  side.addEventListener("click", (e) => { if (auto() && e.target.closest(".nav a")) { clearTimeout(t); side.classList.add("recolhida"); document.activeElement?.blur?.(); } });
+  $("#btn-fixar").onclick = () => {
+    const novo = auto() ? "fixo" : "auto";
+    try { localStorage.setItem(CHAVE_MENU, novo); } catch { /* sem armazenamento */ }
+    shell.classList.toggle("menu-auto", novo === "auto");
+    shell.classList.toggle("menu-fixo", novo === "fixo");
+    side.classList.toggle("recolhida", novo === "auto" && !side.matches(":hover"));
+    $("#btn-fixar").title = novo === "auto" ? "Manter menu aberto" : "Recolher menu automaticamente";
+    window.dispatchEvent(new Event("resize"));
+  };
 }
 
 /** Cartão no menu lateral com a situação do teste grátis ou do bloqueio. */
@@ -72,20 +117,21 @@ function desenharAvisoConta() {
   const alvo = $("#aviso-conta"), mob = $("#aviso-conta-mob");
   if (!alvo) return;
   if (!c || c.status === "ativo") { render(alvo, ""); if (mob) render(mob, ""); return; }
+  const ponto = html`<div class="aviso-mini ${c.bloqueio ? "bloq" : ""}" title="${c.bloqueio || "Teste grátis em andamento"}"></div>`;
   const dias = diasDeTeste();
   const zap = linkWhatsApp(`Olá! Estou testando o sistema na loja ${estado.empresa?.nome_fantasia || ""} e quero contratar.`);
   const gestor = ["admin", "gerente"].includes(estado.perfil?.papel);
   if (c.bloqueio) {
-    render(alvo, html`<div class="aviso-conta bloqueado"><strong>Vendas pausadas</strong><span>${c.bloqueio}</span>
-      ${gestor ? html`<a class="btn sm primary block" href="../#planos" target="_blank" rel="noopener">Ver planos</a>` : ""}
+    render(alvo, html`${ponto}<div class="aviso-conta bloqueado"><strong>Vendas pausadas</strong><span>${c.bloqueio}</span>
+      ${gestor ? html`<a class="btn sm primary block" href="#/conta">Ver planos</a>` : ""}
       ${gestor && zap ? html`<a class="btn sm block" href="${zap}" target="_blank" rel="noopener">${icone("whatsapp", 'width="16" height="16"')} Contratar</a>` : ""}</div>`);
     if (mob) render(mob, html`<span class="badge danger">Teste encerrado</span>`);
     return;
   }
-  render(alvo, html`<div class="aviso-conta"><strong>Teste grátis</strong>
+  render(alvo, html`${ponto}<div class="aviso-conta"><strong>Teste grátis</strong>
     <span>${dias === 0 ? "Termina hoje" : dias === 1 ? "Falta 1 dia" : `Faltam ${dias} dias`} · ${c.vendas_teste} de 200 vendas</span>
     <div class="barra"><div style="width:${Math.min(100, ((7 - (dias ?? 7)) / 7) * 100)}%"></div></div>
-    ${gestor ? html`<a class="btn sm block" href="../#planos" target="_blank" rel="noopener">Ver planos</a>` : ""}</div>`);
+    ${gestor ? html`<a class="btn sm block" href="#/conta">Ver planos</a>` : ""}</div>`);
   if (mob) render(mob, html`<span class="badge warn">Teste · ${dias}d</span>`);
 }
 
