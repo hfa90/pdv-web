@@ -15,10 +15,15 @@ Deno.serve(async (req) => {
     const podeGerir = (papel: string) => perfil.papel === "admin" || ["caixa", "atendente", "cozinha"].includes(papel);
 
     if (body.acao === "criar") {
-      const email = String(body.email ?? "").trim().toLowerCase();
-      const senha = String(body.senha ?? "");
+      let email = String(body.email ?? "").trim().toLowerCase();
+      let senha = String(body.senha ?? "");
       const nome = String(body.nome ?? "").trim();
       const papel = String(body.papel ?? "caixa");
+      // Garçom pode ser criado sem e-mail: entra no app só com matrícula/CPF e senha numérica
+      if (!email && papel === "atendente") {
+        email = `garcom.${crypto.randomUUID().slice(0, 12)}.${perfil.empresa_id.slice(0, 8)}@app-garcom.lispdv.com.br`;
+        senha = crypto.randomUUID() + crypto.randomUUID();
+      }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, "E-mail inválido");
       if (senha.length < 8) throw new HttpError(400, "A senha deve ter ao menos 8 caracteres");
       if (nome.length < 2) throw new HttpError(400, "Informe o nome");
@@ -40,7 +45,8 @@ Deno.serve(async (req) => {
         throw new HttpError(400, msg);
       }
       const { error: e2 } = await admin.from("perfis").insert({
-        id: criado.user.id, empresa_id: perfil.empresa_id, nome, email, papel,
+        id: criado.user.id, empresa_id: perfil.empresa_id, nome, papel,
+        email: email.endsWith("@app-garcom.lispdv.com.br") ? null : email,
       });
       if (e2) {
         await admin.auth.admin.deleteUser(criado.user.id);

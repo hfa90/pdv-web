@@ -290,7 +290,8 @@ export default async function mesas(el) {
 
   async function mostrarApp() {
     await qrPronto();
-    const link = linkGarcom();
+    const codigo = await rpc("codigo_garcom_loja").catch(() => null);
+    const link = linkGarcom() + (codigo ? `?loja=${codigo}` : "");
     await modal({
       titulo: "App do garçom",
       corpo: html`<div class="row wrap" style="gap:1.25rem;align-items:center">
@@ -301,7 +302,8 @@ export default async function mesas(el) {
           <ol class="small" style="margin:0;padding-left:1.1rem;display:grid;gap:.25rem">
             <li>Aponte a câmera do celular para o QR.</li>
             <li>No Android: menu ⋮ › <b>Instalar app</b>. No iPhone: Compartilhar › <b>Adicionar à Tela de Início</b>.</li>
-            <li>Crie um usuário para cada garçom em <a href="#/usuarios" data-fechar>Usuários</a>.</li>
+            <li>Crie cada garçom em <a href="#/usuarios" data-fechar>Usuários</a> com matrícula (ou CPF) e senha numérica.</li>
+            ${codigo ? html`<li>Código da loja: <strong style="letter-spacing:.15em">${codigo}</strong> (já vai no QR).</li>` : ""}
           </ol>
           <button class="btn sm" id="copiar-link" style="align-self:flex-start">Copiar link</button>
         </div></div>`,
