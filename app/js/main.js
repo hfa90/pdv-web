@@ -1,6 +1,6 @@
 // Ponto de entrada: autenticação, roteamento por hash e layout.
 import { sb } from "./api.js";
-import { estado, carregarContexto, limparEstado, pode, rotaInicial, ROTAS, PAPEIS, atualizarConta, diasDeTeste } from "./estado.js";
+import { estado, carregarContexto, limparEstado, pode, rotaInicial, ROTAS, PAPEIS, atualizarConta, diasDeTeste, tituloRota, aprovaCozinha } from "./estado.js";
 import { linkWhatsApp, MARCA } from "./config.js";
 import { html, render, $, $$, iniciais, carregando, erro, confirmar } from "./ui.js";
 import { icone } from "./icons.js";
@@ -23,6 +23,8 @@ const PAGINAS = {
   painel: () => import("./paginas/painel.js"),
   pdv: () => import("./paginas/pdv.js"),
   mesas: () => import("./paginas/mesas.js"),
+  cozinha: () => import("./paginas/cozinha.js"),
+  garcons: () => import("./paginas/garcons.js"),
   delivery: () => import("./paginas/delivery.js"),
   caixa: () => import("./paginas/caixa.js"),
   vendas: () => import("./paginas/vendas.js"),
@@ -64,7 +66,7 @@ function montarShell() {
         </div>
         <nav class="nav" aria-label="Menu principal">
           ${Object.entries(ROTAS).filter(([r]) => pode(r)).map(([r, def]) =>
-            html`<a href="#/${r}" data-rota="${r}" title="${def.titulo}">${icone(def.icone)}<span>${def.titulo}</span></a>`)}
+            html`<a href="#/${r}" data-rota="${r}" title="${tituloRota(r)}">${icone(def.icone)}<span>${tituloRota(r)}</span></a>`)}
         </nav>
         <div class="sidebar-foot">
           <div id="aviso-conta"></div>
@@ -95,6 +97,10 @@ function montarShell() {
   iniciarContingencia();
   import("./cozinha.js").then((m) => m.iniciarCozinha()).catch(() => {});
   if (pode("delivery")) import("./avisos.js").then((m) => m.iniciarAvisos()).catch(() => {});
+  // Pedidos do garçom aguardando aprovação: aviso em qualquer tela para quem aprova
+  if (pode("cozinha") && aprovaCozinha()) import("./aprovacoes.js").then((m) => m.iniciarAprovacoes()).catch(() => {});
+  // Contas fechadas pelo garçom no app entram no caixa principal: aviso para quem está no caixa
+  if (pode("mesas") && aprovaCozinha()) import("./recebimentos.js").then((m) => m.iniciarRecebimentos()).catch(() => {});
 }
 
 window.addEventListener("tema", (e) => {
@@ -162,7 +168,7 @@ async function navegar() {
   if (!$("#conteudo")) montarShell();
   $$(".nav a").forEach((a) => a.classList.toggle("ativo", a.dataset.rota === rota));
   $("#sidebar")?.classList.remove("aberta");
-  document.title = `${ROTAS[rota].titulo} · ${MARCA}`;
+  document.title = `${tituloRota(rota)} · ${MARCA}`;
 
   atualizarConta().then(desenharAvisoConta).catch(() => {});
   try { limparPagina?.(); } catch { /* ignora */ }
@@ -209,6 +215,8 @@ async function sair() {
   const { fila } = await import("./contingencia.js");
   if (fila().length && !(await confirmar(`Há ${fila().length} venda(s) feita(s) sem internet ainda não enviada(s). Elas ficam guardadas neste aparelho e são enviadas quando você entrar de novo com internet.`, { titulo: "Sair com vendas pendentes?", ok: "Sair mesmo assim" }))) return;
   sb.removeAllChannels?.();
+  import("./aprovacoes.js").then((m) => m.pararAprovacoes()).catch(() => {});
+  import("./recebimentos.js").then((m) => m.pararRecebimentos()).catch(() => {});
   await sb.auth.signOut();
   limparContextoLocal();
   limparEstado();

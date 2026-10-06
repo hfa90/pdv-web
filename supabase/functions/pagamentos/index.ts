@@ -116,7 +116,8 @@ Deno.serve(async (req) => {
     const { data: u } = await admin.auth.getUser(jwt);
     if (!u?.user) throw new Erro(401, "Entre no sistema");
     const { data: perfil } = await admin.from("perfis").select("empresa_id, ativo, papel").eq("id", u.user.id).maybeSingle();
-    if (!perfil?.ativo || perfil.papel === "atendente") throw new Erro(403, "Sem permissão");
+    // Caixa e garçom (fechamento de conta no app) geram cobrança PIX; cozinha não
+    if (!perfil?.ativo || perfil.papel === "cozinha") throw new Erro(403, "Sem permissão");
     const tk = await tokenDaLoja(perfil.empresa_id);
     if (!tk) throw new Erro(400, "Cobrança automática não configurada");
 

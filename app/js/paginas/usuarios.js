@@ -6,7 +6,7 @@ import { icone } from "../icons.js";
 
 export default async function usuarios(el) {
   const admin = eh("admin");
-  const papeisPermitidos = admin ? Object.keys(PAPEIS) : ["caixa", "atendente"];
+  const papeisPermitidos = admin ? Object.keys(PAPEIS) : ["caixa", "atendente", "cozinha"];
 
   render(el, html`<div class="page">
     <div class="page-head"><div><h1>Usuários</h1><p>Cada pessoa com seu login. Tudo o que é feito fica registrado no nome dela.</p></div>
@@ -47,7 +47,7 @@ export default async function usuarios(el) {
   async function editar(u) {
     const proprio = u.id === estado.perfil.id;
     const podeEditar = admin && !proprio;
-    const podeSenha = !proprio && (admin || ["caixa", "atendente"].includes(u.papel));
+    const podeSenha = !proprio && (admin || ["caixa", "atendente", "cozinha"].includes(u.papel));
     const res = await modal({
       titulo: u.nome,
       corpo: html`<form id="f-e" class="stack">

@@ -1,12 +1,11 @@
-// Impressão automática dos pedidos que chegam de outros aparelhos:
-// itens lançados pelo app do garçom (via da cozinha) e pedidos novos do delivery.
+// Impressão automática na cozinha dos pedidos que chegam de outros aparelhos:
+// pedidos do salão (garçom) assim que forem aprovados pelo caixa e pedidos novos do delivery.
 // Liga em Configurações › Impressora, em um único computador.
 import { sb } from "./api.js";
 import { estado } from "./estado.js";
 import { configImpressora, imprimir, layoutCozinha, layoutDelivery } from "./impressao/cupom.js";
 
 let canal = null;
-const pendentes = new Map(); // venda_id -> { timer, ids:Set }
 const CHAVE = "pdv-cozinha-impressos";
 
 // Evita imprimir duas vezes se o sistema estiver aberto em mais de uma aba
@@ -19,18 +18,14 @@ function jaImpresso(id) {
   return false;
 }
 
-async function imprimirItens(vendaId, ids) {
-  const novos = [...ids].filter((id) => !jaImpresso("i:" + id));
-  if (!novos.length) return;
-  const [{ data: venda }, { data: itens }] = await Promise.all([
-    sb.from("vendas").select("id,numero,identificador,canal").eq("id", vendaId).single(),
-    sb.from("venda_itens").select("id,descricao,quantidade,unidade,observacao,item,criado_por,removido").in("id", novos).order("item"),
-  ]);
-  if (!venda || !itens?.length) return;
-  const vivos = itens.filter((i) => !i.removido);
-  if (!vivos.length) return;
-  const { data: quem } = await sb.from("perfis").select("nome").eq("id", vivos[0].criado_por).maybeSingle();
-  await imprimir(layoutCozinha(venda, vivos, quem?.nome?.split(" ")[0]));
+/** Via da cozinha de um pedido do salão (só quando já aprovado). */
+async function imprimirPedido(t) {
+  if (!["mesa", "balcao"].includes(t.origem) || jaImpresso("t:" + t.id)) return;
+  const itens = (t.itens || []).filter((i) => !i.cancelado);
+  if (!itens.length) return;
+  let quem = "";
+  if (t.garcom_id) { const { data } = await sb.from("perfis").select("nome").eq("id", t.garcom_id).maybeSingle(); quem = data?.nome?.split(" ")[0] || ""; }
+  await imprimir(layoutCozinha({ identificador: t.identificador, numero: t.numero_venda }, itens, quem));
 }
 
 async function imprimirDelivery(vendaId) {
@@ -43,15 +38,12 @@ export function iniciarCozinha() {
   pararCozinha();
   if (!configImpressora().cozinha || !estado.empresa) return;
   const emp = estado.empresa.id;
-  canal = sb.channel("cozinha-" + emp)
-    .on("postgres_changes", { event: "INSERT", schema: "public", table: "venda_itens", filter: `empresa_id=eq.${emp}` }, ({ new: i }) => {
-      if (!i.criado_por) return; // só itens do garçom (o caixa imprime os seus)
-      const p = pendentes.get(i.venda_id) || { ids: new Set() };
-      p.ids.add(i.id);
-      clearTimeout(p.timer);
-      // Junta os itens enviados de uma vez numa única via
-      p.timer = setTimeout(() => { pendentes.delete(i.venda_id); imprimirItens(i.venda_id, p.ids).catch(console.error); }, 1200);
-      pendentes.set(i.venda_id, p);
+  canal = sb.channel("cozinha-imp-" + emp)
+    .on("postgres_changes", { event: "*", schema: "public", table: "cozinha_pedidos", filter: `empresa_id=eq.${emp}` }, ({ eventType, new: t, old }) => {
+      // Imprime quando entra na fila: lançado já aprovado ou aprovado agora pelo caixa
+      if (t?.status !== "novo") return;
+      if (eventType === "UPDATE" && old?.status && old.status !== "aguardando") return;
+      setTimeout(() => imprimirPedido(t).catch(console.error), 300);
     })
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "vendas", filter: `empresa_id=eq.${emp}` }, ({ new: v }) => {
       if (["delivery", "retirada"].includes(v.canal)) setTimeout(() => imprimirDelivery(v.id).catch(console.error), 1500);

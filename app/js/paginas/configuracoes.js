@@ -1,6 +1,6 @@
 // Configurações: dados da loja, impressora térmica, emissão fiscal e registro de atividades.
 import { sb, q, rpc } from "../api.js";
-import { estado, eh } from "../estado.js";
+import { estado, eh, cfgRestaurante } from "../estado.js";
 import { esc, html, render, $, $$, lerForm, lerNumero, toast, erro, ocupado, dataHora, docValido, somenteDigitos, formatarDoc } from "../ui.js";
 import { configImpressora, salvarConfigImpressora, imprimirTeste, abrirGaveta } from "../impressao/cupom.js";
 import { parearUSB, parearSerial, suportaUSB, suportaSerial } from "../impressao/escpos.js";
@@ -17,6 +17,8 @@ const ACOES = {
   "fiscal.credenciais": "Alterou credenciais fiscais", "pix.mercado_pago": "Alterou cobrança PIX automática",
   "mesa.transferir": "Transferiu mesa", "mesa.juntar": "Juntou mesas", "mesa.remover_item": "Tirou item da mesa",
   "delivery.cancelar": "Cancelou pedido do delivery",
+  "mesa.transferir_itens": "Transferiu itens", "mesa.taxas": "Alterou serviço/couvert da mesa", "mesa.garcom": "Trocou o garçom da mesa",
+  "cozinha.recusar": "Recusou pedido da cozinha", "garcom.meta": "Alterou meta/comissão de garçom", "restaurante.config": "Alterou regras do restaurante",
 };
 
 export default async function configuracoes(el) {
@@ -24,8 +26,9 @@ export default async function configuracoes(el) {
     eh("admin", "gerente") && ["loja", "Loja"],
     eh("admin", "gerente") && ["pix", "PIX"],
     eh("admin", "gerente") && estado.conta?.delivery_contratado && ["delivery", "Delivery e cardápio"],
+    eh("admin", "gerente") && estado.conta?.garcom && ["restaurante", "Restaurante"],
     ["impressora", "Impressora"],
-    ["balanca", "Balança"],
+    !eh("cozinha") && ["balanca", "Balança"],
     eh("admin") && ["fiscal", "Nota fiscal"],
     eh("admin", "gerente") && ["atividades", "Registro de atividades"],
   ].filter(Boolean);
@@ -37,7 +40,106 @@ export default async function configuracoes(el) {
     <div id="corpo"></div></div>`);
   $$(".tabs button", el).forEach((b) => (b.onclick = () => { aba = b.dataset.aba; $$(".tabs button", el).forEach((x) => x.classList.toggle("ativo", x === b)); desenhar(); }));
 
-  function desenhar() { ({ loja, pix, delivery, impressora, balanca, fiscal, atividades })[aba]().catch(erro); }
+  function desenhar() { ({ loja, pix, delivery, restaurante, impressora, balanca, fiscal, atividades })[aba]().catch(erro); }
+
+  // ---------- Restaurante: taxa de serviço, couvert, comissão, cozinha e tempos ----------
+  async function restaurante() {
+    const c = cfgRestaurante();
+    const cats = await q(sb.from("categorias").select("id,nome,envia_cozinha").eq("ativo", true).order("ordem").order("nome")).catch(() => []);
+    const [caixas, cxStatus] = await Promise.all([
+      q(sb.from("perfis").select("id,nome,papel").eq("ativo", true).in("papel", ["admin", "gerente", "caixa"]).order("nome")).catch(() => []),
+      rpc("caixa_principal_status").catch(() => null),
+    ]);
+    const v = (n) => String(Number(n || 0)).replace(".", ",");
+    render($("#corpo", el), html`<form id="f-rest" class="stack-lg">
+      <section class="panel panel-pad stack">
+        <div><h2>Taxa de serviço</h2><p class="muted small">Pela lei a taxa é opcional para o cliente. Você escolhe se ela entra na conta.</p></div>
+        <div class="opcoes-cartao">
+          ${[["nao", "Não cobrar", "A conta sai só com o consumo."],
+             ["sugerir", "Só sugerir", "A conta impressa mostra o valor com serviço; o caixa inclui se o cliente aceitar."],
+             ["cobrar", "Cobrar na conta", "Toda mesa nova já abre com a taxa. O caixa tira se o cliente pedir."]].map(([k, n, d]) => html`
+            <label class="opcao"><input type="radio" name="servico_modo" value="${k}" ${c.servico_modo === k ? "checked" : ""}><span><strong>${n}</strong><small>${d}</small></span></label>`)}
+        </div>
+        <label class="field" style="max-width:220px"><span>Percentual (%)</span><input class="input" name="servico_percentual" value="${v(c.servico_percentual)}" inputmode="decimal"></label>
+      </section>
+
+      <section class="panel panel-pad stack">
+        <div><h2>Couvert</h2><p class="muted small">Valor por pessoa (música ao vivo, pão de entrada…). Vale para as mesas abertas a partir de agora; nas que já estão abertas o caixa liga em “Serviço e couvert”.</p></div>
+        <label class="check"><input type="checkbox" name="couvert_ativo" ${c.couvert_ativo ? "checked" : ""}> <strong>Cobrar couvert</strong></label>
+        <div class="grid-2">
+          <label class="field"><span>Nome na conta</span><input class="input" name="couvert_nome" value="${c.couvert_nome}" maxlength="40"></label>
+          <label class="field"><span>Valor por pessoa (R$)</span><input class="input" name="couvert_valor" value="${v(c.couvert_valor)}" inputmode="decimal"></label>
+        </div>
+      </section>
+
+      <section class="panel panel-pad stack">
+        <div><h2>Comissão e metas dos garçons</h2><p class="muted small">Cada garçom vê em “Meu desempenho” quanto já ganhou e quanto vai receber se mantiver o ritmo. Metas individuais ficam em Garçons.</p></div>
+        <div class="grid-3">
+          <label class="field"><span>Comissão (%)</span><input class="input" name="comissao_percentual" value="${v(c.comissao_percentual)}" inputmode="decimal"></label>
+          <label class="field"><span>Calculada sobre</span><select class="input" name="comissao_base">
+            <option value="consumo" ${c.comissao_base === "consumo" ? "selected" : ""}>Consumo das mesas atendidas</option>
+            <option value="servico" ${c.comissao_base === "servico" ? "selected" : ""}>Taxa de serviço arrecadada</option></select></label>
+          <label class="field"><span>Meta mensal padrão (R$)</span><input class="input" name="meta_mensal_padrao" value="${v(c.meta_mensal_padrao)}" inputmode="decimal"></label>
+        </div>
+        <p class="hint">Ex.: 10% sobre o consumo, ou 100% da taxa de serviço para repassar toda a taxa à equipe.</p>
+      </section>
+
+      <section class="panel panel-pad stack">
+        <div><h2>Fechar conta pelo app do garçom</h2><p class="muted small">O garçom cobra na mesa com PIX (QR com o valor) ou cartão na maquininha, sem TEF. O pagamento entra no caixa principal: aparece no resumo e no fechamento desse caixa, baixa o estoque e libera a mesa.</p></div>
+        <label class="check"><input type="checkbox" name="garcom_fecha_conta" ${c.garcom_fecha_conta !== false ? "checked" : ""}> <strong>Garçom pode fechar a conta no app</strong></label>
+        <label class="field" style="max-width:420px"><span>Caixa principal (recebe os pagamentos)</span><select class="input" name="caixa_principal_id">
+          <option value="">Qualquer caixa aberto (o aberto há mais tempo)</option>
+          ${caixas.map((u) => html`<option value="${u.id}" ${c.caixa_principal_id === u.id ? "selected" : ""}>Caixa de ${u.nome}</option>`)}</select></label>
+        ${cxStatus ? html`<p class="small ${cxStatus.aberto ? "txt-ok" : "txt-alerta"}" style="margin:0">${cxStatus.aberto
+          ? `Agora os pagamentos do app vão para o caixa de ${cxStatus.operador}.`
+          : "Nenhum caixa aberto agora: o garçom só consegue fechar conta depois que abrirem o caixa."}</p>` : ""}
+        <p class="hint">PIX ${cxStatus?.pix_automatico ? "com confirmação automática (Mercado Pago)" : "pelo QR da chave da loja (o garçom confirma no app do banco do cliente)"}. Dinheiro continua sendo recebido no caixa.</p>
+      </section>
+
+      <section class="panel panel-pad stack">
+        <div><h2>Cozinha</h2><p class="muted small">Os pedidos do garçom aparecem na tela Cozinha. Com aprovação, o caixa confere antes de a cozinha começar.</p></div>
+        <label class="check"><input type="checkbox" name="aprovacao_cozinha" ${c.aprovacao_cozinha ? "checked" : ""}> <span><strong>Pedidos do garçom precisam de aprovação do caixa</strong> <span class="muted small">(admin, gerente ou caixa aprova; o que eles mesmos lançam já vai aprovado)</span></span></label>
+        <label class="field" style="max-width:260px"><span>Tempo ideal de preparo (min)</span><input class="input" name="preparo_alvo_min" value="${c.preparo_alvo_min}" inputmode="numeric"></label>
+        ${cats.length ? html`<div class="field"><span>Categorias que vão para a cozinha</span>
+          <div class="chips wrap">${cats.map((k) => html`<label class="chip"><input type="checkbox" data-cat="${k.id}" ${k.envia_cozinha !== false ? "checked" : ""}> ${k.nome}</label>`)}</div>
+          <small class="hint">Desmarque o que não precisa de preparo (ex.: bebidas em lata). Esses itens entram na conta mas não aparecem para a cozinha.</small></div>` : ""}
+      </section>
+
+      <section class="panel panel-pad stack">
+        <div><h2>Tempo das mesas</h2><p class="muted small">Cores no mapa do salão e no app do garçom.</p></div>
+        <div class="grid-3">
+          <label class="field"><span>Amarelo a partir de (min)</span><input class="input" name="tempo_alerta_min" value="${c.tempo_alerta_min}" inputmode="numeric"></label>
+          <label class="field"><span>Vermelho a partir de (min)</span><input class="input" name="tempo_critico_min" value="${c.tempo_critico_min}" inputmode="numeric"></label>
+          <label class="field"><span>Avisar mesa sem pedir há (min)</span><input class="input" name="ocioso_min" value="${c.ocioso_min}" inputmode="numeric"></label>
+        </div>
+      </section>
+      <div><button class="btn primary">Salvar</button></div>
+    </form>`);
+    const f = $("#f-rest", el);
+    f.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const x = lerForm(f);
+      const num = (k) => lerNumero(x[k]);
+      const dados = {
+        servico_modo: f.querySelector("[name=servico_modo]:checked")?.value || "sugerir",
+        servico_percentual: num("servico_percentual"), couvert_ativo: x.couvert_ativo, couvert_nome: x.couvert_nome, couvert_valor: num("couvert_valor"),
+        comissao_percentual: num("comissao_percentual"), comissao_base: x.comissao_base, meta_mensal_padrao: num("meta_mensal_padrao"),
+        aprovacao_cozinha: x.aprovacao_cozinha, preparo_alvo_min: Math.round(num("preparo_alvo_min")),
+        tempo_alerta_min: Math.round(num("tempo_alerta_min")), tempo_critico_min: Math.round(num("tempo_critico_min")), ocioso_min: Math.round(num("ocioso_min")),
+      };
+      if (Object.values(dados).some((n) => typeof n === "number" && !(n >= 0))) return toast("Confira os números digitados", "erro");
+      if (dados.couvert_ativo && !(dados.couvert_valor > 0)) return toast("Informe o valor do couvert", "erro");
+      if (cats.length) dados.categorias_fora_cozinha = $$("[data-cat]", f).filter((i) => !i.checked).map((i) => i.dataset.cat);
+      await ocupado(f.querySelector("button.primary"), async () => {
+        try {
+          await rpc("salvar_config_fechamento_app", { p_ligado: x.garcom_fecha_conta, p_caixa: x.caixa_principal_id || null });
+          const nova = await rpc("salvar_config_restaurante", { p: dados });
+          estado.empresa.config_restaurante = { ...(estado.empresa.config_restaurante || {}), ...nova };
+          toast("Regras do restaurante salvas · valem para as próximas mesas", "ok");
+        } catch (e) { erro(e); }
+      });
+    };
+  }
 
   // ---------- Loja ----------
   async function loja() {
@@ -113,7 +215,8 @@ export default async function configuracoes(el) {
           <label class="check"><input type="checkbox" name="viaPedido" ${c.viaPedido ? "checked" : ""}> Imprimir via do pedido ao salvar (cozinha)</label>
           <label class="check"><input type="checkbox" name="abrirGaveta" ${c.abrirGaveta ? "checked" : ""}> Abrir gaveta ao imprimir (USB/serial)</label>
           <label class="check"><input type="checkbox" name="acentos" ${c.acentos ? "checked" : ""}> Imprimir acentos (página 860)</label>
-          ${estado.conta?.garcom || estado.conta?.delivery_contratado ? html`<label class="check"><input type="checkbox" name="cozinha" ${c.cozinha ? "checked" : ""}> <span>Imprimir sozinho os pedidos do garçom e do delivery <span class="muted small">(deixe ligado em um só computador, o da cozinha ou do caixa)</span></span></label>` : ""}
+          ${estado.conta?.garcom ? html`<label class="check"><input type="checkbox" name="imprimirApp" ${c.imprimirApp ? "checked" : ""}> <span>Imprimir aqui o cupom das contas que o garçom fechar no app <span class="muted small">(no computador do caixa principal)</span></span></label>` : ""}
+          ${estado.conta?.garcom || estado.conta?.delivery_contratado ? html`<label class="check"><input type="checkbox" name="cozinha" ${c.cozinha ? "checked" : ""}> <span>Imprimir sozinho os pedidos do garçom e do delivery <span class="muted small">(os do garçom saem assim que o caixa aprova; deixe ligado em um só computador, o da cozinha ou do caixa)</span></span></label>` : ""}
         </div>
         <div class="row wrap">
           <button class="btn primary">Salvar</button>
@@ -129,7 +232,7 @@ export default async function configuracoes(el) {
         <p>No Windows, se o pareamento USB não listar a impressora, use o modo navegador com o driver do fabricante ou o modo serial (porta COM virtual).</p>
       </div></div>`);
     const f = $("#f-imp", el);
-    const atual = () => { const x = lerForm(f); return { modo: f.querySelector("[name=modo]:checked").value, largura: Number(x.largura), baudRate: Number(x.baudRate), autoImprimir: x.autoImprimir, viaPedido: x.viaPedido, abrirGaveta: x.abrirGaveta, acentos: x.acentos, cozinha: !!x.cozinha }; };
+    const atual = () => { const x = lerForm(f); return { modo: f.querySelector("[name=modo]:checked").value, largura: Number(x.largura), baudRate: Number(x.baudRate), autoImprimir: x.autoImprimir, viaPedido: x.viaPedido, abrirGaveta: x.abrirGaveta, acentos: x.acentos, cozinha: !!x.cozinha, imprimirApp: !!x.imprimirApp }; };
     const vis = () => { const m = atual().modo; $("#baud", el).hidden = m !== "serial"; $("#parear", el).hidden = m === "navegador"; $("#gaveta", el).hidden = m === "navegador"; };
     f.querySelectorAll("[name=modo]").forEach((r) => (r.onchange = vis)); vis();
     f.onsubmit = (e) => { e.preventDefault(); salvarConfigImpressora(atual()); window.dispatchEvent(new Event("pdv-impressora")); toast("Impressora configurada", "ok"); };

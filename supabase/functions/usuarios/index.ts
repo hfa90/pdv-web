@@ -1,7 +1,7 @@
 // Gestão de usuários da empresa (precisa da service role, por isso fica no servidor)
 import { autenticar, auditar, cors, exigirPapel, HttpError, json } from "../_shared/auth.ts";
 
-const PAPEIS = ["admin", "gerente", "caixa", "atendente"];
+const PAPEIS = ["admin", "gerente", "caixa", "atendente", "cozinha"];
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -11,8 +11,8 @@ Deno.serve(async (req) => {
     exigirPapel(perfil, ["admin", "gerente"]);
     const body = await req.json().catch(() => ({}));
 
-    // Gerente só gerencia caixas e atendentes
-    const podeGerir = (papel: string) => perfil.papel === "admin" || ["caixa", "atendente"].includes(papel);
+    // Gerente só gerencia caixas, atendentes (garçons) e cozinha
+    const podeGerir = (papel: string) => perfil.papel === "admin" || ["caixa", "atendente", "cozinha"].includes(papel);
 
     if (body.acao === "criar") {
       const email = String(body.email ?? "").trim().toLowerCase();
@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
       if (senha.length < 8) throw new HttpError(400, "A senha deve ter ao menos 8 caracteres");
       if (nome.length < 2) throw new HttpError(400, "Informe o nome");
       if (!PAPEIS.includes(papel)) throw new HttpError(400, "Nível de acesso inválido");
-      if (!podeGerir(papel)) throw new HttpError(403, "Gerentes só podem criar caixas e atendentes");
+      if (!podeGerir(papel)) throw new HttpError(403, "Gerentes só podem criar caixas, garçons e cozinha");
 
       // Período de teste: até 3 usuários por loja
       const { data: emp } = await admin.from("empresas").select("status_conta").eq("id", perfil.empresa_id).single();
