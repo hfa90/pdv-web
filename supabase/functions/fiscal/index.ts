@@ -81,8 +81,10 @@ Deno.serve(async (req) => {
 
     // ---------------- EMITIR ----------------
     if (body.acao === "emitir") {
-      exigirPapel(perfil, ["admin", "gerente", "caixa"]);
       const modelo = body.modelo === "55" ? "55" : "65";
+      // O garçom emite a NFC-e só das contas que ele mesmo fechou no app
+      const garcomApp = perfil.papel === "atendente" && modelo === "65";
+      if (!garcomApp) exigirPapel(perfil, ["admin", "gerente", "caixa"]);
       const recurso = modelo === "55" ? "nfe" : "nfce";
 
       const { data: venda } = await admin.from("vendas")
@@ -90,6 +92,7 @@ Deno.serve(async (req) => {
         .eq("id", body.venda_id).eq("empresa_id", perfil.empresa_id).single();
       if (!venda) throw new HttpError(404, "Venda não encontrada");
       if (venda.status !== "finalizada") throw new HttpError(400, "Apenas vendas finalizadas podem ser emitidas");
+      if (garcomApp && (!venda.recebido_no_app || venda.operador_id !== perfil.id)) throw new HttpError(403, "Sem permissão para emitir a nota desta venda");
 
       const { data: existente } = await admin.from("documentos_fiscais").select("*")
         .eq("venda_id", venda.id).in("status", ["autorizado", "processando"]).maybeSingle();

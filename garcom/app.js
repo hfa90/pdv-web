@@ -1,15 +1,18 @@
-// App do garçom (PWA): mesas, pedidos e conta no celular ou tablet.
+// App do garçom (PWA): mesas, pedidos da cozinha, conta e desempenho no celular ou tablet.
 // Usa o mesmo banco, os mesmos usuários e as mesmas regras do sistema do caixa.
-import { sb } from "../app/js/api.js";
+import { sb, rpc } from "../app/js/api.js";
 import { estado, carregarContexto, limparEstado, PAPEIS } from "../app/js/estado.js";
-import { html, render, $, $$, dinheiro, toast, erro, ocupado, iniciais, carregando, debounce, confirmar } from "../app/js/ui.js";
+import { html, render, $, $$, dinheiro, toast, erro, ocupado, iniciais, carregando, debounce, confirmar, qtd as fmtQtd, rotuloMesa } from "../app/js/ui.js";
 import { icone } from "../app/js/icons.js";
-import { desenharDetalhe, situacao, tempo, minutos, NOME_SITUACAO, reenviarPendente } from "../app/js/mesa-detalhe.js";
+import { desenharDetalhe, situacao, NOME_SITUACAO, reenviarPendente } from "../app/js/mesa-detalhe.js";
+import { tempoMesa, barraTempo, selosCozinha, duracao, minutosDesde, ETAPA_COZINHA } from "../app/js/restaurante.js";
+import { bipe } from "../app/js/avisos.js";
 import { MARCA } from "../app/js/config.js";
 
 const app = document.getElementById("app");
 let canal = null, relogio = null, instalar = null;
-let mesas = [], area = "todas", filtro = "todas", aberta = null;
+let mesas = [], area = "todas", filtro = "todas", aberta = null, aba = "mesas";
+let pedidosCz = [], estadoCz = new Map(), soMeus = true;
 
 // ---------- Instalação (PWA) ----------
 if ("serviceWorker" in navigator) {
@@ -61,14 +64,24 @@ function montar() {
       <button class="btn ghost icon-btn" id="btn-sair" aria-label="Sair">${icone("sair", 'width="20" height="20"')}</button>
     </header>
     <div class="g-offline" id="offline" hidden>Sem internet. Os pedidos serão enviados quando a conexão voltar.</div>
-    <div class="g-resumo" id="resumo"></div>
-    <div class="g-filtros">
-      <div class="seg" id="filtros">
-        <button data-f="todas">Todas</button><button data-f="ocupadas">Ocupadas</button><button data-f="livres">Livres</button><button data-f="minhas">Minhas</button>
+    <div class="g-prontos" id="prontos" hidden></div>
+    <section id="v-mesas">
+      <div class="g-resumo" id="resumo"></div>
+      <div class="g-filtros">
+        <div class="seg" id="filtros">
+          <button data-f="todas">Todas</button><button data-f="ocupadas">Ocupadas</button><button data-f="livres">Livres</button><button data-f="minhas">Minhas</button>
+        </div>
       </div>
-    </div>
-    <div class="chips g-areas" id="areas"></div>
-    <main class="g-mesas" id="mesas"></main>
+      <div class="chips g-areas" id="areas"></div>
+      <main class="g-mesas" id="mesas"></main>
+    </section>
+    <section id="v-cozinha" class="g-pagina" hidden></section>
+    <section id="v-desemp" class="g-pagina" hidden></section>
+    <nav class="g-tabs" aria-label="Seções">
+      <button data-aba="mesas">${icone("mesa", 'width="22" height="22"')}<span>Mesas</span></button>
+      <button data-aba="cozinha">${icone("chapeu", 'width="22" height="22"')}<span>Cozinha</span><b class="g-tab-n" id="n-cz" hidden></b></button>
+      <button data-aba="desemp">${icone("trofeu", 'width="22" height="22"')}<span>Desempenho</span></button>
+    </nav>
     <section class="g-detalhe" id="detalhe" hidden></section>
   </div>`);
   $("#btn-sair").onclick = async () => { if (await confirmar("Sair do app?", { ok: "Sair" })) sair(); };
@@ -77,24 +90,101 @@ function montar() {
     toast("No iPhone: toque em Compartilhar e depois em “Adicionar à Tela de Início”.");
   };
   $$("#filtros button").forEach((b) => (b.onclick = () => { filtro = b.dataset.f; desenhar(); }));
+  $$(".g-tabs button").forEach((b) => (b.onclick = () => irPara(b.dataset.aba)));
   const rede = () => { $("#offline").hidden = navigator.onLine; if (navigator.onLine) { recarregar(); reenviarPendente().catch(erro); } };
   window.addEventListener("online", rede); window.addEventListener("offline", rede); rede();
+  irPara(aba);
+}
+
+function irPara(k) {
+  aba = k;
+  $$(".g-tabs button").forEach((b) => b.classList.toggle("ativo", b.dataset.aba === k));
+  $("#v-mesas").hidden = k !== "mesas";
+  $("#v-cozinha").hidden = k !== "cozinha";
+  $("#v-desemp").hidden = k !== "desemp";
+  if (k === "cozinha") desenharCozinha();
+  if (k === "desemp") import("../app/js/desempenho.js").then((m) => m.desenharDesempenho($("#v-desemp"), { inicial: "hoje" })).catch(erro);
+  window.scrollTo(0, 0);
 }
 
 async function recarregar() {
   try {
-    const { data, error } = await sb.rpc("mesas_painel");
-    if (error) throw error;
-    mesas = data || [];
+    const [m, cz] = await Promise.all([sb.rpc("mesas_painel"), sb.rpc("cozinha_painel")]);
+    if (m.error) throw m.error;
+    mesas = m.data || [];
+    atualizarCozinha(cz.data?.pedidos || []);
     desenhar();
     if (aberta && !document.querySelector("dialog[open]")) {
-      const m = mesas.find((x) => x.id === aberta);
-      if (m) desenharDetalhe($("#detalhe"), m, opcoes()).catch(() => {});
+      const x = mesas.find((y) => y.id === aberta);
+      if (x) desenharDetalhe($("#detalhe"), x, opcoes()).catch(() => {});
     }
   } catch (e) { if (navigator.onLine) erro(e); }
 }
 const recarregarDepois = debounce(recarregar, 350);
 
+// ---------- Pedidos da cozinha (aviso de pronto) ----------
+const meu = (p) => p.garcom_id === estado.perfil.id || p.venda_garcom_id === estado.perfil.id;
+
+function atualizarCozinha(lista) {
+  const primeira = !estadoCz.size && !pedidosCz.length;
+  for (const p of lista) {
+    const antes = estadoCz.get(p.id);
+    if (!primeira && antes && antes !== p.status && meu(p)) {
+      if (p.status === "pronto") avisarPronto(p);
+      if (p.status === "recusado") { toast(`${rotuloMesa(p.identificador)}: pedido recusado${p.recusado_motivo ? " · " + p.recusado_motivo : ""}`, "erro"); navigator.vibrate?.([200, 100, 200]); }
+      if (p.status === "novo" && antes === "aguardando") toast(`${rotuloMesa(p.identificador)}: pedido aprovado, já está na cozinha`, "ok");
+    }
+    estadoCz.set(p.id, p.status);
+  }
+  pedidosCz = lista;
+  const prontos = lista.filter((p) => p.status === "pronto" && meu(p));
+  const n = $("#n-cz");
+  if (n) { n.textContent = prontos.length || ""; n.hidden = !prontos.length; }
+  const faixa = $("#prontos");
+  if (faixa) {
+    faixa.hidden = !prontos.length;
+    render(faixa, prontos.length ? html`${icone("sino", 'width="20" height="20"')}<span class="grow"><strong>Pronto para servir:</strong> ${prontos.map((p) => rotuloMesa(p.identificador)).join(", ")}</span><button class="btn sm" id="ver-prontos">Ver</button>` : "");
+    $("#ver-prontos")?.addEventListener("click", () => irPara("cozinha"));
+  }
+  if (aba === "cozinha") desenharCozinha();
+}
+
+function avisarPronto(p) {
+  bipe(3);
+  navigator.vibrate?.([300, 120, 300, 120, 300]);
+  toast(`🍽 ${rotuloMesa(p.identificador)}: pedido pronto na cozinha!`, "ok");
+  if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+    try { new Notification(`${rotuloMesa(p.identificador)}: pedido pronto`, { body: (p.itens || []).filter((i) => !i.cancelado).map((i) => `${fmtQtd(i.quantidade, i.unidade)}× ${i.descricao}`).join(", "), tag: "pronto-" + p.id, icon: "icones/icone-192.png" }); } catch { /* ignora */ }
+  }
+}
+
+function desenharCozinha() {
+  const alvo = $("#v-cozinha");
+  if (!alvo) return;
+  const lista = pedidosCz.filter((p) => (!soMeus || meu(p)) && p.origem !== "delivery" && p.origem !== "retirada");
+  const grupo = (titulo, cls, itens, vazio, acao) => html`<div class="g-cz-grupo ${cls}"><h2>${titulo} <span class="kb-n">${itens.length}</span></h2>
+    ${itens.length ? itens.map((p) => html`<article class="g-cz-card">
+      <div class="row"><strong class="g-cz-mesa">${rotuloMesa(p.identificador)}</strong><span class="grow"></span><span class="kb-tempo">${icone("relogio", 'width="14" height="14"')} ${duracao(minutosDesde(p.pronto_em || p.aprovado_em || p.criado_em))}</span></div>
+      <ul class="kb-itens">${(p.itens || []).map((i) => html`<li class="${i.cancelado ? "riscado" : ""}"><b>${fmtQtd(i.quantidade, i.unidade)}×</b> ${i.descricao}${i.observacao ? html` <em>(${i.observacao})</em>` : ""}</li>`)}</ul>
+      ${p.status === "recusado" ? html`<p class="small txt-perigo" style="margin:0">Recusado${p.recusado_motivo ? `: ${p.recusado_motivo}` : ""}</p>` : ""}
+      ${acao ? acao(p) : ""}</article>`) : html`<p class="kb-vazio">${vazio}</p>`}</div>`;
+  render(alvo, html`<div class="g-cz-topo"><h1>Cozinha</h1><span class="grow"></span>
+      <div class="seg"><button data-meus="1" class="${soMeus ? "ativo" : ""}">Meus</button><button data-meus="0" class="${soMeus ? "" : "ativo"}">Todos</button></div></div>
+    ${grupo("Prontos para servir", "pronto", lista.filter((p) => p.status === "pronto"), "Nada pronto agora.",
+      (p) => html`<button class="btn primary block" data-servido="${p.id}">${icone("check", 'width="18" height="18"')} Servido</button>`)}
+    ${grupo("Na cozinha", "preparo", lista.filter((p) => ["novo", "preparando"].includes(p.status)), "Nenhum pedido em preparo.",
+      (p) => html`<span class="etapa e-${p.status}">${ETAPA_COZINHA[p.status]}</span>`)}
+    ${grupo("Aguardando aprovação do caixa", "aguardando", lista.filter((p) => p.status === "aguardando"), "Nada aguardando.")}
+    ${grupo("Servidos e recusados", "fim", lista.filter((p) => ["entregue", "recusado"].includes(p.status)).slice(-8).reverse(), "—")}
+    ${"Notification" in window && Notification.permission === "default" ? html`<button class="btn block" id="permitir-not">${icone("sino", 'width="18" height="18"')} Avisar no celular quando ficar pronto</button>` : ""}`);
+  $$("[data-meus]", alvo).forEach((b) => (b.onclick = () => { soMeus = b.dataset.meus === "1"; desenharCozinha(); }));
+  $$("[data-servido]", alvo).forEach((b) => (b.onclick = async () => {
+    try { await ocupado(b, () => rpc("cozinha_avancar", { p_id: b.dataset.servido, p_status: "entregue" })); toast("Servido ✓", "ok"); recarregar(); } catch (e) { erro(e); }
+  }));
+  $("#permitir-not", alvo)?.addEventListener("click", () => Notification.requestPermission().then(() => desenharCozinha()));
+}
+
+// ---------- Mesas ----------
 function desenhar() {
   const alvo = $("#mesas");
   if (!alvo) return;
@@ -110,20 +200,25 @@ function desenhar() {
     <span><span class="dot-sit ocupada"></span> ${mesas.length - livres - conta} ocupadas</span>
     <span><span class="dot-sit conta"></span> ${conta} conta</span>`);
 
-  const meuNome = estado.perfil.nome;
+  const eu = estado.perfil.id;
   let lista = mesas.filter((m) => area === "todas" || m.area === area);
   if (filtro === "livres") lista = lista.filter((m) => !m.venda_id);
   if (filtro === "ocupadas") lista = lista.filter((m) => m.venda_id);
-  if (filtro === "minhas") lista = lista.filter((m) => m.venda_id && m.garcom === meuNome);
+  if (filtro === "minhas") lista = lista.filter((m) => m.venda_id && m.garcom_id === eu);
   if (!mesas.length) return render(alvo, html`<div class="empty">${icone("mesa", 'width="44" height="44"')}<p>Nenhuma mesa cadastrada.</p><p class="small">O gerente cadastra as mesas no sistema, em Mesas.</p></div>`);
   if (!lista.length) return render(alvo, html`<div class="empty"><p>Nenhuma mesa neste filtro.</p></div>`);
   render(alvo, html`${lista.map((m) => {
     const sit = situacao(m);
-    return html`<button class="g-mesa sit-${sit}" data-m="${m.id}">
+    if (sit === "livre") return html`<button class="g-mesa sit-livre" data-m="${m.id}"><span class="g-num">${m.nome.replace(/^Mesa\s+/i, "")}</span><span class="g-sub">${m.lugares} lugares</span><span class="sr-only">Livre</span></button>`;
+    const t = tempoMesa(m);
+    return html`<button class="g-mesa sit-${sit} t-${t.nivel} ${t.ociosa ? "ociosa" : ""} ${m.cozinha?.pronto ? "cz-pronto" : ""} ${m.garcom_id === eu ? "minha" : ""}" data-m="${m.id}">
+      <span class="mm-selos">${selosCozinha(m.cozinha)}</span>
       <span class="g-num">${m.nome.replace(/^Mesa\s+/i, "")}</span>
-      ${sit === "livre" ? html`<span class="g-sub">${m.lugares} lugares</span>`
-        : html`<span class="g-total">${dinheiro(m.total)}</span><span class="g-sub ${minutos(m.aberta_em) > 90 ? "demora" : ""}">${tempo(m.aberta_em)}${m.garcom ? " · " + m.garcom.split(" ")[0] : ""}</span>`}
+      <span class="g-total">${dinheiro(m.total)}</span>
+      <span class="g-sub t-${t.nivel}">${sit === "conta" && t.contaHa != null ? `conta há ${duracao(t.contaHa)}` : duracao(t.min)}${m.garcom ? " · " + m.garcom.split(" ")[0] : ""}</span>
+      ${t.ociosa ? html`<span class="g-ocioso">${duracao(t.semPedir)} sem pedir</span>` : ""}
       ${sit === "conta" ? html`<span class="g-tag">conta</span>` : ""}
+      ${barraTempo(m)}
       <span class="sr-only">${NOME_SITUACAO[sit]}</span></button>`;
   })}`);
   $$(".g-mesa", alvo).forEach((b) => (b.onclick = () => abrir(mesas.find((m) => m.id === b.dataset.m))));
@@ -157,6 +252,7 @@ function ligarTempoReal() {
     .on("postgres_changes", { event: "*", schema: "public", table: "vendas", filter: `empresa_id=eq.${emp}` }, recarregarDepois)
     .on("postgres_changes", { event: "*", schema: "public", table: "venda_itens", filter: `empresa_id=eq.${emp}` }, recarregarDepois)
     .on("postgres_changes", { event: "*", schema: "public", table: "mesas", filter: `empresa_id=eq.${emp}` }, recarregarDepois)
+    .on("postgres_changes", { event: "*", schema: "public", table: "cozinha_pedidos", filter: `empresa_id=eq.${emp}` }, recarregarDepois)
     .subscribe();
   clearInterval(relogio);
   relogio = setInterval(() => { if (!document.hidden) recarregar(); }, 25000);
@@ -170,6 +266,7 @@ async function iniciar() {
     const logado = await carregarContexto();
     if (!logado) return telaLogin();
     if (!estado.perfil) return telaAviso("Conta sem loja", "Este usuário ainda não está ligado a uma loja. Use o sistema principal para concluir o cadastro.");
+    if (estado.perfil.papel === "cozinha") return telaAviso("Usuário da cozinha", "Este usuário é da cozinha. Abra o sistema principal no computador ou TV da cozinha.");
     if (!estado.conta?.garcom) return telaAviso("Exclusivo para restaurantes", "O app do garçom faz parte do plano para restaurantes. Fale com o administrador da loja.");
     montar();
     await recarregar();
@@ -186,6 +283,7 @@ async function iniciar() {
 async function sair() {
   if (canal) sb.removeChannel(canal);
   clearInterval(relogio);
+  estadoCz = new Map(); pedidosCz = [];
   await sb.auth.signOut();
   limparEstado();
   telaLogin();

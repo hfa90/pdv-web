@@ -3,7 +3,8 @@
 // Atalhos: F2 buscar · F4 quantidade · F6 desconto · F8 salvar pedido · F9 receber · Del remover item · Esc limpar
 // Leitor: "3*789..." multiplica a quantidade; etiquetas de balança (EAN-13 iniciado em 2) são lidas automaticamente.
 import { sb, q, rpc, fn, todos } from "../api.js";
-import { estado, eh, atualizarCaixa } from "../estado.js";
+import { estado, eh, atualizarCaixa, cfgRestaurante } from "../estado.js";
+import { taxaServico, couvertTotal, rotuloServico, rotuloCouvert } from "../restaurante.js";
 import { raw, debounce, html, render, $, $$, dinheiro, qtd as fmtQtd, lerNumero, toast, erro, modal, confirmar, pedirTexto, ocupado, docValido, somenteDigitos, formatarDoc, hora, rotuloMesa } from "../ui.js";
 import { icone } from "../icons.js";
 import { configImpressora, imprimir, imprimirVenda, layoutVenda, nomeForma } from "../impressao/cupom.js";
@@ -37,7 +38,7 @@ export default async function pdv(el, params = []) {
 
   // id_local: identidade da venda desde o primeiro item (evita duplicar ao reenviar e permite
   // continuar em outro aparelho). pagamentos: o que o cliente já pagou, guardado a cada lançamento.
-  function novaVenda() { return { id_local: novoId(), venda_id: null, numero: null, alterado_em: null, canal: null, pre_pago: 0, identificador: "", cliente: null, cpf: "", desconto: 0, acrescimo: 0, observacao: "", itens: [], pagamentos: [] }; }
+  function novaVenda() { return { id_local: novoId(), venda_id: null, numero: null, alterado_em: null, canal: null, pre_pago: 0, identificador: "", cliente: null, cpf: "", desconto: 0, acrescimo: 0, servico_pct: 0, couvert_unit: 0, pessoas: null, observacao: "", itens: [], pagamentos: [] }; }
   // Cobrança PIX automática (Mercado Pago) ligada nesta loja?
   let pixAuto = false;
   if (!eh("atendente")) rpc("mercado_pago_status").then((v) => (pixAuto = !!v)).catch(() => {});
@@ -69,7 +70,11 @@ export default async function pdv(el, params = []) {
       venda.ref_promo ? new Date(venda.ref_promo) : new Date(), estado.empresa.fuso);
   };
   const descontoPromo = () => r2([...promos().values()].reduce((a, x) => a + x.desconto, 0));
-  const total = () => r2(subtotal() - descontoPromo() - venda.desconto + venda.acrescimo);
+  // Mesa: taxa de serviço e couvert são calculados aqui com a mesma regra do servidor
+  const servico = () => taxaServico(subtotal() - descontoPromo() - venda.desconto, venda.servico_pct);
+  const couvert = () => couvertTotal(venda.couvert_unit, venda.pessoas);
+  const acrescimoTotal = () => r2(venda.acrescimo + servico() + couvert());
+  const total = () => r2(subtotal() - descontoPromo() - venda.desconto + acrescimoTotal());
   async function carregarPromocoes() {
     try {
       const { data, error } = await comTempo(sb.from("promocoes").select("*").eq("ativo", true), 10000);
@@ -297,9 +302,11 @@ export default async function pdv(el, params = []) {
     }
     $("#v-sub", el).textContent = dinheiro(subtotal());
     $("#v-desc", el).textContent = "−" + dinheiro(venda.desconto);
-    $("#v-acr", el).textContent = dinheiro(venda.acrescimo);
+    const partes = [venda.servico_pct > 0 && `Serviço ${venda.servico_pct}%`, couvert() > 0 && (cfgRestaurante().couvert_nome || "Couvert"), venda.acrescimo > 0 && "Acréscimo"].filter(Boolean);
+    $("#l-acr span", el).textContent = partes.length ? partes.join(" + ") : "Acréscimo";
+    $("#v-acr", el).textContent = dinheiro(acrescimoTotal());
     $("#l-desc", el).hidden = !venda.desconto;
-    $("#l-acr", el).hidden = !venda.acrescimo;
+    $("#l-acr", el).hidden = !acrescimoTotal();
     const dp = descontoPromo();
     $("#v-promo", el).textContent = "−" + dinheiro(dp);
     $("#l-promo", el).hidden = !dp;
@@ -338,6 +345,8 @@ export default async function pdv(el, params = []) {
 
   async function aplicarDesconto() {
     if (!venda.itens.length) return;
+    const cfg = cfgRestaurante();
+    const ehMesa = venda.canal === "mesa" && !!venda.venda_id;
     const limite = eh("caixa", "atendente") ? Number(estado.empresa.desconto_maximo_caixa) : 100;
     const res = await modal({
       titulo: "Desconto e acréscimo",
@@ -346,8 +355,15 @@ export default async function pdv(el, params = []) {
           <label class="field"><span>Desconto</span><input class="input lg" name="desc" value="${venda.desconto ? String(venda.desconto).replace(".", ",") : ""}" inputmode="decimal" placeholder="0,00" autofocus></label>
           <label class="field"><span>Tipo</span><select class="input lg" name="tipo"><option value="r">R$</option><option value="p">%</option></select></label>
         </div>
-        <label class="field"><span>Acréscimo / taxa de serviço (R$)</span><input class="input" name="acr" value="${venda.acrescimo ? String(venda.acrescimo).replace(".", ",") : ""}" inputmode="decimal" placeholder="0,00"></label>
-        <div class="row wrap"><button type="button" class="btn sm" data-taxa="10">Taxa de serviço 10%</button><button type="button" class="btn sm" data-taxa="0">Sem taxa</button></div>
+        ${ehMesa ? html`<div class="stack" style="gap:.5rem">
+            <label class="check grande"><input type="checkbox" name="serv" ${venda.servico_pct > 0 ? "checked" : ""} ${venda.servico_pct > 0 || cfg.servico_percentual > 0 ? "" : "disabled"}>
+              <span><strong>${rotuloServico(venda.servico_pct || cfg.servico_percentual)}</strong><small class="muted">Opcional para o cliente: desmarque se ele pedir para tirar.</small></span></label>
+            <label class="check grande"><input type="checkbox" name="couv" ${venda.couvert_unit > 0 ? "checked" : ""} ${venda.couvert_unit > 0 || Number(cfg.couvert_valor) > 0 ? "" : "disabled"}>
+              <span><strong>${rotuloCouvert(venda.couvert_unit || cfg.couvert_valor, venda.pessoas)}</strong></span></label>
+          </div>
+          <label class="field"><span>Outro acréscimo (R$)</span><input class="input" name="acr" value="${venda.acrescimo ? String(venda.acrescimo).replace(".", ",") : ""}" inputmode="decimal" placeholder="0,00"></label>`
+        : html`<label class="field"><span>Acréscimo / taxa de serviço (R$)</span><input class="input" name="acr" value="${venda.acrescimo ? String(venda.acrescimo).replace(".", ",") : ""}" inputmode="decimal" placeholder="0,00"></label>
+          ${cfg.servico_modo !== "nao" ? html`<div class="row wrap"><button type="button" class="btn sm" data-taxa="${cfg.servico_percentual}">Taxa de serviço ${cfg.servico_percentual}%</button><button type="button" class="btn sm" data-taxa="0">Sem taxa</button></div>` : ""}`}
         ${limite < 100 ? html`<p class="hint">Seu limite de desconto é ${limite}% do subtotal. Acima disso, peça a um gerente.</p>` : ""}
       </form>`,
       rodape: html`<button class="btn" data-fechar>Voltar</button><button class="btn primary" form="f-desc">Aplicar</button>`,
@@ -361,11 +377,21 @@ export default async function pdv(el, params = []) {
           if (!(desc >= 0) || !(acr >= 0)) return toast("Valor inválido", "erro");
           if (desc > subtotal() - descontoPromo()) return toast("Desconto maior que o valor dos itens (já com promoções)", "erro");
           if (desc / subtotal() * 100 > limite + 1e-9) return toast(`Desconto acima do seu limite (${limite}%)`, "erro");
-          fechar({ desc: r2(desc), acr: r2(acr) });
+          fechar({ desc: r2(desc), acr: r2(acr), serv: f.serv?.checked, couv: f.couv?.checked });
         };
       },
     });
-    if (res) { venda.desconto = res.desc; venda.acrescimo = res.acr; atualizarCupom(); }
+    if (res) {
+      venda.desconto = res.desc; venda.acrescimo = res.acr;
+      if (ehMesa && (res.serv !== venda.servico_pct > 0 || res.couv !== venda.couvert_unit > 0)) {
+        try {
+          const t = await rpc("definir_taxas_mesa", { p_venda: venda.venda_id, p_servico: res.serv, p_couvert: res.couv, p_pessoas: null });
+          venda.servico_pct = Number(t.servico_pct) || 0; venda.couvert_unit = Number(t.couvert_unit) || 0; venda.pessoas = t.pessoas;
+          venda.alterado_em = t.alterado_em;
+        } catch (e) { erro(e); }
+      }
+      atualizarCupom();
+    }
     focarBusca();
   }
 
@@ -425,7 +451,7 @@ export default async function pdv(el, params = []) {
   const payload = (finalizar, pagamentos = []) => ({
     venda_id: venda.venda_id, finalizar,
     itens: venda.itens.map((i) => ({ produto_id: i.produto_id, quantidade: i.quantidade, observacao: i.observacao || null })),
-    pagamentos, desconto: venda.desconto, acrescimo: venda.acrescimo,
+    pagamentos, desconto: venda.desconto, acrescimo: acrescimoTotal(),
     cliente_id: venda.cliente?.id || null, cpf_cnpj: venda.cpf || null,
     identificador: venda.identificador || null, observacao: venda.observacao || null,
     ...(venda.venda_id && venda.alterado_em ? { alterado_em: venda.alterado_em } : {}),
@@ -484,11 +510,17 @@ export default async function pdv(el, params = []) {
       identificador: v.identificador || "", cliente: v.cliente, cpf: v.cpf_cnpj_consumidor || "",
       desconto: Number(v.desconto) - v.itens.filter((i) => !i.removido).reduce((a, i) => a + Number(i.desconto), 0),
       acrescimo: Number(v.acrescimo), observacao: v.observacao || "",
+      servico_pct: v.canal === "mesa" ? Number(v.servico_pct) || 0 : 0, couvert_unit: v.canal === "mesa" ? Number(v.couvert_unit) || 0 : 0, pessoas: v.pessoas,
       itens: v.itens.filter((i) => !i.removido).sort((a, b) => a.item - b.item).map((i) => ({
         produto_id: i.produto_id, nome: i.descricao, unidade: i.unidade,
         preco: Number(mapa.get(i.produto_id)?.preco_venda ?? i.preco_unitario), quantidade: Number(i.quantidade), observacao: i.observacao || "",
       })),
     };
+    if (v.canal === "mesa") {
+      // O acréscimo da mesa já inclui serviço e couvert: aqui fica só o que for extra
+      const base = Number(v.subtotal) - Number(v.desconto);
+      venda.acrescimo = Math.max(0, r2(Number(v.acrescimo) - taxaServico(base, venda.servico_pct) - couvertTotal(venda.couvert_unit, venda.pessoas)));
+    }
     sel = venda.itens.length - 1;
     atualizarCupom();
     if (venda.pre_pago) toast("Este pedido já foi pago por PIX no cardápio digital", "ok");
@@ -736,7 +768,8 @@ export default async function pdv(el, params = []) {
     const vendaLocal = {
       status: "finalizada", numero: numeroLocal, finalizada_em: p.realizada_em, operador: { nome: estado.perfil.nome },
       itens: (() => { const pr = promos(); return venda.itens.map((i, idx) => { const d = pr.get(idx + 1)?.desconto || 0; return { item: idx + 1, descricao: i.nome, unidade: i.unidade, quantidade: i.quantidade, preco_unitario: i.preco, desconto: d, total: r2(i.quantidade * i.preco - d), observacao: i.observacao }; }); })(),
-      subtotal: subtotal(), desconto: r2(venda.desconto + descontoPromo()), acrescimo: venda.acrescimo, total: totalCliente,
+      subtotal: subtotal(), desconto: r2(venda.desconto + descontoPromo()), acrescimo: acrescimoTotal(), total: totalCliente,
+      taxa_servico: servico(), couvert: couvert(), servico_pct: venda.servico_pct, pessoas: venda.pessoas,
       pagamentos: pagamentos.map((x) => ({ forma: x.forma, valor: x.valor })), troco,
       cpf_cnpj_consumidor: venda.cpf || null, cliente: venda.cliente, identificador: venda.identificador, observacao: venda.observacao,
     };

@@ -1,13 +1,15 @@
 // Service worker do app do garçom: abre rápido e funciona com internet instável.
 // Arquivos do app: rede primeiro (pega atualizações) e cópia local se cair a conexão.
 // Dados (Supabase) nunca são guardados aqui: sempre vêm do servidor.
-const VERSAO = "garcom-v2";
+const VERSAO = "garcom-v4";
 const ESSENCIAIS = [
   "./", "./index.html", "./app.js", "./garcom.css", "./manifest.webmanifest",
   "./icones/icone-192.png", "./icones/icone-512.png",
   "../app/css/app.css", "../app/js/api.js", "../app/js/config.js", "../app/js/estado.js", "../app/js/ui.js",
   "../app/js/icons.js", "../app/js/seletor.js", "../app/js/mesa-detalhe.js", "../app/js/links.js", "../assets/config.js",
   "../app/js/contingencia.js", "../assets/dispositivo.js",
+  "../app/js/restaurante.js", "../app/js/avisos.js", "../app/js/aprovacoes.js", "../app/js/desempenho.js", "../app/js/gestao-ui.js",
+  "../app/js/fechar-conta.js", "../assets/pix.js",
 ];
 
 self.addEventListener("install", (e) => {
@@ -24,7 +26,7 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
   if (url.hostname.endsWith("supabase.co")) return; // dados sempre ao vivo
   const mesmo = url.origin === self.location.origin;
-  const cdn = url.hostname === "cdn.jsdelivr.net" || url.hostname.endsWith("gstatic.com") || url.hostname === "fonts.googleapis.com";
+  const cdn = url.hostname === "cdn.jsdelivr.net" || url.hostname === "cdnjs.cloudflare.com" || url.hostname.endsWith("gstatic.com") || url.hostname === "fonts.googleapis.com";
   if (!mesmo && !cdn) return;
 
   if (cdn) {

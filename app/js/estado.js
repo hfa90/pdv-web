@@ -17,16 +17,19 @@ export const PAPEIS = {
   admin: { nome: "Administrador", desc: "Acesso total, incluindo usuários e configurações fiscais." },
   gerente: { nome: "Gerente", desc: "Produtos, estoque, relatórios, cancelamentos e equipe de caixa." },
   caixa: { nome: "Caixa", desc: "Vende, recebe pagamentos, abre e fecha o próprio caixa." },
-  atendente: { nome: "Atendente", desc: "Lança pedidos e comandas. Não recebe pagamentos." },
+  atendente: { nome: "Atendente / garçom", desc: "Lança pedidos e comandas, acompanha metas e comissão. Não recebe pagamentos." },
+  cozinha: { nome: "Cozinha", desc: "Só a tela da cozinha: vê os pedidos aprovados e marca preparo e pronto." },
 };
 
-const TODOS = ["admin", "gerente", "caixa", "atendente"];
+const TODOS = ["admin", "gerente", "caixa", "atendente"]; // "cozinha" só vê a tela da cozinha
 // Quais telas cada nível enxerga. A segurança real está no banco (RLS + funções);
 // isto só evita mostrar o que a pessoa não pode usar.
 export const ROTAS = {
   painel:        { titulo: "Painel",        icone: "painel",     papeis: ["admin", "gerente"] },
   pdv:           { titulo: "Vender",        icone: "pdv",        papeis: TODOS },
   mesas:         { titulo: "Mesas",         icone: "mesa",       papeis: TODOS, modulo: "garcom" },
+  cozinha:       { titulo: "Cozinha",       icone: "chapeu",     papeis: ["admin", "gerente", "caixa", "cozinha"], modulo: "garcom" },
+  garcons:       { titulo: "Garçons",       icone: "trofeu",     papeis: ["admin", "gerente", "atendente"], modulo: "garcom", tituloPor: { atendente: "Meu desempenho" } },
   delivery:      { titulo: "Delivery",      icone: "moto",       papeis: ["admin", "gerente", "caixa"], modulo: "delivery" },
   caixa:         { titulo: "Caixa",         icone: "caixa",      papeis: ["admin", "gerente", "caixa"] },
   vendas:        { titulo: "Vendas",        icone: "vendas",     papeis: ["admin", "gerente", "caixa"] },
@@ -43,7 +46,7 @@ export const ROTAS = {
   relatorios:    { titulo: "Relatórios",    icone: "relatorios", papeis: ["admin", "gerente"] },
   usuarios:      { titulo: "Usuários",      icone: "usuarios",   papeis: ["admin", "gerente"] },
   conta:         { titulo: "Minha assinatura", icone: "assinatura", papeis: ["admin", "gerente"] },
-  configuracoes: { titulo: "Configurações", icone: "config",     papeis: ["admin", "gerente", "caixa"] },
+  configuracoes: { titulo: "Configurações", icone: "config",     papeis: ["admin", "gerente", "caixa", "cozinha"] },
   plataforma:    { titulo: "Plataforma",    icone: "plataforma", papeis: [], soFornecedor: true },
 };
 
@@ -56,7 +59,22 @@ export const pode = (rota) => {
   return r.papeis.includes(papel()) && moduloLiberado(r.modulo);
 };
 export const eh = (...papeis) => papeis.includes(papel());
-export const rotaInicial = () => (eh("admin", "gerente") ? "painel" : "pdv");
+export const rotaInicial = () => (eh("admin", "gerente") ? "painel" : eh("cozinha") ? "cozinha" : "pdv");
+/** Nome da tela no menu (algumas mudam conforme o nível: "Garçons" vira "Meu desempenho" para o garçom). */
+export const tituloRota = (rota) => ROTAS[rota]?.tituloPor?.[papel()] || ROTAS[rota]?.titulo || "";
+
+// ---------- Restaurante: escolhas do dono (taxa de serviço, couvert, comissão, cozinha, tempos) ----------
+export const RESTAURANTE_PADRAO = {
+  servico_modo: "sugerir", servico_percentual: 10,
+  couvert_ativo: false, couvert_valor: 0, couvert_nome: "Couvert artístico",
+  comissao_percentual: 10, comissao_base: "consumo", meta_mensal_padrao: 0,
+  aprovacao_cozinha: true, preparo_alvo_min: 20,
+  tempo_alerta_min: 60, tempo_critico_min: 120, ocioso_min: 25,
+  garcom_fecha_conta: true, caixa_principal_id: null,
+};
+export const cfgRestaurante = () => ({ ...RESTAURANTE_PADRAO, ...(estado.empresa?.config_restaurante || {}) });
+/** Quem aprova os pedidos que o garçom manda para a cozinha. */
+export const aprovaCozinha = () => eh("admin", "gerente", "caixa");
 
 export async function carregarContexto() {
   try {

@@ -64,6 +64,14 @@ const P = {
   caderno: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v18M12 8h4M12 12h4"/>',
   gaveta: '<rect x="3" y="10" width="18" height="10" rx="1.5"/><path d="M3 14h18M10 17h4M6 10V6h12v4"/>',
   cesta: '<path d="M4 10h16l-1.5 9.5a2 2 0 0 1-2 1.5h-9a2 2 0 0 1-2-1.5z"/><path d="m8 10 4-6 4 6"/>',
+  chapeu: '<path d="M7 14.5V20h10v-5.5"/><path d="M7 14.5a4 4 0 0 1-1.6-7.6A4.5 4.5 0 0 1 12 4a4.5 4.5 0 0 1 6.6 2.9A4 4 0 0 1 17 14.5z"/><path d="M7 17h10"/>',
+  trofeu: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 13v4M8.5 20h7M9.5 17h5"/>',
+  alvo: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>',
+  sino: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>',
+  telaCheia: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
+  dividir: '<path d="M12 3v18"/><path d="m7 8-4 4 4 4M17 8l4 4-4 4"/>',
+  fogo: '<path d="M12 21a6 6 0 0 0 6-6c0-4-3-6-3.5-9.5C12 7 10 9 10 11.5 9 10.5 8.5 9.5 8.5 8 7 9.5 6 12 6 15a6 6 0 0 0 6 6z"/>',
+  grafico: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
 };
 
 export function icone(nome, attrs = "") {

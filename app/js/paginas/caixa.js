@@ -1,12 +1,30 @@
 // Abertura, sangria, suprimento e fechamento de caixa.
 import { sb, q, rpc } from "../api.js";
 import { estado, eh, atualizarCaixa } from "../estado.js";
-import { html, render, $, $$, dinheiro, dataHora, lerNumero, toast, erro, modal, ocupado, confirmar } from "../ui.js";
+import { html, render, $, $$, dinheiro, dataHora, hora, lerNumero, toast, erro, modal, ocupado, confirmar } from "../ui.js";
 import { icone } from "../icons.js";
 import { imprimir, layoutFechamento, nomeForma } from "../impressao/cupom.js";
 import { fila, sincronizarFila, abrirPainelFila } from "../contingencia.js";
 
+const NSU_FORMAS = { pix: "PIX", debito: "Débito", credito: "Crédito" };
+
 export default async function caixa(el) {
+  // Contas fechadas pelos garçons no app: entram neste caixa (PIX e cartão), lista para conferir com a maquininha
+  async function desenharRecebidosApp(sessaoId) {
+    const alvo = $("#app-receb", el);
+    if (!alvo) return;
+    const lista = await q(sb.from("vendas").select("id,numero,identificador,total,finalizada_em,operador:perfis!vendas_operador_id_fkey(nome),pagamentos:venda_pagamentos(forma,valor,nsu)")
+      .eq("sessao_id", sessaoId).eq("recebido_no_app", true).eq("status", "finalizada").order("finalizada_em", { ascending: false }));
+    if (!lista.length) return render(alvo, "");
+    const tot = lista.reduce((a, v) => a + Number(v.total), 0);
+    render(alvo, html`<div class="panel" style="margin-bottom:1.25rem"><div class="panel-head"><h2>${icone("celular", 'width="18" height="18"')} Fechadas pelos garçons no app</h2>
+      <span class="muted small">${lista.length} conta(s) · ${dinheiro(tot)} · já somadas acima</span></div>
+      <div class="table-wrap"><table class="table"><thead><tr><th>Hora</th><th>Mesa</th><th>Garçom</th><th>Pagamento</th><th class="r">Total</th></tr></thead>
+      <tbody>${lista.map((v) => html`<tr><td>${hora(v.finalizada_em)}</td><td><strong>${v.identificador || "nº " + v.numero}</strong></td><td>${v.operador?.nome || ""}</td>
+        <td class="small">${(v.pagamentos || []).map((p) => `${NSU_FORMAS[p.forma] || p.forma} ${dinheiro(p.valor)}${p.nsu ? ` (NSU ${p.nsu})` : ""}`).join(" · ")}</td>
+        <td class="r">${dinheiro(v.total)}</td></tr>`)}</tbody></table></div></div>`);
+  }
+
   async function desenhar() {
     await atualizarCaixa();
     const cx = estado.caixa;
@@ -35,7 +53,8 @@ export default async function caixa(el) {
         <div class="panel" style="margin-bottom:1.25rem"><div class="panel-head"><h2>Recebido por forma de pagamento</h2></div>
           <div class="panel-pad">${Object.keys(resumo.por_forma).length ? html`<div class="bars">${Object.entries(resumo.por_forma).map(([f, v]) => html`
             <div class="bar-row"><span>${nomeForma(f)}</span><div class="bar-track"><div class="bar-fill" style="width:${resumo.vendas_total ? Math.max(2, (v / resumo.vendas_total) * 100) : 0}%"></div></div><strong class="num">${dinheiro(v)}</strong></div>`)}</div>`
-            : html`<p class="muted">Nenhuma venda neste caixa ainda.</p>`}</div></div>` : ""}
+            : html`<p class="muted">Nenhuma venda neste caixa ainda.</p>`}</div></div>
+        <div id="app-receb"></div>` : ""}
 
       <div class="panel"><div class="panel-head"><h2>${gerente ? "Caixas recentes" : "Meus caixas"}</h2></div>
         ${historico.length ? html`<div class="table-wrap"><table class="table">
@@ -51,6 +70,7 @@ export default async function caixa(el) {
       </div></div>`);
 
     $("#abrir", el)?.addEventListener("click", abrir);
+    if (cx) desenharRecebidosApp(cx.id).catch(() => {});
     $("#fechar", el)?.addEventListener("click", () => fechar(resumo));
     $("#imp-parcial", el)?.addEventListener("click", () => imprimir(layoutFechamento(resumo, estado.perfil.nome)).catch(erro));
     $$("[data-mov]", el).forEach((b) => (b.onclick = () => movimento(b.dataset.mov)));
@@ -156,4 +176,8 @@ export default async function caixa(el) {
   }
 
   await desenhar();
+  // Garçom fechou uma conta no app e ela entrou neste caixa: atualiza a tela
+  const aoReceber = () => desenhar().catch(() => {});
+  window.addEventListener("pdv-recebimento-app", aoReceber);
+  return () => window.removeEventListener("pdv-recebimento-app", aoReceber);
 }

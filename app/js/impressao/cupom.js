@@ -2,7 +2,7 @@
 // pelo navegador ou direto na térmica (ESC/POS). O layout é descrito uma vez como
 // uma lista de "operações" e renderizado nos dois formatos.
 import { sb, q } from "../api.js";
-import { estado } from "../estado.js";
+import { estado, cfgRestaurante } from "../estado.js";
 import { esc, numero, dataHora, hora, formatarDoc, qtd as fmtQtd, rotuloMesa } from "../ui.js";
 import { Escpos, enviar } from "./escpos.js";
 
@@ -63,12 +63,17 @@ export function layoutVenda(venda, doc, { conta = false } = {}) {
   ops.push({ t: "cols", esq: "Qtd. de itens", dir: String(itens.length) });
   if (Number(venda.desconto) || Number(venda.acrescimo)) ops.push({ t: "cols", esq: "Subtotal", dir: v2(venda.subtotal) });
   if (Number(venda.desconto)) ops.push({ t: "cols", esq: "Desconto", dir: "-" + v2(venda.desconto) });
-  if (Number(venda.acrescimo)) ops.push({ t: "cols", esq: "Acréscimo / serviço", dir: v2(venda.acrescimo) });
+  const servico = Number(venda.taxa_servico) || 0, couvert = Number(venda.couvert) || 0;
+  const outroAcr = Math.round((Number(venda.acrescimo) - servico - couvert) * 100) / 100;
+  if (servico) ops.push({ t: "cols", esq: `Taxa de serviço ${numero(venda.servico_pct || 0, Number(venda.servico_pct) % 1 ? 1 : 0)}% (opcional)`, dir: v2(servico) });
+  if (couvert) ops.push({ t: "cols", esq: `${cfgRestaurante().couvert_nome || "Couvert"}${venda.pessoas ? ` (${venda.pessoas}x)` : ""}`, dir: v2(couvert) });
+  if (outroAcr > 0) ops.push({ t: "cols", esq: servico || couvert ? "Acréscimo" : "Acréscimo / serviço", dir: v2(outroAcr) });
   ops.push({ t: "cols", esq: "TOTAL R$", dir: v2(venda.total), bold: true, grande: true });
   if (conta) {
-    const taxa = Math.round(Number(venda.subtotal) * 10) / 100;
-    if (!Number(venda.acrescimo) && taxa > 0) {
-      ops.push({ t: "cols", esq: "Serviço 10% (opcional)", dir: v2(taxa) });
+    const cfg = cfgRestaurante();
+    const taxa = Math.round((Number(venda.subtotal) - Number(venda.desconto)) * Number(cfg.servico_percentual)) / 100;
+    if (venda.canal === "mesa" && cfg.servico_modo === "sugerir" && !Number(venda.acrescimo) && taxa > 0) {
+      ops.push({ t: "cols", esq: `Serviço ${numero(cfg.servico_percentual, 0)}% (opcional)`, dir: v2(taxa) });
       ops.push({ t: "cols", esq: "Total com serviço", dir: v2(Number(venda.total) + taxa), bold: true });
     }
     if (venda.pessoas > 1) ops.push({ t: "cols", esq: `Por pessoa (${venda.pessoas})`, dir: v2(Number(venda.total) / venda.pessoas) });
@@ -98,7 +103,8 @@ export function layoutVenda(venda, doc, { conta = false } = {}) {
     if (venda.cliente?.nome) ops.push({ t: "texto", s: `Cliente: ${venda.cliente.nome}` });
   }
   ops.push({ t: "texto", s: `Venda nº ${venda.numero}  ${dataHora(venda.finalizada_em || venda.created_at)}` });
-  if (venda.operador?.nome) ops.push({ t: "texto", s: `Operador: ${venda.operador.nome}` });
+  if (venda.operador?.nome && !aberta) ops.push({ t: "texto", s: `Operador: ${venda.operador.nome}` });
+  if (venda.garcom?.nome) ops.push({ t: "texto", s: `Garçom: ${venda.garcom.nome}` });
   if (venda.identificador && !aberta) ops.push({ t: "texto", s: rotuloMesa(venda.identificador) });
   if (venda.observacao) ops.push({ t: "texto", s: `Obs: ${venda.observacao}` });
   if (!aberta && estado.empresa?.mensagem_cupom) { ops.push({ t: "espaco" }); ops.push({ t: "texto", s: estado.empresa.mensagem_cupom, align: "centro" }); }
@@ -232,7 +238,7 @@ export async function abrirGaveta() {
 /** Busca a venda completa e imprime (cupom fiscal se houver NFC-e autorizada). */
 export async function imprimirVenda(vendaId, opcoes = {}) {
   const venda = await q(sb.from("vendas")
-    .select("*, cliente:clientes(nome, cpf_cnpj), operador:perfis!vendas_operador_id_fkey(nome), itens:venda_itens(*), pagamentos:venda_pagamentos(*)")
+    .select("*, cliente:clientes(nome, cpf_cnpj), operador:perfis!vendas_operador_id_fkey(nome), garcom:perfis!vendas_garcom_id_fkey(nome), itens:venda_itens(*), pagamentos:venda_pagamentos(*)")
     .eq("id", vendaId).single());
   const doc = await q(sb.from("documentos_fiscais").select("*").eq("venda_id", vendaId).eq("modelo", "65")
     .eq("status", "autorizado").order("created_at", { ascending: false }).limit(1).maybeSingle());

@@ -14,7 +14,7 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 - **Relatórios**: faturamento, ticket médio, lucro estimado, por dia/hora, por forma de pagamento, por operador, mais vendidos, exportação CSV.
 - **Impressão térmica**: pelo navegador (qualquer impressora) ou direto em ESC/POS via WebUSB / Web Serial (Bluetooth), 58 ou 80 mm, QR Code, corte de papel e abertura de gaveta.
 - **Nota fiscal**: NFC-e (cupom fiscal eletrônico, modelo 65) e NF-e (modelo 55) via provedor Focus NFe, com DANFE NFC-e impresso na térmica, consulta e cancelamento.
-- **Níveis de acesso**: Administrador, Gerente, Caixa e Atendente.
+- **Níveis de acesso**: Administrador, Gerente, Caixa, Atendente (garçom) e Cozinha.
 - **Registro de atividades** (auditoria) de cancelamentos, alterações de preço, caixa, usuários e notas.
 - **PIX com QR Code no caixa**: a chave da loja fica em Configurações › PIX e o PDV gera o código "copia e cola" (BR Code com CRC16) com o valor exato. Opcional: token do Mercado Pago para cobrança com confirmação automática.
 - **Mesas (restaurantes)**: mapa interativo do salão (arrastar para montar, áreas, formatos), situação ao vivo (livre, ocupada, conta pedida), lançar itens, transferir/juntar, conta por pessoa e envio para o caixa.
@@ -42,6 +42,26 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 1. Execute `supabase/migrations/011_gestao.sql` e `012_agendar_resumo.sql` (pg_cron chama a função de hora em hora).
 2. Crie uma conta no [Resend](https://resend.com), verifique o domínio do remetente e, em **Supabase › Edge Functions › Secrets**, cadastre `RESEND_API_KEY` e `RESEND_FROM` (ex.: `Lis PDV <resumo@seudominio.com.br>`).
 3. A função `resumo-diario` já está publicada. Cada loja liga o envio em **Alertas › Resumo do dia**.
+
+## Restaurante: cozinha, garçons, taxa de serviço e couvert
+
+- **Cozinha com aprovação** (menu **Cozinha**): o garçom lança pelo app → o pedido fica *aguardando aprovação* → quem está no caixa (admin, gerente ou caixa) aprova ou recusa → a tela da cozinha mostra **Na fila → Preparando → Pronto** com tempo de preparo (cores pela meta em minutos), som, tela cheia e tela sempre acesa → o garçom é avisado no celular (som, vibração e notificação) e marca **Servido**. Recusar tira os itens da conta. O que o caixa/gerente lança já vai aprovado. Pagar a conta no caixa aprova o que ainda estava aguardando. Pedidos do delivery aceitos também entram na cozinha (marcar *pronto* na cozinha atualiza o acompanhamento do cliente).
+- **Aviso de aprovação em qualquer tela** para quem aprova (contador no menu e botão flutuante). A aprovação pode ser desligada em Configurações › Restaurante.
+- **Nível de acesso “Cozinha”**: usuário que só vê a tela da cozinha (para a TV/tablet da cozinha). Categorias que não precisam de preparo (ex.: bebidas em lata) podem ficar fora da cozinha.
+- **Transferências**: mesa inteira (muda de lugar ou junta contas) ou **só alguns itens, com quantidade parcial**, para outra mesa, uma comanda aberta ou uma comanda nova. Comandas abertas aparecem na tela Mesas e usam o mesmo painel. Tudo fica no registro de atividades.
+- **Tempo de ocupação visual**: barra e cor em cada mesa (verde, amarelo, vermelho pelos limites da loja), “conta pedida há X min”, alerta de mesa **parada sem pedir**, selos de pedido aguardando/preparando/pronto, tempo médio das mesas agora e das fechadas hoje.
+- **Garçons** (menu **Garçons**; para o garçom aparece como **Meu desempenho**, também no app): vendido, mesas atendidas, ticket médio por mesa e por pessoa, tempo médio de mesa, mais vendidos, comissão do período, **projeção da comissão do mês no ritmo atual**, meta do mês com quanto falta por dia, ranking e comissão prevista das mesas abertas. O gerente vê a equipe, exporta CSV, define meta e comissão por garçom e troca o garçom responsável por uma mesa.
+- **Taxa de serviço e couvert à escolha do dono** (Configurações › Restaurante): serviço *não cobrar / só sugerir na conta / cobrar na conta* com o percentual da loja; couvert por pessoa com nome próprio. O caixa (ou gerente) tira ou põe por mesa. Os valores aparecem separados na conta, no cupom e nos relatórios do garçom. A comissão pode ser sobre o consumo ou sobre a taxa de serviço arrecadada.
+- Banco: `013_papel_cozinha.sql` e `014_restaurante.sql` (tabelas `cozinha_pedidos` e `garcom_metas`; colunas `garcom_id`, `servico_pct`, `couvert_unit`, `taxa_servico`, `couvert` em vendas; funções `cozinha_*`, `transferir_pedido`, `definir_taxas_mesa`, `trocar_garcom`, `garcom_desempenho`, `garcons_equipe`, `salvar_meta_garcom`, `salvar_config_restaurante`).
+
+- **Fechar conta pelo app do garçom** (PIX e cartão sem TEF): na mesa, *Fechar conta* mostra consumo, serviço, couvert e total; divide o valor (÷2, ÷3… ou por pessoa) e cobra em partes. PIX mostra o QR com o valor exato (chave da loja ou cobrança automática do Mercado Pago, que confirma sozinha); débito/crédito é passado na maquininha e o garçom confirma "Aprovado", com NSU opcional para conferência. Os pagamentos ficam guardados no celular até a conta fechar e o reenvio nunca cobra duas vezes. Ao fechar, o servidor confere o total, aplica as promoções, baixa o estoque, libera a mesa e lança tudo no **caixa principal** (escolhido em Configurações › Restaurante, ou o caixa aberto há mais tempo). O caixa recebe aviso na hora, pode imprimir o cupom sozinho (Configurações › Impressora) e vê a lista "Fechadas pelos garçons no app" com NSU na tela Caixa; o valor entra no resumo e no fechamento por forma de pagamento. Com NFC-e ativa, o app emite a nota e mostra o QR ao cliente. Dinheiro continua no caixa. O garçom pode tirar a taxa de serviço a pedido do cliente; pôr a taxa ou mexer no couvert, só o caixa/gerente.
+
+### Ativar (configuração única)
+
+1. No Supabase › SQL Editor, rode `013_papel_cozinha.sql` **sozinho**, depois `014_restaurante.sql` e `015_garcom_fecha_conta.sql` (o novo nível precisa existir antes).
+2. Republique as funções: `supabase functions deploy usuarios` (nível Cozinha), `fiscal` (NFC-e emitida pelo garçom) e `pagamentos` (PIX automático no app do garçom).
+3. Em **Configurações › Restaurante** escolha serviço, couvert, comissão, meta padrão, aprovação da cozinha e tempos.
+4. Crie os garçons com o nível **Atendente / garçom** e, se quiser, um usuário **Cozinha** para a tela da cozinha.
 
 ## Sem internet, queda de energia e troca de aparelho
 
@@ -119,7 +139,14 @@ supabase/functions/*       Edge Functions (usuarios, fiscal, teste, pagamentos, 
 assets/pix.js              gerador de PIX copia e cola + QR (usado por PDV, garçom e cardápio)
 app/js/mesa-detalhe.js     detalhe da mesa (compartilhado entre a tela Mesas e o app do garçom)
 app/js/seletor.js          seletor de itens para mesas
-app/js/cozinha.js          impressão automática de pedidos do garçom e do delivery
+app/js/cozinha.js          impressão automática de pedidos do garçom (após aprovação) e do delivery
+app/js/restaurante.js      tempo de ocupação, selos da cozinha, taxa de serviço e couvert
+app/js/aprovacoes.js       aviso e aprovação dos pedidos do garçom (caixa/gerente)
+app/js/desempenho.js       painel de desempenho e comissão do garçom (sistema e app)
+app/js/paginas/cozinha.js  tela da cozinha (KDS)
+app/js/paginas/garcons.js  equipe, metas e comissões
+app/js/fechar-conta.js     cobrança da mesa no app do garçom (PIX e cartão) direto no caixa principal
+app/js/recebimentos.js     aviso no caixa principal quando o garçom fecha uma conta
 garcom/                    app do garçom (PWA: manifest, service worker, ícones)
 cardapio/                  cardápio digital público e acompanhamento do pedido
 ```

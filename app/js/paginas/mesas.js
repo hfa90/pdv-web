@@ -1,10 +1,11 @@
 // Controle de mesas (restaurantes): mapa interativo do salão, situação em tempo real,
 // lançamento de itens, conta, transferência e envio para o caixa.
 import { sb, q, rpc } from "../api.js";
-import { estado, eh } from "../estado.js";
-import { html, render, $, $$, dinheiro, toast, erro, modal, lerForm, debounce, confirmar, raw } from "../ui.js";
+import { estado, eh, aprovaCozinha } from "../estado.js";
+import { html, render, $, $$, dinheiro, toast, erro, modal, lerForm, debounce, confirmar, raw, rotuloMesa } from "../ui.js";
 import { icone } from "../icons.js";
-import { desenharDetalhe, situacao, tempo, minutos, NOME_SITUACAO, reenviarPendente } from "../mesa-detalhe.js";
+import { desenharDetalhe, situacao, NOME_SITUACAO, reenviarPendente } from "../mesa-detalhe.js";
+import { tempoMesa, barraTempo, selosCozinha, legendaTempo, duracao, minutosDesde } from "../restaurante.js";
 import { linkGarcom } from "../links.js";
 import { qrSvg, qrPronto } from "../../../assets/pix.js";
 
@@ -13,7 +14,7 @@ const CHAVE_VISAO = "pdv-mesas-visao";
 
 export default async function mesas(el) {
   const gestor = eh("admin", "gerente");
-  let lista = [], area = "todas", editando = false, aberta = null;
+  let lista = [], comandas = [], area = "todas", editando = false, aberta = null, pendAprov = 0, mediaHoje = null;
   let visao = (() => { try { return localStorage.getItem(CHAVE_VISAO) || (innerWidth < 700 ? "lista" : "mapa"); } catch { return "mapa"; } })();
 
   render(el, html`<div class="page mesas-page">
@@ -27,7 +28,9 @@ export default async function mesas(el) {
         ${gestor ? html`<button class="btn" id="editar-mapa">${icone("editar", 'width="18" height="18"')} <span>Editar salão</span></button>` : ""}
       </div>
     </div>
+    <div id="aviso-config"></div>
     <div class="chips" id="areas"></div>
+    <div class="comandas-faixa" id="comandas"></div>
     <div class="mesas-layout" id="layout">
       <div class="mesas-area" id="area-mesas"></div>
       <aside class="mesa-painel" id="painel" hidden></aside>
@@ -38,10 +41,17 @@ export default async function mesas(el) {
   const fecharPainel = () => { aberta = null; painel.hidden = true; $("#layout", el).classList.remove("com-painel"); desenhar(); };
 
   async function recarregar() {
-    lista = await rpc("mesas_painel");
+    const [mesasR, comR] = await Promise.all([
+      rpc("mesas_painel"),
+      q(sb.from("vendas").select("id,numero,identificador,total,created_at,alterado_em,conta_pedida_em").eq("status", "aberta").eq("canal", "balcao").order("created_at")).catch(() => []),
+    ]);
+    lista = mesasR;
+    comandas = comR.map((c) => ({ id: "c:" + c.id, comanda: true, nome: c.identificador || `Pedido ${c.numero}`, area: "Comanda", lugares: 0,
+      venda_id: c.id, total: c.total, aberta_em: c.created_at, conta_pedida: !!c.conta_pedida_em, conta_pedida_em: c.conta_pedida_em }));
+    pendAprov = lista.reduce((a, m) => a + Number(m.cozinha?.aguardando || 0), 0);
     desenhar();
     if (aberta) {
-      const m = lista.find((x) => x.id === aberta);
+      const m = [...lista, ...comandas].find((x) => x.id === aberta);
       if (!m) return fecharPainel();
       if (!document.querySelector("dialog[open]")) abrirDetalhe(m, false);
     }
@@ -55,9 +65,20 @@ export default async function mesas(el) {
     const conta = lista.filter((m) => m.conta_pedida).length;
     const ocup = lista.length - livres;
     const aberto = lista.reduce((a, m) => a + Number(m.total || 0), 0);
+    const prontos = lista.reduce((a, m) => a + Number(m.cozinha?.pronto || 0), 0);
+    const ocupadas = lista.filter((m) => m.venda_id);
+    const mediaAgora = ocupadas.length ? Math.round(ocupadas.reduce((a, m) => a + minutosDesde(m.aberta_em), 0) / ocupadas.length) : 0;
     render($("#resumo-mesas", el), lista.length ? html`<span class="dot-sit livre"></span>${livres} livres
       <span class="dot-sit ocupada"></span>${ocup - conta} ocupadas <span class="dot-sit conta"></span>${conta} pediram a conta
-      <span class="sep-v"></span>${dinheiro(aberto)} em aberto` : "");
+      <span class="sep-v"></span>${dinheiro(aberto)} em aberto
+      ${ocupadas.length ? html`<span class="sep-v"></span><span title="Tempo médio das mesas ocupadas agora">${icone("relogio", 'width="14" height="14"')} ${duracao(mediaAgora)} agora</span>` : ""}
+      ${mediaHoje != null ? html`<span title="Tempo médio das mesas fechadas hoje">· ${duracao(mediaHoje)} hoje</span>` : ""}
+      ${prontos ? html`<span class="sep-v"></span><span class="selo-cz pronto">${icone("sino", 'width="12" height="12"')} ${prontos} pronto(s) para servir</span>` : ""}
+      ${pendAprov ? html`<button class="selo-cz aguardando clicavel" id="ver-aprov">${icone("ampulheta", 'width="12" height="12"')} ${pendAprov} aguardando aprovação</button>` : ""}` : "");
+    $("#ver-aprov", el)?.addEventListener("click", () => import("../aprovacoes.js").then((m) => (aprovaCozinha() ? m.abrirAprovacoes() : toast("O caixa precisa aprovar estes pedidos"))).catch(erro));
+    render($("#comandas", el), comandas.length && !editando ? html`<span class="small muted">Comandas abertas</span>${comandas.map((c) => html`<button class="chip comanda-chip ${aberta === c.id ? "ativo" : ""} ${c.conta_pedida ? "conta" : ""}" data-c="${c.id}">
+        ${icone("comanda", 'width="14" height="14"')} ${rotuloMesa(c.nome)} <span class="muted">${dinheiro(c.total)}</span></button>`)}` : "");
+    $$("[data-c]", el).forEach((b) => (b.onclick = () => abrirDetalhe(comandas.find((c) => c.id === b.dataset.c))));
     const as = areas();
     if (area !== "todas" && !as.includes(area)) area = "todas";
     render($("#areas", el), as.length > 1 ? html`<button class="chip ${area === "todas" ? "ativo" : ""}" data-area="todas">Todas</button>${as.map((a) => html`<button class="chip ${area === a ? "ativo" : ""}" data-area="${a}">${a}</button>`)}` : "");
@@ -73,13 +94,19 @@ export default async function mesas(el) {
     desenharMapa(alvo, visiveis);
   }
 
-  function cartaoConteudo(m) {
+  function cartaoConteudo(m, curto = false) {
     const sit = situacao(m);
-    return html`<strong class="mm-nome">${m.nome.replace(/^Mesa\s+/i, "")}</strong>
-      ${sit === "livre" ? html`<span class="mm-info">${m.lugares} lug.</span>`
-        : html`<span class="mm-total">${dinheiro(m.total)}</span><span class="mm-info ${minutos(m.aberta_em) > 90 ? "demora" : ""}">${tempo(m.aberta_em)}${m.pessoas ? ` · ${m.pessoas}p` : ""}</span>`}
-      ${sit === "conta" ? html`<span class="mm-alerta">${icone("conta", 'width="14" height="14"')}</span>` : ""}`;
+    if (sit === "livre") return html`<strong class="mm-nome">${m.nome.replace(/^Mesa\s+/i, "")}</strong><span class="mm-info">${m.lugares} lug.</span>`;
+    const t = tempoMesa(m);
+    return html`<span class="mm-selos">${selosCozinha(m.cozinha)}</span>
+      <strong class="mm-nome">${m.nome.replace(/^Mesa\s+/i, "")}</strong>
+      <span class="mm-total">${dinheiro(m.total)}</span>
+      <span class="mm-info t-${t.nivel}" title="Ocupada há ${duracao(t.min)}">${sit === "conta" && t.contaHa != null ? `${curto ? "conta" : "conta há"} ${duracao(t.contaHa)}` : duracao(t.min)}${m.pessoas && !(curto && sit === "conta") ? ` · ${m.pessoas}p` : ""}</span>
+      ${t.ociosa ? html`<span class="mm-ocioso" title="Sem pedir há ${duracao(t.semPedir)}">${curto ? `parada ${duracao(t.semPedir)}` : `${duracao(t.semPedir)} sem pedir`}</span>` : ""}
+      ${sit === "conta" ? html`<span class="mm-alerta">${icone("conta", 'width="14" height="14"')}</span>` : ""}
+      ${barraTempo(m)}`;
   }
+  const classeTempo = (m) => (m.venda_id ? `t-${tempoMesa(m).nivel} ${tempoMesa(m).ociosa ? "ociosa" : ""} ${m.cozinha?.pronto ? "cz-pronto" : ""}` : "");
 
   // ---------- Mapa ----------
   function desenharMapa(alvo, visiveis) {
@@ -91,10 +118,11 @@ export default async function mesas(el) {
     const maxY = Math.max(10, ...visiveis.map((m) => m.pos_y + TAM[m.formato][1] + 1));
     const c = Math.max(16, Math.min(34, Math.floor((largura - 24) / maxX)));
     render(alvo, html`<div class="mapa ${editando ? "editando" : ""} ${c < 27 ? "compacto" : ""}" id="mapa" style="--c:${c}px;width:${maxX * c}px;height:${maxY * c}px">
-      ${visiveis.map((m) => html`<button class="mesa-mapa sit-${situacao(m)} f-${m.formato} ${aberta === m.id ? "sel" : ""}" data-m="${m.id}"
+      ${visiveis.map((m) => html`<button class="mesa-mapa sit-${situacao(m)} f-${m.formato} ${editando ? "" : classeTempo(m)} ${aberta === m.id ? "sel" : ""}" data-m="${m.id}"
         style="left:${m.pos_x * c}px;top:${m.pos_y * c}px;width:${TAM[m.formato][0] * c}px;height:${TAM[m.formato][1] * c}px"
-        aria-label="${m.nome}, ${NOME_SITUACAO[situacao(m)]}">${cartaoConteudo(m)}</button>`)}
+        aria-label="${m.nome}, ${NOME_SITUACAO[situacao(m)]}">${cartaoConteudo(m, true)}</button>`)}
     </div>
+    ${!editando && lista.some((m) => m.venda_id) ? html`<div class="mapa-legenda">${legendaTempo()}<span class="small muted">Tempo de ocupação</span></div>` : ""}
     ${editando ? html`<div class="editar-barra">
       <span class="small">Arraste as mesas para montar o salão. Toque numa mesa para editar.</span>
       <span class="grow"></span>
@@ -114,8 +142,9 @@ export default async function mesas(el) {
   function desenharLista(alvo, visiveis) {
     const ordem = { conta: 0, ocupada: 1, livre: 2 };
     const ord = [...visiveis].sort((a, b) => ordem[situacao(a)] - ordem[situacao(b)] || a.numero - b.numero);
-    render(alvo, html`<div class="mesas-grade">${ord.map((m) => html`<button class="mesa-card sit-${situacao(m)} ${aberta === m.id ? "sel" : ""}" data-m="${m.id}">
-      ${cartaoConteudo(m)}<span class="mm-sit">${NOME_SITUACAO[situacao(m)]}${m.garcom ? ` · ${m.garcom.split(" ")[0]}` : ""}</span></button>`)}</div>`);
+    render(alvo, html`<div class="mesas-grade">${ord.map((m) => html`<button class="mesa-card sit-${situacao(m)} ${classeTempo(m)} ${aberta === m.id ? "sel" : ""}" data-m="${m.id}">
+      ${cartaoConteudo(m)}<span class="mm-sit">${NOME_SITUACAO[situacao(m)]}${m.garcom ? ` · ${m.garcom.split(" ")[0]}` : ""}</span></button>`)}</div>
+      ${lista.some((m) => m.venda_id) ? html`<div class="mapa-legenda">${legendaTempo()}<span class="small muted">Tempo de ocupação</span></div>` : ""}`);
     $$(".mesa-card", alvo).forEach((b) => (b.onclick = () => abrirDetalhe(lista.find((m) => m.id === b.dataset.m))));
   }
 
@@ -254,6 +283,7 @@ export default async function mesas(el) {
     $("#layout", el).classList.add("com-painel");
     if (!jaAberto) desenhar(); // o mapa se ajusta à nova largura
     $$(".mesa-mapa, .mesa-card", el).forEach((b) => b.classList.toggle("sel", b.dataset.m === m.id));
+    $$("[data-c]", el).forEach((b) => b.classList.toggle("ativo", b.dataset.c === m.id));
     desenharDetalhe(painel, m, { contexto: "pdv", todas: () => lista, onMudou: recarregarDepois, onFechar: fecharPainel, onTrocou: (id) => (aberta = id) }).catch(erro);
     if (rolar && innerWidth > 900) painel.scrollIntoView({ block: "nearest" });
   }
@@ -283,6 +313,19 @@ export default async function mesas(el) {
   $("#editar-mapa", el)?.addEventListener("click", () => { editando = !editando; if (editando) { painel.hidden = true; aberta = null; $("#layout", el).classList.remove("com-painel"); } desenhar(); });
   $("#app-garcom", el).onclick = () => mostrarApp().catch(erro);
 
+  // Aviso para o dono decidir sobre taxa de serviço e couvert
+  if (gestor && !Object.keys(estado.empresa.config_restaurante || {}).length) {
+    render($("#aviso-config", el), html`<div class="alerta info row wrap" style="gap:.75rem;margin-bottom:1rem">${icone("etiqueta", 'width="18" height="18"')}
+      <span class="grow">Defina se o restaurante cobra <b>taxa de serviço</b> e <b>couvert</b>, a comissão dos garçons e se a cozinha precisa de aprovação.</span>
+      <a class="btn sm primary" href="#/configuracoes/restaurante">Configurar</a></div>`);
+  }
+  // Tempo médio de ocupação das mesas fechadas hoje
+  (async () => {
+    const ini = new Date(); ini.setHours(0, 0, 0, 0);
+    const fechadas = await q(sb.from("vendas").select("created_at,finalizada_em").eq("canal", "mesa").eq("status", "finalizada").gte("finalizada_em", ini.toISOString()).limit(1000));
+    if (fechadas.length) { mediaHoje = Math.round(fechadas.reduce((a, v) => a + (new Date(v.finalizada_em) - new Date(v.created_at)) / 60000, 0) / fechadas.length); desenhar(); }
+  })().catch(() => {});
+
   await recarregar();
   reenviarPendente().catch(erro);
 
@@ -292,6 +335,7 @@ export default async function mesas(el) {
     .on("postgres_changes", { event: "*", schema: "public", table: "vendas", filter: `empresa_id=eq.${emp}` }, recarregarDepois)
     .on("postgres_changes", { event: "*", schema: "public", table: "venda_itens", filter: `empresa_id=eq.${emp}` }, recarregarDepois)
     .on("postgres_changes", { event: "*", schema: "public", table: "mesas", filter: `empresa_id=eq.${emp}` }, () => { if (!editando) recarregarDepois(); })
+    .on("postgres_changes", { event: "*", schema: "public", table: "cozinha_pedidos", filter: `empresa_id=eq.${emp}` }, recarregarDepois)
     .subscribe();
   const relogio = setInterval(() => { if (!editando) recarregar().catch(() => {}); }, 30000);
   const aoRedimensionar = debounce(() => { if (!editando) desenhar(); }, 200);

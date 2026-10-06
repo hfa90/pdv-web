@@ -3,12 +3,13 @@
 // - Bibliotecas de CDN (Supabase, QR Code, fontes): cópia local primeiro, atualiza em segundo plano.
 // - Dados do Supabase nunca passam por aqui: vendas offline ficam na fila do próprio PDV
 //   (app/js/contingencia.js) e são enviadas quando a conexão volta.
-const VERSAO = "pdv-v2";
+const VERSAO = "pdv-v4";
 const ESSENCIAIS = [
   "./", "./index.html", "./css/app.css",
   "./js/main.js", "./js/api.js", "./js/config.js", "./js/estado.js", "./js/ui.js", "./js/icons.js", "./js/links.js",
   "./js/contingencia.js", "./js/balanca.js", "./js/pesagem.js", "./js/serial-portas.js", "./js/seletor.js",
   "./js/mesa-detalhe.js", "./js/cozinha.js", "./js/avisos.js", "./js/pacotes.js",
+  "./js/restaurante.js", "./js/aprovacoes.js", "./js/desempenho.js", "./js/paginas/cozinha.js", "./js/paginas/garcons.js", "./js/fechar-conta.js", "./js/recebimentos.js",
   "./js/impressao/cupom.js", "./js/impressao/escpos.js",
   "./js/paginas/pdv.js", "./js/paginas/caixa.js", "./js/paginas/vendas.js", "./js/paginas/login.js",
   "./js/paginas/clientes.js", "./js/paginas/painel.js", "./js/paginas/mesas.js", "./js/paginas/delivery.js",
