@@ -14,12 +14,19 @@ export default async function garcons(el, params = []) {
   if (!gestor) {
     render(el, html`<div class="page"><div class="page-head"><div><h1>Meu desempenho</h1>
       <p class="muted">Suas vendas, metas e comissão. Atualiza quando as mesas que você atendeu são fechadas no caixa.</p></div></div>
+      <div class="tabs"><button data-t="desemp" class="ativo">Desempenho</button><button data-t="turno">Meu turno</button></div>
       <div id="meu"></div></div>`);
+    $$("[data-t]", el).forEach((b) => (b.onclick = async () => {
+      $$("[data-t]", el).forEach((x) => x.classList.toggle("ativo", x === b));
+      if (b.dataset.t === "turno") { const { desenharTurno } = await import("../turno.js"); desenharTurno($("#meu", el)).catch(erro); }
+      else desenharDesempenho($("#meu", el)).catch(erro);
+    }));
     await desenharDesempenho($("#meu", el));
     return;
   }
 
-  let aba = params[0] === "garcom" ? "garcom" : "equipe", chave = "mes", dados = null, escolhido = params[1] || null;
+  let aba = ["garcom", "equipe"].includes(params[0]) ? params[0] : "aovivo", chave = "mes", dados = null, escolhido = params[1] || null;
+  let pararAoVivo = null;
   const c = cfgRestaurante();
   render(el, html`<div class="page">
     <div class="page-head">
@@ -27,7 +34,7 @@ export default async function garcons(el, params = []) {
         meta padrão ${Number(c.meta_mensal_padrao) ? dinheiro(c.meta_mensal_padrao) + "/mês" : "não definida"}</p></div>
       <div class="row wrap"><a class="btn" href="#/configuracoes/restaurante">${icone("config", 'width="18" height="18"')} Regras de comissão e taxas</a></div>
     </div>
-    <div class="tabs"><button data-aba="equipe">Equipe e ranking</button><button data-aba="garcom">Desempenho individual</button></div>
+    <div class="tabs"><button data-aba="aovivo">${icone("pessoas", 'width="16" height="16"')} Ao vivo</button><button data-aba="equipe">Equipe e ranking</button><button data-aba="garcom">Desempenho individual</button></div>
     <div id="corpo"></div></div>`);
 
   const trocar = (k) => { aba = k; $$(".tabs button", el).forEach((b) => b.classList.toggle("ativo", b.dataset.aba === k)); desenhar().catch(erro); };
@@ -40,6 +47,8 @@ export default async function garcons(el, params = []) {
 
   async function desenhar() {
     const corpo = $("#corpo", el);
+    pararAoVivo?.(); pararAoVivo = null;
+    if (aba === "aovivo") { const { desenharAoVivo } = await import("../painel-garcons.js"); pararAoVivo = await desenharAoVivo(corpo); return; }
     if (aba === "garcom") return desenharIndividual(corpo);
     render(corpo, html`<div class="toolbar"><div class="chips">${PERIODOS.map(([k, n]) => html`<button class="chip ${k === chave ? "ativo" : ""}" data-p="${k}">${n}</button>`)}</div>
       <span class="grow"></span><button class="btn sm" id="csv">${icone("baixar", 'width="16" height="16"')} Exportar</button></div><div id="equipe">${carregando()}</div>`);
@@ -116,10 +125,14 @@ export default async function garcons(el, params = []) {
     if (!escolhido || !gs.some((g) => g.id === escolhido)) escolhido = gs[0]?.id || estado.perfil.id;
     render(corpo, html`<div class="toolbar"><label class="field" style="min-width:260px"><span>Garçom</span>
       <select class="input" id="sel-g">${gs.map((g) => html`<option value="${g.id}" ${g.id === escolhido ? "selected" : ""}>${g.nome}</option>`)}</select></label></div>
-      <div id="ind"></div>`);
-    $("#sel-g", corpo).onchange = (e) => { escolhido = e.target.value; desenharDesempenho($("#ind", corpo), { perfil: escolhido }).catch(erro); };
+      <div id="ind"></div>
+      <h2 style="margin:1.5rem 0 .75rem">Turno: recebimentos e fechamento</h2><div id="ind-turno"></div>`);
+    const turno = async () => { const { desenharTurno } = await import("../turno.js"); await desenharTurno($("#ind-turno", corpo), { perfil: escolhido }); };
+    $("#sel-g", corpo).onchange = (e) => { escolhido = e.target.value; desenharDesempenho($("#ind", corpo), { perfil: escolhido }).catch(erro); turno().catch(erro); };
     await desenharDesempenho($("#ind", corpo), { perfil: escolhido });
+    await turno();
   }
 
   trocar(aba);
+  return () => { pararAoVivo?.(); };
 }

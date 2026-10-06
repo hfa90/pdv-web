@@ -56,10 +56,14 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 
 - **Fechar conta pelo app do garçom** (PIX e cartão sem TEF): na mesa, *Fechar conta* mostra consumo, serviço, couvert e total; divide o valor (÷2, ÷3… ou por pessoa) e cobra em partes. PIX mostra o QR com o valor exato (chave da loja ou cobrança automática do Mercado Pago, que confirma sozinha); débito/crédito é passado na maquininha e o garçom confirma "Aprovado", com NSU opcional para conferência. Os pagamentos ficam guardados no celular até a conta fechar e o reenvio nunca cobra duas vezes. Ao fechar, o servidor confere o total, aplica as promoções, baixa o estoque, libera a mesa e lança tudo no **caixa principal** (escolhido em Configurações › Restaurante, ou o caixa aberto há mais tempo). O caixa recebe aviso na hora, pode imprimir o cupom sozinho (Configurações › Impressora) e vê a lista "Fechadas pelos garçons no app" com NSU na tela Caixa; o valor entra no resumo e no fechamento por forma de pagamento. Com NFC-e ativa, o app emite a nota e mostra o QR ao cliente. Dinheiro continua no caixa. O garçom pode tirar a taxa de serviço a pedido do cliente; pôr a taxa ou mexer no couvert, só o caixa/gerente.
 
+- **Login do garçom por matrícula ou CPF + senha numérica** (6 a 12 números, sem sequência ou repetição). O celular é vinculado à loja uma vez pelo QR de Mesas › App do garçom (leva o código da loja); depois o garçom digita só matrícula/CPF e senha. A senha é guardada com bcrypt; 5 erros bloqueiam por 15 minutos (o gerente libera em Usuários). O garçom pode ser criado sem e-mail e troca a própria senha no app. Quem tem e-mail continua podendo entrar por e-mail.
+- **Meu turno** (app do garçom e "Meu desempenho" no sistema): quanto recebeu no app no dia por PIX, débito e crédito (com NSU de cada conta), comissão do dia, taxa de serviço arrecadada nas suas mesas, comissão prevista das mesas abertas e **conferência com a maquininha**: ele digita os totais do relatório, vê na hora o que bateu ou a diferença e registra o fechamento do turno (o gerente vê em Garçons › Desempenho individual).
+- **Garçons › Ao vivo** (administrador/gerente): um boneco por garçom com anel e % da meta (dia, semana ou mês; sem meta, em relação ao líder), expressão do boneco conforme o desempenho, medalhas do 1º ao 3º, quanto está em mesa agora, hoje, na semana e no mês, mesas abertas, contas pedidas, pedidos prontos, último pedido, e o **mapa do salão com a cor do garçom em cada mesa**. Atualiza em tempo real e tem modo tela cheia.
+
 ### Ativar (configuração única)
 
-1. No Supabase › SQL Editor, rode `013_papel_cozinha.sql` **sozinho**, depois `014_restaurante.sql` e `015_garcom_fecha_conta.sql` (o novo nível precisa existir antes).
-2. Republique as funções: `supabase functions deploy usuarios` (nível Cozinha), `fiscal` (NFC-e emitida pelo garçom) e `pagamentos` (PIX automático no app do garçom).
+1. No Supabase › SQL Editor, rode `013_papel_cozinha.sql` **sozinho**, depois `014_restaurante.sql`, `015_garcom_fecha_conta.sql` e `016_garcom_acesso_turno.sql` (o novo nível precisa existir antes).
+2. Republique as funções: `supabase functions deploy usuarios` (nível Cozinha e garçom sem e-mail), `fiscal` (NFC-e emitida pelo garçom), `pagamentos` (PIX automático no app do garçom) e a nova `supabase functions deploy garcom-login --no-verify-jwt` (login por matrícula/CPF).
 3. Em **Configurações › Restaurante** escolha serviço, couvert, comissão, meta padrão, aprovação da cozinha e tempos.
 4. Crie os garçons com o nível **Atendente / garçom** e, se quiser, um usuário **Cozinha** para a tela da cozinha.
 
@@ -147,6 +151,8 @@ app/js/paginas/cozinha.js  tela da cozinha (KDS)
 app/js/paginas/garcons.js  equipe, metas e comissões
 app/js/fechar-conta.js     cobrança da mesa no app do garçom (PIX e cartão) direto no caixa principal
 app/js/recebimentos.js     aviso no caixa principal quando o garçom fecha uma conta
+app/js/turno.js            "Meu turno" do garçom: recebimentos, comissão e conferência
+app/js/painel-garcons.js   painel ao vivo dos garçons (bonecos, % da meta, mapa do salão)
 garcom/                    app do garçom (PWA: manifest, service worker, ícones)
 cardapio/                  cardápio digital público e acompanhamento do pedido
 ```

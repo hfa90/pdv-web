@@ -1,6 +1,6 @@
 // App do garçom (PWA): mesas, pedidos da cozinha, conta e desempenho no celular ou tablet.
 // Usa o mesmo banco, os mesmos usuários e as mesmas regras do sistema do caixa.
-import { sb, rpc } from "../app/js/api.js";
+import { sb, rpc, fn } from "../app/js/api.js";
 import { estado, carregarContexto, limparEstado, PAPEIS } from "../app/js/estado.js";
 import { html, render, $, $$, dinheiro, toast, erro, ocupado, iniciais, carregando, debounce, confirmar, qtd as fmtQtd, rotuloMesa } from "../app/js/ui.js";
 import { icone } from "../app/js/icons.js";
@@ -23,26 +23,69 @@ const ehIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
 const instalado = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone;
 
 // ---------- Login ----------
-function telaLogin() {
+// Padrão: código da loja (vem do QR) + matrícula ou CPF + senha numérica (6+ dígitos).
+// Alternativa: e-mail e senha (gerentes e quem ainda não tem matrícula).
+const CHAVE_LOJA = "garcom-loja", CHAVE_LOGIN = "garcom-ultimo-login";
+const lerLS = (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } };
+const gravarLS = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch { /* ignora */ } };
+(() => { // ?loja=CODIGO no link/QR vincula o aparelho à loja
+  const c = new URLSearchParams(location.search).get("loja");
+  if (c && /^[0-9A-Za-z]{4,12}$/.test(c)) { gravarLS(CHAVE_LOJA, c.toUpperCase()); history.replaceState(null, "", location.pathname); }
+})();
+
+function telaLogin(modo = "matricula") {
+  const loja = lerLS(CHAVE_LOJA);
   render(app, html`<div class="g-login">
     <div class="g-login-card">
       <img src="icones/icone-192.png" alt="" width="72" height="72">
       <h1>App do garçom</h1>
-      <p class="muted">Entre com o usuário que o gerente criou para você.</p>
-      <form id="f-login" class="stack">
-        <label class="field"><span>E-mail</span><input class="input lg" name="email" type="email" autocomplete="username" required autofocus></label>
-        <label class="field"><span>Senha</span><input class="input lg" name="senha" type="password" autocomplete="current-password" required></label>
-        <button class="btn primary lg block">Entrar</button>
-      </form>
+      ${modo === "matricula" ? html`
+        <p class="muted">Entre com sua matrícula ou CPF e a senha numérica.</p>
+        <form id="f-login" class="stack" autocomplete="on">
+          ${loja ? html`<div class="g-loja">Loja <strong>${loja}</strong> <button type="button" class="link-btn" id="trocar-loja">trocar</button></div>`
+            : html`<label class="field"><span>Código da loja</span><input class="input lg g-cod" name="loja" maxlength="12" autocapitalize="characters" required placeholder="Ex.: A1B2C3">
+              <small class="hint">Está no QR do app do garçom (no sistema: Mesas › App do garçom). Só na primeira vez.</small></label>`}
+          <label class="field"><span>Matrícula ou CPF</span><input class="input lg" name="login" autocomplete="username" autocapitalize="characters" value="${lerLS(CHAVE_LOGIN)}" required ${loja && !lerLS(CHAVE_LOGIN) ? "autofocus" : ""}></label>
+          <label class="field"><span>Senha</span><input class="input lg g-pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" minlength="6" maxlength="12" autocomplete="current-password" required ${lerLS(CHAVE_LOGIN) ? "autofocus" : ""}></label>
+          <button class="btn primary lg block">Entrar</button>
+        </form>
+        <button class="link-btn" id="modo-email" style="margin-top:.6rem">Entrar com e-mail e senha</button>`
+      : html`
+        <p class="muted">Entre com o e-mail e a senha do sistema.</p>
+        <form id="f-login" class="stack">
+          <label class="field"><span>E-mail</span><input class="input lg" name="email" type="email" autocomplete="username" required autofocus></label>
+          <label class="field"><span>Senha</span><input class="input lg" name="senha" type="password" autocomplete="current-password" required></label>
+          <button class="btn primary lg block">Entrar</button>
+        </form>
+        <button class="link-btn" id="modo-mat" style="margin-top:.6rem">Entrar com matrícula ou CPF</button>`}
       <p class="small muted" style="margin-top:1rem">${MARCA}</p>
     </div></div>`);
+  $("#modo-email")?.addEventListener("click", () => telaLogin("email"));
+  $("#modo-mat")?.addEventListener("click", () => telaLogin("matricula"));
+  $("#trocar-loja")?.addEventListener("click", () => { gravarLS(CHAVE_LOJA, ""); telaLogin(); });
   $("#f-login").onsubmit = async (e) => {
     e.preventDefault();
     const f = e.target;
-    await ocupado(f.querySelector("button"), async () => {
-      const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.senha.value });
-      if (error) return toast(/Invalid login/i.test(error.message) ? "E-mail ou senha incorretos" : error.message, "erro");
-      iniciar();
+    await ocupado(f.querySelector("button.primary"), async () => {
+      if (modo === "email") {
+        const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.senha.value });
+        if (error) return toast(/Invalid login/i.test(error.message) ? "E-mail ou senha incorretos" : error.message, "erro");
+        return iniciar();
+      }
+      const codigo = (f.loja?.value || loja).trim().toUpperCase();
+      const login = f.login.value.trim();
+      const pin = f.pin.value;
+      if (!/^[0-9]{6,12}$/.test(pin)) return toast("A senha tem de 6 a 12 números", "erro");
+      try {
+        const r = await fn("garcom-login", { loja: codigo, login, pin });
+        const { error } = await sb.auth.setSession({ access_token: r.access_token, refresh_token: r.refresh_token });
+        if (error) throw error;
+        gravarLS(CHAVE_LOJA, codigo); gravarLS(CHAVE_LOGIN, login);
+        iniciar();
+      } catch (err) {
+        f.pin.value = "";
+        toast(/Failed to send|not found|404/i.test(err.message) ? "Login por matrícula ainda não está ativo nesta loja. Use o e-mail." : err.message, "erro");
+      }
     });
   };
 }
@@ -76,10 +119,12 @@ function montar() {
       <main class="g-mesas" id="mesas"></main>
     </section>
     <section id="v-cozinha" class="g-pagina" hidden></section>
+    <section id="v-turno" class="g-pagina" hidden></section>
     <section id="v-desemp" class="g-pagina" hidden></section>
     <nav class="g-tabs" aria-label="Seções">
       <button data-aba="mesas">${icone("mesa", 'width="22" height="22"')}<span>Mesas</span></button>
       <button data-aba="cozinha">${icone("chapeu", 'width="22" height="22"')}<span>Cozinha</span><b class="g-tab-n" id="n-cz" hidden></b></button>
+      <button data-aba="turno">${icone("carteira", 'width="22" height="22"')}<span>Meu turno</span></button>
       <button data-aba="desemp">${icone("trofeu", 'width="22" height="22"')}<span>Desempenho</span></button>
     </nav>
     <section class="g-detalhe" id="detalhe" hidden></section>
@@ -102,6 +147,8 @@ function irPara(k) {
   $("#v-mesas").hidden = k !== "mesas";
   $("#v-cozinha").hidden = k !== "cozinha";
   $("#v-desemp").hidden = k !== "desemp";
+  $("#v-turno").hidden = k !== "turno";
+  if (k === "turno") import("../app/js/turno.js").then((m) => m.desenharTurno($("#v-turno"))).catch(erro);
   if (k === "cozinha") desenharCozinha();
   if (k === "desemp") import("../app/js/desempenho.js").then((m) => m.desenharDesempenho($("#v-desemp"), { inicial: "hoje" })).catch(erro);
   window.scrollTo(0, 0);
