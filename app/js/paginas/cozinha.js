@@ -6,7 +6,7 @@ import { html, render, $, $$, toast, erro, ocupado, debounce, hora, qtd as fmtQt
 import { icone } from "../icons.js";
 import { bipe } from "../avisos.js";
 import { minutosDesde, duracao, ETAPA_COZINHA } from "../restaurante.js";
-import { cartaoAprovacao, ligarAprovacao } from "../aprovacoes.js";
+import { cartaoAprovacao, ligarAprovacao, cartaoMinhaSenha, interruptorAprovacao } from "../aprovacoes.js";
 
 const CHAVE_SOM = "pdv-cozinha-som";
 const ORIGEM = { mesa: "Mesa", balcao: "Comanda", delivery: "Entrega", retirada: "Retirada" };
@@ -26,6 +26,7 @@ export default async function cozinha(el) {
         <button class="btn" id="cheia">${icone("telaCheia", 'width="18" height="18"')} <span>Tela cheia</span></button>
       </div>
     </div>
+    <div class="aprov-ctl kds-ctl"><div id="kds-interruptor"></div><div id="kds-senha"></div></div>
     <div class="kds" id="kds-colunas"></div>
     <details class="panel concluidos" id="recentes"><summary class="panel-head"><h2>Servidos e recusados (últimas 3 horas)</h2><span class="muted small" id="n-rec"></span></summary><div id="lista-rec"></div></details>
   </div>`);
@@ -79,9 +80,8 @@ export default async function cozinha(el) {
       <div class="kds-lista">${lista.length ? lista.map(render) : html`<p class="kb-vazio">${vazio}</p>`}</div></section>`;
     const mostrarAprov = dados.aprovacao || aguardando.length;
     render($("#kds-colunas", el), html`
-      ${mostrarAprov ? col("Aguardando aprovação", "kc-aprov", aguardando, aprova ? "Nada para aprovar." : "Os pedidos aparecem aqui até o caixa aprovar.",
-        (p) => aprova ? cartaoAprovacao(p) : html`<article class="aprov-card bloqueado"><div class="aprov-topo"><strong>${rotuloMesa(p.identificador)}</strong><span class="grow"></span><span class="kb-tempo">${duracao(minutosDesde(p.criado_em))}</span></div>
-          <ul class="kb-itens">${(p.itens || []).filter((i) => !i.cancelado).map((i) => html`<li><b>${fmtQtd(i.quantidade, i.unidade)}×</b> ${i.descricao}</li>`)}</ul><p class="small muted" style="margin:0">Aguardando o caixa</p></article>`) : ""}
+      ${mostrarAprov ? col("Aguardando aprovação", "kc-aprov", aguardando, aprova ? "Nada para aprovar." : "Os pedidos aparecem aqui até o caixa aprovar (ou com a senha de aprovação).",
+        (p) => cartaoAprovacao(p)) : ""}
       ${col("Na fila", "kc-novo", por("novo"), "Nenhum pedido novo.", cartao)}
       ${col("Preparando", "kc-preparo", por("preparando"), "Nada no fogo.", cartao)}
       ${col("Prontos", "kc-pronto", por("pronto"), "Nada esperando o garçom.", cartao)}`);
@@ -128,6 +128,8 @@ export default async function cozinha(el) {
 
   await carregar();
   relogio();
+  cartaoMinhaSenha($("#kds-senha", el));
+  interruptorAprovacao($("#kds-interruptor", el), () => carregar().catch(() => {}));
 
   const emp = estado.empresa.id;
   const canal = sb.channel("kds-" + emp + "-" + Date.now())

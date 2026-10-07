@@ -1099,3 +1099,23 @@ label.turno-item { cursor: pointer; }
 .av-mesa.conta { box-shadow: 0 0 0 3px color-mix(in srgb, var(--conta) 45%, transparent); }
 .av-cabeca { width: 22px; height: 22px; border-radius: 50%; background: var(--cor); color: #fff; font-size: .6rem; font-weight: 800; display: grid; place-items: center; }
 @media (max-width: 800px) { .aovivo-equipe { grid-template-columns: repeat(2, 1fr); } }
+
+/* =====================================================================
+   Senha de aprovação dos pedidos do garçom (aprovacoes.js)
+   ===================================================================== */
+.senha-aprov { align-items: center; gap: .8rem; }
+.senha-aprov-ic { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 18px; background: var(--primary-soft); color: var(--primary); }
+.senha-aprov-campo { width: 100%; max-width: 280px; text-align: center; font-size: 2rem; font-weight: 700; letter-spacing: .5em; padding-left: .5em; height: 64px; font-variant-numeric: tabular-nums; }
+.senha-aprov-erro { margin: 0; color: var(--danger); font-weight: 600; font-size: var(--fs-sm); text-align: center; }
+.tremer { animation: tremer .35s; border-color: var(--danger) !important; }
+@keyframes tremer { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.aprov-ctl { display: flex; flex-direction: column; gap: .6rem; margin-bottom: .9rem; }
+.kds-ctl { flex-direction: row; flex-wrap: wrap; }
+.aprov-ctl > div:empty { display: none; }
+.kds-ctl > div { flex: 1 1 320px; }
+.minha-senha .grow { min-width: 200px; }
+.interruptor-aprov { padding: .7rem .9rem; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); height: 100%; }
+.minha-senha { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; padding: .6rem .9rem; border: 1px dashed var(--line-strong); border-radius: var(--r-md); background: var(--surface); }
+.minha-senha-ic { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); flex: none; }
+.minha-senha-cod { font-size: 1.4rem; letter-spacing: .12em; font-variant-numeric: tabular-nums; }
+.kds-ctl { margin: 0 0 1rem; }

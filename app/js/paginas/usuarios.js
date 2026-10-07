@@ -15,6 +15,7 @@ export default async function usuarios(el) {
     <div class="panel" id="lista" style="margin-bottom:1.25rem"></div>
     <div id="cod-loja"></div>
     <div class="panel panel-pad" id="aparelhos" style="margin-bottom:1.25rem"></div>
+    ${estado.conta?.garcom ? html`<div class="panel panel-pad" id="senhas-aprov" style="margin-bottom:1.25rem"></div>` : ""}
     <div class="panel panel-pad"><h2 style="margin-bottom:.75rem">Níveis de acesso</h2>
       <div class="grid-2">${Object.entries(PAPEIS).map(([k, p]) => html`<div><strong>${p.nome}</strong><p class="muted small">${p.desc}</p></div>`)}</div></div>
   </div>`);
@@ -145,4 +146,5 @@ export default async function usuarios(el) {
   $("#novo", el).onclick = criar;
   await carregar();
   import("../dispositivos.js").then((m) => m.painelAparelhos($("#aparelhos", el))).catch(erro);
+  if ($("#senhas-aprov", el)) import("../aprovacoes.js").then((m) => m.painelSenhas($("#senhas-aprov", el))).catch(erro);
 }

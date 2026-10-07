@@ -74,6 +74,7 @@ function montarShell() {
         </nav>
         <div class="sidebar-foot">
           <div id="aviso-conta"></div>
+          ${["gerente", "caixa"].includes(p.papel) && pode("mesas") ? html`<button class="btn ghost block btn-senha-aprov" id="btn-senha-aprov" style="justify-content:flex-start" title="Senha que o garçom usa para aprovar pedidos">${icone("cadeado", 'width="18" height="18"')} <span class="sair-rotulo">Senha de aprovação</span></button>` : ""}
           <button class="btn ghost block btn-tema" id="btn-tema" style="justify-content:flex-start" title="Alternar tema claro/escuro">
             <span id="ic-tema">${icone(window.lisTema?.atual() === "escuro" ? "lua" : "sol", 'width="18" height="18"')}</span>
             <span class="tema-rotulo">Tema escuro</span><span class="tema-switch" aria-hidden="true"></span></button>
@@ -96,6 +97,7 @@ function montarShell() {
   $("#btn-sair").onclick = sair;
   $("#btn-menu").onclick = () => $("#sidebar").classList.toggle("aberta");
   $("#btn-tema").onclick = () => window.lisTema?.alternar();
+  $("#btn-senha-aprov")?.addEventListener("click", () => import("./aprovacoes.js").then((m) => m.abrirMinhaSenha()).catch(erro));
   ligarMenuRecolhivel();
   desenharAvisoConta();
   iniciarContingencia();

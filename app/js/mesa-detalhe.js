@@ -110,7 +110,7 @@ export async function desenharDetalhe(alvo, mesa, op) {
     </div>
     ${aguardando.length ? html`<div class="md-aviso aguardando">${icone("ampulheta", 'width="18" height="18"')}
       <span class="grow">${aguardando.length} ${aguardando.length === 1 ? "pedido aguarda" : "pedidos aguardam"} aprovação do caixa para ir à cozinha</span>
-      ${aprovaCozinha() ? html`<button class="btn sm primary" data-a="aprovar">Revisar</button>` : ""}</div>` : ""}
+      <button class="btn sm primary" data-a="aprovar">${aprovaCozinha() ? "Revisar" : html`${icone("cadeado", 'width="15" height="15"')} Aprovar com senha`}</button></div>` : ""}
     ${prontos.length ? html`<div class="md-aviso pronto">${icone("sino", 'width="18" height="18"')}
       <span class="grow"><strong>Pronto na cozinha!</strong> ${prontos.flatMap((t) => (t.itens || []).filter((i) => !i.cancelado).map((i) => `${fmtQtd(i.quantidade, i.unidade)}× ${i.descricao}`)).join(", ")}</span>
       <button class="btn sm" data-a="servido">Servido</button></div>` : ""}

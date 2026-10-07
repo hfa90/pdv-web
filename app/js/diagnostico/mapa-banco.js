@@ -19,7 +19,8 @@ export const ARQUIVOS = {
   "015": "015_garcom_fecha_conta.sql",
   "016": "016_garcom_acesso_turno.sql",
   "017": "017_diagnostico.sql",
-  "018": "018_dispositivos.sql"
+  "018": "018_dispositivos.sql",
+  "019": "019_senha_aprovacao.sql"
 };
 
 const porMigracao = (o) => Object.fromEntries(Object.entries(o).flatMap(([m, nomes]) => nomes.split(" ").map((n) => [n, m])));
@@ -39,6 +40,7 @@ export const FUNCOES = porMigracao({
   "016": "acessos_garcom alterar_meu_pin codigo_garcom_loja definir_acesso_garcom garcom_autenticar garcom_fechar_turno garcom_turno garcons_ao_vivo remover_acesso_garcom",
   "017": "diagnostico_recentes diagnostico_registrar diagnostico_servidor",
   "018": "dispositivo_desvincular dispositivo_renomear dispositivo_verificar dispositivos_listar plataforma_config_dispositivos",
+  "019": "cozinha_aprovar_com_senha minha_senha_aprovacao senhas_aprovacao_loja trocar_senha_aprovacao",
 });
 
 /** tabela pública → número da migração */
@@ -53,6 +55,7 @@ export const TABELAS = porMigracao({
   "016": "garcom_acesso garcom_fechamentos",
   "017": "diagnostico_eventos",
   "018": "dispositivos dispositivos_eventos",
+  "019": "senha_aprovacao_tentativas senhas_aprovacao",
 });
 
 /** Edge Functions que o sistema usa (supabase/functions). */

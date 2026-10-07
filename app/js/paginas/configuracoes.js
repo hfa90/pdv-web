@@ -98,7 +98,7 @@ export default async function configuracoes(el) {
 
       <section class="panel panel-pad stack">
         <div><h2>Cozinha</h2><p class="muted small">Os pedidos do garçom aparecem na tela Cozinha. Com aprovação, o caixa confere antes de a cozinha começar.</p></div>
-        <label class="check"><input type="checkbox" name="aprovacao_cozinha" ${c.aprovacao_cozinha ? "checked" : ""}> <span><strong>Pedidos do garçom precisam de aprovação do caixa</strong> <span class="muted small">(admin, gerente ou caixa aprova; o que eles mesmos lançam já vai aprovado)</span></span></label>
+        <label class="check"><input type="checkbox" name="aprovacao_cozinha" ${c.aprovacao_cozinha ? "checked" : ""}> <span><strong>Pedidos do garçom precisam de aprovação do caixa</strong> <span class="muted small">(admin, gerente ou caixa aprova; garçom e cozinha podem aprovar com a senha de aprovação de um gerente ou caixa, trocada a cada 7 dias; o que eles mesmos lançam já vai aprovado)</span></span></label>
         <label class="field" style="max-width:260px"><span>Tempo ideal de preparo (min)</span><input class="input" name="preparo_alvo_min" value="${c.preparo_alvo_min}" inputmode="numeric"></label>
         ${cats.length ? html`<div class="field"><span>Categorias que vão para a cozinha</span>
           <div class="chips wrap">${cats.map((k) => html`<label class="chip"><input type="checkbox" data-cat="${k.id}" ${k.envia_cozinha !== false ? "checked" : ""}> ${k.nome}</label>`)}</div>

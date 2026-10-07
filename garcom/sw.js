@@ -1,7 +1,7 @@
 // Service worker do app do garçom: abre rápido e funciona com internet instável.
 // Arquivos do app: rede primeiro (pega atualizações) e cópia local se cair a conexão.
 // Dados (Supabase) nunca são guardados aqui: sempre vêm do servidor.
-const VERSAO = "garcom-v7";
+const VERSAO = "garcom-v8";
 const ESSENCIAIS = [
   "./", "./index.html", "./app.js", "./garcom.css", "./manifest.webmanifest",
   "./icones/icone-192.png", "./icones/icone-512.png",

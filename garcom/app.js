@@ -223,12 +223,19 @@ function desenharCozinha() {
       (p) => html`<button class="btn primary block" data-servido="${p.id}">${icone("check", 'width="18" height="18"')} Servido</button>`)}
     ${grupo("Na cozinha", "preparo", lista.filter((p) => ["novo", "preparando"].includes(p.status)), "Nenhum pedido em preparo.",
       (p) => html`<span class="etapa e-${p.status}">${ETAPA_COZINHA[p.status]}</span>`)}
-    ${grupo("Aguardando aprovação do caixa", "aguardando", lista.filter((p) => p.status === "aguardando"), "Nada aguardando.")}
+    ${grupo("Aguardando aprovação do caixa", "aguardando", lista.filter((p) => p.status === "aguardando"), "Nada aguardando.",
+      (p) => html`<button class="btn block" data-aprov-senha="${p.id}">${icone("cadeado", 'width="18" height="18"')} Aprovar com senha do caixa</button>`)}
     ${grupo("Servidos e recusados", "fim", lista.filter((p) => ["entregue", "recusado"].includes(p.status)).slice(-8).reverse(), "—")}
     ${"Notification" in window && Notification.permission === "default" ? html`<button class="btn block" id="permitir-not">${icone("sino", 'width="18" height="18"')} Avisar no celular quando ficar pronto</button>` : ""}`);
   $$("[data-meus]", alvo).forEach((b) => (b.onclick = () => { soMeus = b.dataset.meus === "1"; desenharCozinha(); }));
   $$("[data-servido]", alvo).forEach((b) => (b.onclick = async () => {
     try { await ocupado(b, () => rpc("cozinha_avancar", { p_id: b.dataset.servido, p_status: "entregue" })); toast("Servido ✓", "ok"); recarregar(); } catch (e) { erro(e); }
+  }));
+  $$("[data-aprov-senha]", alvo).forEach((b) => (b.onclick = async () => {
+    try {
+      const { aprovarPedidos } = await import("../app/js/aprovacoes.js");
+      if (await aprovarPedidos([b.dataset.aprovSenha], pedidosCz)) recarregar();
+    } catch (e) { erro(e); }
   }));
   $("#permitir-not", alvo)?.addEventListener("click", () => Notification.requestPermission().then(() => desenharCozinha()));
 }
