@@ -18,7 +18,15 @@ import { obterDispositivo } from "../../assets/dispositivo.js";
 
 // ---------- Armazenamento local seguro ----------
 const ler = (k, padrao = null) => { try { const v = localStorage.getItem(k); return v == null ? padrao : JSON.parse(v); } catch { return padrao; } };
-const gravar = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
+const gravar = (k, v) => {
+  try { localStorage.setItem(k, JSON.stringify(v)); return true; }
+  catch (e) {
+    // Sem espaço para guardar a fila de vendas é grave: registra para o suporte ver
+    window.lisDiag?.registrar({ tipo: "erro", origem: "armazenamento", gravidade: k.startsWith("lis-fila") ? "critica" : "alta",
+      mensagem: `Armazenamento do navegador cheio: não foi possível guardar ${k.replace(/-[0-9a-f-]{20,}$/, "")}`, tecnico: { chave: k, tipo: e?.name, tamanho: JSON.stringify(v)?.length } });
+    return false;
+  }
+};
 const apagar = (k) => { try { localStorage.removeItem(k); } catch { /* ignora */ } };
 
 export function novoId() {
@@ -52,10 +60,16 @@ export function ehErroDeRede(e) {
   const m = String(e?.message || e || "");
   return /Failed to fetch|NetworkError|Load failed|Sem conexão|network ?error|timed? ?out|tempo esgotado|ERR_INTERNET|ERR_NAME|ERR_CONNECTION|AuthRetryableFetchError|FunctionsFetchError|Failed to send a request/i.test(m);
 }
+let caiuEm = null;
 export function marcarRede(ok) {
   const antes = semRede;
   semRede = !ok;
-  if (antes !== semRede) avisar();
+  if (antes !== semRede) {
+    avisar();
+    // Diagnóstico: quando caiu e quanto tempo ficou sem internet
+    if (!ok) { caiuEm = Date.now(); window.lisDiag?.registrar({ tipo: "aviso", origem: "rede", gravidade: "media", mensagem: "Ficou sem internet: vendendo offline", tecnico: { pendentes: fila().length } }); }
+    else window.lisDiag?.registrar({ tipo: "info", origem: "rede", mensagem: `Internet voltou${caiuEm ? ` depois de ${Math.max(1, Math.round((Date.now() - caiuEm) / 60000))} min` : ""}`, tecnico: { pendentes: fila().length } });
+  }
   if (ok && antes) sincronizarTudo();
 }
 
@@ -142,6 +156,8 @@ export function sincronizarFila() {
         // Erro de regra (ex.: preço mudou demais): fica na fila com a mensagem para o gerente ver
         const f = fila(); const x = f.find((v) => v.id_local === item.id_local);
         if (x) { x.tentativas = (x.tentativas || 0) + 1; x.erro = e.message; salvarFila(f); }
+        window.lisDiag?.registrar({ tipo: "erro", origem: "fila", mensagem: `Venda offline recusada: ${e.message}`,
+          tecnico: { ...(e.tecnico || {}), id_local: item.id_local, total: item.total, tentativas: x?.tentativas, feita_em: item.payload?.realizada_em || item.criado_em } });
       }
     }
     return enviadas;

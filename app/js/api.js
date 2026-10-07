@@ -23,10 +23,37 @@ export function mensagemErro(err) {
   return m;
 }
 
+/** Nome legível do que foi pedido ao banco (ex.: "rpc/registrar_venda", "produtos"). */
+function alvoDe(builder) {
+  try { const u = new URL(builder?.url); return { alvo: u.pathname.replace(/^\/rest\/v1\//, ""), metodo: builder.method, params: builder.body }; }
+  catch { return {}; }
+}
+
+/**
+ * Cria o erro amigável e registra no diagnóstico com os detalhes técnicos
+ * (código do Postgres, tabela/função, tempo). O operador vê a mensagem simples;
+ * o suporte vê tudo em Diagnóstico.
+ */
+function erroDoBanco(error, info = {}, ms = 0) {
+  const e = new Error(mensagemErro(error));
+  e.tecnico = {
+    mensagem_original: error?.message, codigo: error?.code || undefined, detalhes: error?.details || undefined, dica: error?.hint || undefined,
+    alvo: info.alvo, metodo: info.metodo, ms: Math.round(ms) || undefined,
+    params: info.params && typeof info.params === "object" ? Object.keys(info.params) : undefined,
+  };
+  const regra = error?.code === "P0001" || /^(22|23)/.test(error?.code || "");
+  // Sem internet o PDV continua vendendo (modo offline): registra, mas sem alarme vermelho
+  const rede = /Failed to fetch|NetworkError|Load failed|tempo esgotado|Sem conexão/i.test(`${error?.message} ${e.message}`);
+  const ev = window.lisDiag?.registrar({ tipo: regra || rede ? "aviso" : "erro", gravidade: rede ? "media" : undefined, origem: "banco", mensagem: e.message, tecnico: { ...e.tecnico, stack: new Error().stack } });
+  if (ev) e.diagId = ev.id;
+  return e;
+}
+
 /** Executa uma query e lança erro amigável. */
 export async function q(promise) {
+  const t0 = performance.now();
   const { data, error } = await promise;
-  if (error) throw new Error(mensagemErro(error));
+  if (error) throw erroDoBanco(error, alvoDe(promise), performance.now() - t0);
   return data;
 }
 
@@ -48,12 +75,17 @@ export async function todos(montarQuery, lote = 1000) {
 
 /** Chama uma Edge Function. */
 export async function fn(nome, body) {
+  const t0 = performance.now();
   const { data, error } = await sb.functions.invoke(nome, { body });
-  if (error) {
-    let msg = error.message;
-    try { const ctx = await error.context?.json?.(); if (ctx?.error) msg = ctx.error; } catch { /* ignora */ }
-    throw new Error(mensagemErro({ message: msg }));
+  if (error || data?.error) {
+    let msg = error?.message || data.error;
+    const status = error?.context?.status;
+    try { const ctx = await error?.context?.json?.(); if (ctx?.error || ctx?.message) msg = ctx.error || ctx.message; } catch { /* ignora */ }
+    const e = new Error(mensagemErro({ message: msg }));
+    e.tecnico = { funcao_edge: nome, acao: body?.acao, status, mensagem_original: error?.message, tipo: error?.name, ms: Math.round(performance.now() - t0) };
+    const ev = window.lisDiag?.registrar({ tipo: status && status < 500 && status !== 404 ? "aviso" : "erro", origem: "funcao", mensagem: e.message, tecnico: e.tecnico });
+    if (ev) e.diagId = ev.id;
+    throw e;
   }
-  if (data?.error) throw new Error(data.error);
   return data;
 }

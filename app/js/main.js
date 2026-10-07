@@ -7,6 +7,9 @@ import { icone } from "./icons.js";
 import { telaLogin, telaOnboarding, telaNovaSenha } from "./paginas/login.js";
 import { iniciarContingencia, ehErroDeRede, limparContextoLocal } from "./contingencia.js";
 
+// Diagnóstico: os arquivos principais carregaram (o vigia da abertura para de esperar)
+window.lisDiag?.marcar("modulos");
+
 // Service worker: guarda os arquivos do sistema para abrir e vender sem internet
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
   navigator.serviceWorker.register("./sw.js").then(async (reg) => {
@@ -43,6 +46,7 @@ const PAGINAS = {
   validade: () => import("./paginas/validade.js"),
   financeiro: () => import("./paginas/financeiro.js"),
   alertas: () => import("./paginas/alertas.js"),
+  diagnostico: () => import("./paginas/diagnostico.js"),
 };
 
 const app = document.getElementById("app");
@@ -95,6 +99,8 @@ function montarShell() {
   ligarMenuRecolhivel();
   desenharAvisoConta();
   iniciarContingencia();
+  // Diagnóstico: manda os erros deste aparelho para o suporte ver de longe
+  import("./diagnostico/envio.js").then((m) => m.iniciarEnvio()).catch(() => {});
   import("./cozinha.js").then((m) => m.iniciarCozinha()).catch(() => {});
   if (pode("delivery")) import("./avisos.js").then((m) => m.iniciarAvisos()).catch(() => {});
   // Pedidos do garçom aguardando aprovação: aviso em qualquer tela para quem aprova
@@ -169,6 +175,7 @@ async function navegar() {
   $$(".nav a").forEach((a) => a.classList.toggle("ativo", a.dataset.rota === rota));
   $("#sidebar")?.classList.remove("aberta");
   document.title = `${tituloRota(rota)} · ${MARCA}`;
+  window.lisDiag?.passo(`Abriu a tela ${tituloRota(rota)}`, "tela");
 
   atualizarConta().then(desenharAvisoConta).catch(() => {});
   try { limparPagina?.(); } catch { /* ignora */ }
@@ -179,8 +186,11 @@ async function navegar() {
     const mod = await PAGINAS[rota]();
     limparPagina = (await mod.default(alvo, params)) || null;
   } catch (e) {
-    console.error(e);
-    render(alvo, html`<div class="page"><div class="alerta">${e.message}</div></div>`);
+    const id = window.lisDiag?.registrar({ tipo: "erro", origem: "tela", mensagem: e.message, tecnico: { ...window.lisDiag.deErro(e).tecnico, tela: rota } })?.id;
+    render(alvo, html`<div class="page"><div class="alerta">${e.message}</div>
+      ${id ? html`<p style="margin-top:1rem"><button class="btn" id="ver-diag">Entender o erro</button> <button class="btn ghost" id="recarregar">Recarregar</button></p>` : ""}</div>`);
+    $("#ver-diag")?.addEventListener("click", () => window.lisDiag.abrir(id));
+    $("#recarregar")?.addEventListener("click", () => location.reload());
   }
 }
 
@@ -199,12 +209,14 @@ async function iniciar() {
       render(app, html`<div class="page" style="max-width:520px;margin:10vh auto;text-align:center">
         <div class="alerta warn">${e.message}</div>
         <p class="muted small" style="margin-top:1rem">Assim que a internet voltar, o sistema abre sozinho.</p>
-        <button class="btn primary" id="tentar">Tentar de novo</button></div>`);
+        <button class="btn primary" id="tentar">Tentar de novo</button> <button class="btn" id="diag">Diagnóstico</button></div>`);
       $("#tentar").onclick = iniciar;
+      $("#diag").onclick = () => window.lisDiag?.abrir();
       window.addEventListener("online", iniciar, { once: true });
       return;
     }
     erro(e);
+    window.lisDiag?.registrar({ tipo: "erro", origem: "inicio", mensagem: `Falha ao entrar: ${e.message}`, tecnico: window.lisDiag.deErro(e).tecnico });
     await sb.auth.signOut();
     limparEstado();
     telaLogin(app, iniciar);

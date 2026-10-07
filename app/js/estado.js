@@ -47,6 +47,7 @@ export const ROTAS = {
   usuarios:      { titulo: "Usuários",      icone: "usuarios",   papeis: ["admin", "gerente"] },
   conta:         { titulo: "Minha assinatura", icone: "assinatura", papeis: ["admin", "gerente"] },
   configuracoes: { titulo: "Configurações", icone: "config",     papeis: ["admin", "gerente", "caixa", "cozinha"] },
+  diagnostico:   { titulo: "Diagnóstico",   icone: "suporte",    papeis: ["admin", "gerente"] },
   plataforma:    { titulo: "Plataforma",    icone: "plataforma", papeis: [], soFornecedor: true },
 };
 

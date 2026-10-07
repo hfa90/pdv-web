@@ -298,6 +298,10 @@ dialog.modal[open] { animation: surgir .16s ease-out; }
 .toast { background: var(--ink); color: var(--on-ink); padding: .75rem 1rem; border-radius: var(--r-md); box-shadow: var(--shadow-pop); max-width: 380px; font-size: var(--fs-sm); animation: surgir .16s ease-out; }
 .toast.erro { background: var(--danger); }
 .toast.ok { background: var(--ok); }
+/* Botão "Entender" no aviso de erro: abre o diagnóstico daquele erro */
+.toast { display: flex; align-items: center; gap: .75rem; }
+.toast-entender { margin-left: auto; flex: none; border: 1px solid rgba(255,255,255,.55); background: rgba(255,255,255,.14); color: inherit; border-radius: 8px; padding: .3rem .6rem; font: 600 var(--fs-xs) var(--font); cursor: pointer; }
+.toast-entender:hover { background: rgba(255,255,255,.26); }
 
 /* ---------- Login ---------- */
 .auth { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; }

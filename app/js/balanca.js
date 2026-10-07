@@ -108,7 +108,9 @@ async function lerSempre() {
         }
       } finally { try { leitor.releaseLock(); } catch { /* ignora */ } leitor = null; }
     }
-  } catch { /* porta desconectada */ }
+  } catch (e) { /* porta desconectada */
+    window.lisDiag?.registrar({ tipo: "erro", origem: "balanca", mensagem: "Balança desconectou", tecnico: window.lisDiag.deErro(e).tecnico });
+  }
   lendoLoop = false;
   avisar();
 }
@@ -139,7 +141,10 @@ export async function lerPeso({ timeout = 1200 } = {}) {
     await new Promise((r) => setTimeout(r, 40));
   }
   if (ultimo && Date.now() - ultimo.em < 1500) return ultimo;
-  throw new Error("A balança não respondeu. Confira o cabo, a velocidade (baud) e o protocolo.");
+  const e = new Error("A balança não respondeu. Confira o cabo, a velocidade (baud) e o protocolo.");
+  const ev = window.lisDiag?.registrar({ tipo: "erro", origem: "balanca", mensagem: e.message, tecnico: { protocolo: c.protocolo, baud: c.baudRate, paridade: c.paridade, porta_aberta: !!porta?.readable, ultima_leitura_ms: ultimo ? Date.now() - ultimo.em : null } });
+  if (ev) e.diagId = ev.id;
+  throw e;
 }
 
 /** Novo produto na balança: o simulador sorteia outro peso. */

@@ -105,7 +105,7 @@ export function lerForm(form) {
 }
 
 // ---------- Toast ----------
-export function toast(msg, tipo = "") {
+export function toast(msg, tipo = "", diagId = null) {
   // Com um modal aberto, o aviso vai dentro dele (senão ficaria atrás do fundo escuro)
   const dlg = [...document.querySelectorAll("dialog[open]")].pop();
   let box = document.getElementById("toasts");
@@ -116,10 +116,22 @@ export function toast(msg, tipo = "") {
   const el = document.createElement("div");
   el.className = "toast " + tipo;
   el.textContent = msg;
+  if (diagId && window.lisDiag) {
+    // "Entender": abre o diagnóstico deste erro, com a explicação e a solução
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "toast-entender"; b.textContent = "Entender";
+    b.onclick = () => { el.remove(); window.lisDiag.abrir(diagId); };
+    el.appendChild(b);
+  }
   box.appendChild(el);
-  setTimeout(() => el.remove(), tipo === "erro" ? 6000 : 3200);
+  setTimeout(() => el.remove(), tipo === "erro" ? (diagId ? 9000 : 6000) : 3200);
 }
-export const erro = (e) => toast(e?.message || String(e), "erro");
+/** Mostra o erro para a pessoa e registra no diagnóstico (com o botão "Entender"). */
+export const erro = (e) => {
+  let id = null;
+  try { id = window.lisDiag?.mostrado(e); } catch { /* diagnóstico nunca atrapalha */ }
+  toast(e?.message || String(e), "erro", id);
+};
 
 // ---------- Modal ----------
 /**
@@ -136,6 +148,7 @@ export function modal({ titulo, corpo, rodape, largo = false, fixo = false, onPr
       <div class="modal-body">${corpo}</div>
       ${rodape ? html`<div class="modal-foot">${rodape}</div>` : ""}`[RAW];
     document.body.appendChild(d);
+    window.lisDiag?.passo(`Abriu janela “${String(titulo).slice(0, 50)}”`, "tela");
     let resultado;
     const fechar = (v) => { resultado = v; d.close(); };
     d.addEventListener("close", () => { d.remove(); resolve(resultado); });

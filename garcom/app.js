@@ -9,6 +9,8 @@ import { tempoMesa, barraTempo, selosCozinha, duracao, minutosDesde, ETAPA_COZIN
 import { bipe } from "../app/js/avisos.js";
 import { MARCA } from "../app/js/config.js";
 
+window.lisDiag?.marcar("modulos"); // diagnóstico: arquivos do app carregaram
+
 const app = document.getElementById("app");
 let canal = null, relogio = null, instalar = null;
 let mesas = [], area = "todas", filtro = "todas", aberta = null, aba = "mesas";
@@ -316,6 +318,7 @@ async function iniciar() {
     if (estado.perfil.papel === "cozinha") return telaAviso("Usuário da cozinha", "Este usuário é da cozinha. Abra o sistema principal no computador ou TV da cozinha.");
     if (!estado.conta?.garcom) return telaAviso("Exclusivo para restaurantes", "O app do garçom faz parte do plano para restaurantes. Fale com o administrador da loja.");
     montar();
+    import("../app/js/diagnostico/envio.js").then((m) => m.iniciarEnvio()).catch(() => {});
     await recarregar();
     ligarTempoReal();
     reenviarPendente().catch(erro);

@@ -99,7 +99,20 @@ async function obterSerial(baudRate) {
   return serialPort;
 }
 
-export async function enviar(modo, bytes, { baudRate = 9600 } = {}) {
+export async function enviar(modo, bytes, opcoes = {}) {
+  try {
+    await enviarDireto(modo, bytes, opcoes);
+    window.lisDiag?.passo(`Imprimiu (${modo}, ${Math.round(bytes.length / 102.4) / 10} KB)`, "acao");
+  } catch (e) {
+    // Diagnóstico: registra com o modo e o aparelho para o suporte saber se é driver, cabo ou porta
+    const ev = window.lisDiag?.registrar({ tipo: "erro", origem: "impressora", mensagem: e?.message || String(e),
+      tecnico: { ...window.lisDiag.deErro(e).tecnico, modo, bytes: bytes.length, usb: usbDev ? `${usbDev.manufacturerName || ""} ${usbDev.productName || ""}`.trim() : undefined } });
+    if (ev && e && typeof e === "object") e.diagId = ev.id;
+    throw e;
+  }
+}
+
+async function enviarDireto(modo, bytes, { baudRate = 9600 } = {}) {
   if (modo === "usb") {
     const { dev, ep } = await obterUSB();
     for (let i = 0; i < bytes.length; i += 4096) await dev.transferOut(ep, bytes.slice(i, i + 4096));

@@ -153,9 +153,26 @@ app/js/fechar-conta.js     cobrança da mesa no app do garçom (PIX e cartão) d
 app/js/recebimentos.js     aviso no caixa principal quando o garçom fecha uma conta
 app/js/turno.js            "Meu turno" do garçom: recebimentos, comissão e conferência
 app/js/painel-garcons.js   painel ao vivo dos garçons (bonecos, % da meta, mapa do salão)
+app/js/diagnostico/        caixa-preta (registro.js), catálogo de problemas e soluções (catalogo.js),
+                           check-up (checagens.js), painel (painel.js), relatório (relatorio.js), envio ao servidor (envio.js)
 garcom/                    app do garçom (PWA: manifest, service worker, ícones)
 cardapio/                  cardápio digital público e acompanhamento do pedido
 ```
+
+## Diagnóstico (quando der problema)
+
+Uma "caixa-preta" grava tudo o que dá errado em cada aparelho — com o passo a passo do que a pessoa fez antes — e um painel explica o problema e a solução.
+
+- **Abrir:** `Ctrl+Shift+D` (ou `Ctrl+Alt+D`) em qualquer tela, inclusive no login; menu **Diagnóstico** (admin/gerente); 5 toques rápidos na logo (celular/tablet); ou o botão **Entender** que aparece em todo aviso de erro. Se o sistema não abrir, o painel abre sozinho.
+- **Check-up agora:** semáforo geral e testes de internet (latência), servidor, sessão, relógio do aparelho, migrações aplicadas (diz qual `.sql` falta), assinatura, caixa, vendas offline, armazenamento, versão/cache, bibliotecas, impressora, balança, Edge Functions e Realtime.
+- **Problemas:** erros agrupados pela causa. Cada um abre um cartão com: o que aconteceu (em linguagem simples), o que para, causas prováveis, passos para o operador, passos para o suporte, comando SQL pronto, botões que resolvem (limpar cache, renovar sessão, liberar espaço, ver vendas pendentes…), trecho do código com a linha do erro e a trilha de cliques.
+- **Linha do tempo:** tudo o que aconteceu, com filtros e busca.
+- **Lojas (remoto):** com a migração `017_diagnostico.sql`, os erros dos aparelhos chegam ao servidor; o fornecedor vê todas as lojas e o gerente a própria — dá para saber o problema antes de ir ao cliente.
+- **Relatório:** "Gerar relatório" cria um `.html` único (abre offline) para o cliente mandar pelo WhatsApp; "Copiar resumo" gera o texto curto.
+- **Guia de problemas:** todos os problemas que o sistema reconhece, para treinar a equipe.
+- Nada de senha, token ou cartão é gravado. A fila de vendas offline nunca é apagada pelas ações do painel.
+- Ensinar um problema novo: acrescente uma entrada em `app/js/diagnostico/catalogo.js`. Nova migração: acrescente as funções/tabelas em `app/js/diagnostico/mapa-banco.js`. Ao publicar, aumente `VERSAO_APP` em `registro.js` e `VERSAO` em `app/sw.js`/`garcom/sw.js`.
+- Banco: rode `supabase/migrations/017_diagnostico.sql` no SQL Editor (tabela `diagnostico_eventos`, funções `diagnostico_registrar`, `diagnostico_recentes`, `diagnostico_servidor`). Sem ela, o painel funciona igual, só não recebe os erros das lojas nem confere relógio/migrações.
 
 ## Rodar localmente
 

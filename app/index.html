@@ -19,6 +19,8 @@
 <body>
   <div id="app"><div class="loading"><div class="spinner" aria-label="Carregando"></div></div></div>
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <!-- Caixa-preta do diagnóstico: carrega antes de tudo para registrar até falhas na abertura (Ctrl+Shift+D abre o painel) -->
+  <script type="module" src="js/diagnostico/registro.js"></script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>
