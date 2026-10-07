@@ -337,9 +337,10 @@ export default async function plataforma(el) {
           ${l.status_conta === "teste" && !vencido ? html`<div class="small muted">até ${dataHora(l.teste_expira_em)}</div>` : ""}</td>
         <td class="small">${l.plano}${l.valor_mensal ? html`<div class="muted">${dinheiro(l.valor_mensal)}/mês</div>` : ""}</td>
         <td class="r">${l.vendas}</td><td class="small">${l.ultima_venda ? dataHora(l.ultima_venda) : "—"}</td>
-        <td><button class="btn sm" data-loja="${l.id}">Gerenciar</button></td></tr>`; })}</tbody></table></div>`
+        <td><div class="row" style="gap:.35rem;flex-wrap:nowrap"><button class="btn sm" data-loja="${l.id}">Gerenciar</button><button class="btn sm ghost" data-apar="${l.id}" title="Aparelhos autorizados e limites">${icone("escudo", 'width="15" height="15"')} Aparelhos</button></div></td></tr>`; })}</tbody></table></div>`
       : html`<div class="empty"><p>Nenhuma loja cadastrada.</p></div>`}</div>`);
     $$("[data-loja]", el).forEach((b) => (b.onclick = () => gerenciar(lista.find((l) => l.id === b.dataset.loja))));
+    $$("[data-apar]", el).forEach((b) => (b.onclick = () => import("../dispositivos.js").then((m) => m.modalAparelhosLoja(lista.find((l) => l.id === b.dataset.apar))).catch(erro)));
   }
 
   async function gerenciar(l) {

@@ -147,6 +147,19 @@ const CHECAGENS = [
     },
   },
   {
+    id: "aparelho", grupo: "Loja", titulo: "Aparelho vinculado",
+    async rodar() {
+      const e = (await modEstado())?.estado;
+      const d = e?.dispositivo;
+      if (!e?.perfil || !d) return { status: "pulado", valor: "—", detalhe: "Precisa de alguém conectado (com internet)." };
+      if (d.sem_migracao) return { status: "aviso", valor: "018 não aplicada", detalhe: "Rode supabase/migrations/018_dispositivos.sql para exigir aparelho vinculado." };
+      if (d.status === "livre") return { status: "info", valor: "Livre", detalhe: "Este nível de acesso pode usar qualquer aparelho." };
+      if (["liberado", "vinculado"].includes(d.status)) return { status: "ok", valor: d.nome || "Liberado", detalhe: `Código ${d.aparelho || "?"} · ${d.usados ?? "?"} de ${d.limite ?? "?"} aparelho(s) do usuário` };
+      if (d.status === "erro") return { status: "aviso", valor: "Não verificado", detalhe: d.mensagem || "" };
+      return { status: "erro", valor: d.status === "conflito" ? "Chave não confere" : "Sem vaga", detalhe: `Código ${d.aparelho || "?"} · limite ${d.limite ?? "?"}`, problema: "aparelho-nao-autorizado" };
+    },
+  },
+  {
     id: "assinatura", grupo: "Loja", titulo: "Assinatura",
     async rodar() {
       const c = (await modEstado())?.estado?.conta;

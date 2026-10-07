@@ -87,6 +87,7 @@ export function salvarContextoLocal() {
     salvo_em: Date.now(), usuario: { id: estado.usuario.id, email: estado.usuario.email },
     perfil: estado.perfil, empresa: estado.empresa, fiscal: estado.fiscal ? { ...estado.fiscal } : null,
     caixa: estado.caixa, conta: estado.conta, adminPlataforma: estado.adminPlataforma,
+    dispositivo: estado.dispositivo ? { status: estado.dispositivo.status, nome: estado.dispositivo.nome, limite: estado.dispositivo.limite, aparelhos: estado.dispositivo.aparelhos, aparelho: estado.dispositivo.aparelho } : null,
   });
 }
 export function lerContextoLocal(userId) {

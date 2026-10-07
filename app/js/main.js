@@ -2,7 +2,7 @@
 import { sb } from "./api.js";
 import { estado, carregarContexto, limparEstado, pode, rotaInicial, ROTAS, PAPEIS, atualizarConta, diasDeTeste, tituloRota, aprovaCozinha } from "./estado.js";
 import { linkWhatsApp, MARCA } from "./config.js";
-import { html, render, $, $$, iniciais, carregando, erro, confirmar } from "./ui.js";
+import { html, render, $, $$, iniciais, carregando, erro, confirmar, toast } from "./ui.js";
 import { icone } from "./icons.js";
 import { telaLogin, telaOnboarding, telaNovaSenha } from "./paginas/login.js";
 import { iniciarContingencia, ehErroDeRede, limparContextoLocal } from "./contingencia.js";
@@ -201,8 +201,13 @@ async function iniciar() {
     const logado = await carregarContexto();
     if (!logado) return telaLogin(app, iniciar);
     if (!estado.perfil) return telaOnboarding(app, iniciar);
+    if (["limite", "conflito"].includes(estado.dispositivo?.status)) {
+      const { telaAparelhoBloqueado } = await import("./dispositivos.js");
+      return telaAparelhoBloqueado(app, estado.dispositivo, { tentar: iniciar, sair, gestor: ["admin", "gerente"].includes(estado.perfil.papel) });
+    }
     montarShell();
     navegar();
+    if (estado.dispositivo?.status === "vinculado") toast(`Este aparelho foi vinculado ao seu acesso como “${estado.dispositivo.nome}”.`, "ok");
   } catch (e) {
     if (ehErroDeRede(e) || /Sem internet/.test(e.message)) {
       // Sem internet e sem cópia local: não desloga, espera a conexão voltar

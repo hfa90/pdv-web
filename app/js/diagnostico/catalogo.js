@@ -207,6 +207,25 @@ export const PROBLEMAS = [
     acoes: [],
   },
 
+  // ------------------------------------------------------------ APARELHO VINCULADO
+  {
+    id: "aparelho-nao-autorizado", area: "permissao", gravidade: "alta",
+    titulo: "Aparelho não liberado para este usuário",
+    testa: tem(/Aparelho não autorizado|não está liberado para o seu (usuário|acesso)|Limite de \d+ trocas de aparelho/i),
+    explicacao: "Cada usuário só pode usar o sistema nos aparelhos liberados para ele (o limite depende do nível e do plano). Este aparelho não está na lista, então o servidor recusa vendas e movimentos de caixa feitos daqui.",
+    impacto: "Este usuário não vende neste aparelho. Nos aparelhos liberados tudo funciona.",
+    causas: ["O usuário já está vinculado a outro computador (limite do nível atingido).",
+      "O computador foi trocado ou formatado, ou os dados do navegador foram apagados.",
+      "O acesso foi copiado para outro computador (o código confere, a chave não).",
+      "Usou outro navegador no mesmo computador (cada navegador conta como um aparelho)."],
+    operador: ["Use o computador que está liberado para o seu usuário.", "Peça ao administrador da loja para trocar o aparelho em Usuários › Aparelhos."],
+    tecnico: ["Em Usuários › Aparelhos (ou Plataforma › Lojas › Aparelhos) veja quais aparelhos estão vinculados e os avisos de uso indevido.",
+      "Aparelho trocado de verdade: desvincule o antigo; o próximo acesso vincula o novo sozinho.",
+      "Loja precisa de mais aparelhos: aumente o limite em Plataforma › Lojas › Aparelhos (e ajuste a mensalidade).",
+      "“Chave copiada” ou “uso simultâneo” repetidos indicam o mesmo acesso em vários computadores."],
+    acoes: ["testar"], onde: ["app/js/dispositivos.js", "supabase/migrations/018_dispositivos.sql"],
+  },
+
   // ------------------------------------------------------------ PERMISSÕES
   {
     id: "permissao-negada", area: "permissao", gravidade: "baixa",

@@ -2,8 +2,37 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
+// ---------- Aparelho vinculado ----------
+// Toda chamada ao banco leva o código do aparelho e a chave que o servidor deu a ele
+// (ver app/js/dispositivos.js e supabase/migrations/018_dispositivos.sql). Sem isso o
+// servidor recusa vendas e movimentos de caixa de quem tem o acesso vinculado.
+// Só vai para /rest/v1 (as Edge Functions não aceitam cabeçalhos extras).
+const lerLS = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+const lerCookie = (k) => document.cookie.split("; ").find((c) => c.startsWith(k + "="))?.split("=")[1] || null;
+function uidDaSessao() {
+  try { const s = JSON.parse(lerLS("pdv-auth") || "null"); return s?.user?.id || s?.currentSession?.user?.id || null; } catch { return null; }
+}
+export function chaveDoAparelho(uid = uidDaSessao()) {
+  if (!uid) return null;
+  return lerLS("lis-disp-tk-" + uid) || lerCookie("lis-disp-tk-" + uid.slice(0, 8));
+}
+function fetchComAparelho(url, opcoes = {}) {
+  if (String(url).includes("/rest/v1/")) {
+    const ap = lerLS("lis-dispositivo") || lerCookie("lis-dispositivo");
+    const tk = chaveDoAparelho();
+    if (ap) {
+      const h = new Headers(opcoes.headers || {});
+      h.set("x-lis-aparelho", ap);
+      if (tk) h.set("x-lis-token", tk);
+      opcoes = { ...opcoes, headers: h };
+    }
+  }
+  return fetch(url, opcoes);
+}
+
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: "pdv-auth" },
+  global: { fetch: fetchComAparelho },
 });
 
 /** Converte erros técnicos em mensagens que o operador entende. */

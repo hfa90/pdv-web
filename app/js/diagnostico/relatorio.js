@@ -10,7 +10,7 @@ const hora = (t) => new Date(t).toLocaleTimeString("pt-BR");
 const corGrav = (g) => ({ critica: "erro", alta: "erro", media: "aviso", baixa: "info", info: "info" })[g] || "info";
 const lista = (xs, cls = "") => (xs?.length ? `<ol class="${cls}">${xs.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>` : "");
 
-export function montarRelatorio({ checks = [], eventos = [], trilha = [], contexto = {}, versao = "", resumo = "" }) {
+export function montarRelatorio({ checks = [], eventos = [], trilha = [], contexto = {}, versao = "", resumo = "", velocidade = null }) {
   const evs = eventos.filter((e) => e.tipo !== "info" || e.origem === "sistema");
   const grupos = new Map();
   for (const ev of evs) {
@@ -84,6 +84,10 @@ body{margin:0;background:var(--dg-bg,#F2F4F3)}
     <div><span>Aparelho</span>${esc(contexto.aparelho || "—")}</div><div><span>Tela</span>${esc(contexto.rota || "—")}</div>
     <div><span>Internet</span>${contexto.online ? "conectado" : "sem conexão"}</div><div><span>Navegador</span>${esc((navigator.userAgent.match(/(Edg|Chrome|Firefox|Safari)\/[\d.]+/) || [""])[0])}</div>
   </div>
+  ${velocidade ? `<h2 class="dg-h">Velocidade da internet <span class="dg-muted" style="font-size:.8rem;font-weight:500">(${dh(velocidade.em)})</span></h2>
+  <div class="dg-rel-ctx"><div><span>Download</span>${velocidade.internet?.download ?? "—"} Mbps</div><div><span>Upload</span>${velocidade.internet?.upload ?? "—"} Mbps</div>
+    <div><span>Resposta (ping)</span>${velocidade.internet?.ping ?? "—"} ms · variação ${velocidade.internet?.jitter ?? "—"} ms</div><div><span>Servidor do sistema</span>${velocidade.servidor?.ping ?? "sem resposta"} ms</div></div>
+  <div class="dg-sec"><strong>${esc(velocidade.veredito?.titulo || velocidade.titulo || "")}</strong>${velocidade.veredito?.texto ? `<p>${esc(velocidade.veredito.texto)}</p>` : ""}</div>` : ""}
   <h2 class="dg-h">Check-up</h2>${secCheck}
   <h2 class="dg-h">Problemas encontrados (com solução)</h2>${secProb}
   <h2 class="dg-h">Linha do tempo (erros e cliques)</h2>${secTempo}

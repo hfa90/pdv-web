@@ -316,6 +316,7 @@ async function iniciar() {
     if (!logado) return telaLogin();
     if (!estado.perfil) return telaAviso("Conta sem loja", "Este usuário ainda não está ligado a uma loja. Use o sistema principal para concluir o cadastro.");
     if (estado.perfil.papel === "cozinha") return telaAviso("Usuário da cozinha", "Este usuário é da cozinha. Abra o sistema principal no computador ou TV da cozinha.");
+    if (["limite", "conflito"].includes(estado.dispositivo?.status)) return telaAviso("Aparelho não liberado", `Seu usuário já está vinculado a ${estado.dispositivo.limite === 1 ? "outro aparelho" : "outros aparelhos"}. Use o aparelho liberado ou peça ao administrador da loja em Usuários › Aparelhos. Código deste aparelho: ${estado.dispositivo.aparelho || ""}.`);
     if (!estado.conta?.garcom) return telaAviso("Exclusivo para restaurantes", "O app do garçom faz parte do plano para restaurantes. Fale com o administrador da loja.");
     montar();
     import("../app/js/diagnostico/envio.js").then((m) => m.iniciarEnvio()).catch(() => {});

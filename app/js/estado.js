@@ -11,6 +11,7 @@ export const estado = {
   conta: null,     // situação comercial: teste, ativo, bloqueio
   adminPlataforma: false, // fornecedor do sistema
   offline: false,  // abriu sem internet usando a cópia local do contexto
+  dispositivo: null, // vínculo do aparelho: { status: livre|liberado|vinculado|limite|conflito, nome, ... }
 };
 
 export const PAPEIS = {
@@ -91,6 +92,7 @@ export async function carregarContexto() {
     if (!c) throw new Error("Sem internet. O primeiro acesso neste aparelho precisa de conexão; depois o caixa funciona mesmo offline.");
     estado.usuario = c.usuario; estado.perfil = c.perfil; estado.empresa = c.empresa; estado.fiscal = c.fiscal;
     estado.caixa = c.caixa; estado.conta = c.conta; estado.adminPlataforma = !!c.adminPlataforma;
+    estado.dispositivo = c.dispositivo || null;
     estado.offline = true;
     marcarRede(false);
     return true;
@@ -107,6 +109,14 @@ async function carregarContextoOnline() {
   estado.perfil = perfil;
   if (!perfil) return true; // logado, mas ainda sem empresa (onboarding)
   if (!perfil.ativo) throw new Error("Seu acesso foi desativado. Fale com o administrador.");
+  // Aparelho vinculado: o servidor diz se este aparelho pode ser usado por este usuário
+  try {
+    const { verificarDispositivo } = await import("./dispositivos.js");
+    estado.dispositivo = await comTempo(verificarDispositivo(user.id), 10000);
+  } catch (e) {
+    if (ehErroDeRede(e)) throw e;
+    estado.dispositivo = { status: "erro", mensagem: e.message }; // não trava a loja; o servidor confere nas vendas
+  }
   const [empresa, fiscal] = await Promise.all([
     q(sb.from("empresas").select("*").eq("id", perfil.empresa_id).single()),
     q(sb.from("config_fiscal").select("*").eq("empresa_id", perfil.empresa_id).maybeSingle()),

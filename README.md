@@ -153,6 +153,7 @@ app/js/fechar-conta.js     cobrança da mesa no app do garçom (PIX e cartão) d
 app/js/recebimentos.js     aviso no caixa principal quando o garçom fecha uma conta
 app/js/turno.js            "Meu turno" do garçom: recebimentos, comissão e conferência
 app/js/painel-garcons.js   painel ao vivo dos garçons (bonecos, % da meta, mapa do salão)
+app/js/dispositivos.js     acesso vinculado ao aparelho: verificação, tela de bloqueio e gestão
 app/js/diagnostico/        caixa-preta (registro.js), catálogo de problemas e soluções (catalogo.js),
                            check-up (checagens.js), painel (painel.js), relatório (relatorio.js), envio ao servidor (envio.js)
 garcom/                    app do garçom (PWA: manifest, service worker, ícones)
@@ -169,10 +170,23 @@ Uma "caixa-preta" grava tudo o que dá errado em cada aparelho — com o passo a
 - **Linha do tempo:** tudo o que aconteceu, com filtros e busca.
 - **Lojas (remoto):** com a migração `017_diagnostico.sql`, os erros dos aparelhos chegam ao servidor; o fornecedor vê todas as lojas e o gerente a própria — dá para saber o problema antes de ir ao cliente.
 - **Relatório:** "Gerar relatório" cria um `.html` único (abre offline) para o cliente mandar pelo WhatsApp; "Copiar resumo" gera o texto curto.
+- **Velocidade da internet:** mede resposta (ping), variação, perda, download e upload contra um servidor neutro (Cloudflare) e depois o servidor do sistema. A conclusão diz se a lentidão é **da internet da loja** ou **do sistema**, com o que fazer. Guarda os últimos testes do aparelho e entra no relatório. Se o Cloudflare estiver bloqueado na rede, o download usa o manual em PDF do próprio site.
 - **Guia de problemas:** todos os problemas que o sistema reconhece, para treinar a equipe.
 - Nada de senha, token ou cartão é gravado. A fila de vendas offline nunca é apagada pelas ações do painel.
 - Ensinar um problema novo: acrescente uma entrada em `app/js/diagnostico/catalogo.js`. Nova migração: acrescente as funções/tabelas em `app/js/diagnostico/mapa-banco.js`. Ao publicar, aumente `VERSAO_APP` em `registro.js` e `VERSAO` em `app/sw.js`/`garcom/sw.js`.
 - Banco: rode `supabase/migrations/017_diagnostico.sql` no SQL Editor (tabela `diagnostico_eventos`, funções `diagnostico_registrar`, `diagnostico_recentes`, `diagnostico_servidor`). Sem ela, o painel funciona igual, só não recebe os erros das lojas nem confere relógio/migrações.
+
+## Acesso vinculado ao aparelho (antifraude de licença)
+
+Cada usuário só usa o sistema nos aparelhos liberados para ele. Assim a loja não consegue usar um único acesso de caixa em vários computadores.
+
+- **Limite por nível (padrão):** administrador 2, gerente 2, caixa 1, cozinha 1, atendente/garçom livre (usa vários celulares). Só o fornecedor muda, por loja, em **Plataforma › Lojas › Aparelhos** (também liga/desliga o vínculo e define as trocas por mês).
+- **Primeiro acesso vincula sozinho:** ao entrar num aparelho novo, se houver vaga, ele é vinculado e recebe uma chave secreta (o servidor guarda só o hash). Sem vaga, aparece a tela "Este aparelho não está liberado", com o código do aparelho e o que fazer.
+- **Conferência no servidor:** toda venda, abertura/fechamento de caixa e movimento de caixa confere o aparelho e a chave (cabeçalhos `x-lis-aparelho`/`x-lis-token`, gatilhos no banco). Não adianta mexer só na tela.
+- **Troca de aparelho:** a loja desvincula em **Usuários › Aparelhos** (ou o próprio gerente/administrador na tela de bloqueio), até 3 vezes em 30 dias. Depois disso só o suporte libera. As suas desvinculações não contam.
+- **Avisos de uso indevido:** tentativa em aparelho não liberado, código copiado para outro computador, mesma chave usada em dois lugares ao mesmo tempo (IPs diferentes em menos de 2 min) e navegador/tela diferentes do vinculado ficam registrados e aparecem para você e para o gerente.
+- **Limite honesto:** o navegador não tem acesso ao número de série do computador. O vínculo usa um código aleatório + chave guardados no navegador + um resumo das características do aparelho. Uma pessoa técnica poderia copiar a chave para outro computador, mas isso aparece como "código copiado" ou "uso simultâneo" nos avisos. Cada navegador conta como um aparelho.
+- **Ativar:** publique o site **antes** e só depois rode `supabase/migrations/018_dispositivos.sql` (os aparelhos precisam estar com a versão nova, que manda a chave, senão as vendas são recusadas). Sem a migração, o sistema funciona sem vínculo.
 
 ## Rodar localmente
 

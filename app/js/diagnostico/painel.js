@@ -13,6 +13,7 @@
 import { diagnosticar, AREAS, GRAVIDADES, PROBLEMAS } from "./catalogo.js";
 import { rodarChecagens, resumoGeral, LISTA } from "./checagens.js";
 import { CSS } from "./estilo.js";
+import { testarVelocidade, historico, REQUISITOS } from "./velocidade.js";
 
 const D = () => window.lisDiag;
 const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -132,6 +133,7 @@ function desenharMoldura(motivo, embutido) {
       <nav class="dg-abas" role="tablist">
         <button role="tab" data-aba="agora">Check-up agora</button>
         <button role="tab" data-aba="problemas">Problemas <span class="dg-cont" id="dg-cont-p"></span></button>
+        <button role="tab" data-aba="velocidade">Velocidade da internet</button>
         <button role="tab" data-aba="tempo">Linha do tempo</button>
         <button role="tab" data-aba="lojas" id="dg-aba-lojas" hidden>Lojas (remoto)</button>
         <button role="tab" data-aba="manual">Guia de problemas</button>
@@ -218,7 +220,7 @@ function desenharAba() {
   if (!raiz) return;
   raiz.querySelectorAll("[data-aba]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.aba === aba)));
   desenharHeroi();
-  ({ agora: abaAgora, problemas: abaProblemas, tempo: abaTempo, lojas: abaLojas, manual: abaManual })[aba]();
+  ({ agora: abaAgora, velocidade: abaVelocidade, problemas: abaProblemas, tempo: abaTempo, lojas: abaLojas, manual: abaManual })[aba]();
 }
 
 async function testar() {
@@ -380,6 +382,107 @@ function abaManual() {
     corpo.querySelectorAll(".dg-m-item").forEach((b) => (b.hidden = t && !b.dataset.busca.includes(t)));
     corpo.querySelectorAll(".dg-m-area").forEach((s) => (s.hidden = ![...s.querySelectorAll(".dg-m-item")].some((b) => !b.hidden)));
   };
+}
+
+// ---------- Velocidade da internet ----------
+let vel = { rodando: false, fase: null, valor: null, fracao: 0, res: null };
+const FASES = { ping: "Medindo resposta", download: "Medindo download", upload: "Medindo upload", servidor: "Testando o servidor do sistema", fim: "Pronto" };
+// Escala do medidor (Mbps), não linear como os medidores de velocidade conhecidos
+const MARCAS = [0, 1, 5, 10, 20, 50, 100, 250, 500];
+function anguloMbps(v) {
+  if (!(v > 0)) return 0;
+  for (let i = 1; i < MARCAS.length; i++) if (v <= MARCAS[i]) return ((i - 1) + (v - MARCAS[i - 1]) / (MARCAS[i] - MARCAS[i - 1])) / (MARCAS.length - 1);
+  return 1;
+}
+const ponto = (f, r) => { const a = Math.PI * (1 - f); return [120 + r * Math.cos(a), 120 - r * Math.sin(a)]; };
+function arco(f0, f1, r) {
+  const [x0, y0] = ponto(f0, r), [x1, y1] = ponto(f1, r);
+  return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+}
+function medidorSvg() {
+  return `<svg viewBox="0 0 240 140" class="dg-medidor" aria-hidden="true">
+    <path d="${arco(0, 1, 96)}" class="dg-m-fundo"/>
+    <path d="${arco(0, 0.001, 96)}" class="dg-m-valor" id="dg-m-arco"/>
+    ${MARCAS.map((m, i) => { const [x, y] = ponto(i / (MARCAS.length - 1), 74); return `<text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" class="dg-m-marca">${m}</text>`; }).join("")}
+    <line x1="120" y1="120" x2="120" y2="40" class="dg-m-ponteiro" id="dg-m-ponteiro" style="transform:rotate(-90deg)"/>
+    <circle cx="120" cy="120" r="7" class="dg-m-centro"/>
+  </svg>`;
+}
+const fmt = (v, u, casas = 0) => (v == null ? "—" : `${Number(v).toLocaleString("pt-BR", { maximumFractionDigits: casas })}<small>${u}</small>`);
+const corMetrica = (v, bom, ruim, menorMelhor = true) => (v == null ? "" : menorMelhor ? (v <= bom ? "ok" : v <= ruim ? "aviso" : "erro") : (v >= bom ? "ok" : v >= ruim ? "aviso" : "erro"));
+
+function abaVelocidade() {
+  const r = vel.res, i = r?.internet || {}, s = r?.servidor || {}, v = r?.veredito;
+  const h = historico();
+  const R = REQUISITOS;
+  const barra = (ms, max) => `<span class="dg-cmp-barra"><span style="width:${ms == null ? 0 : Math.max(3, Math.min(100, (ms / max) * 100))}%"></span></span>`;
+  const maxPing = Math.max(300, i.ping || 0, s.ping || 0);
+  corpo.innerHTML = `<p class="dg-intro">Mede a internet da loja contra um servidor neutro e depois o servidor do sistema. Assim fica claro se a lentidão é <strong>da internet</strong> ou <strong>do sistema</strong>. Usa cerca de 30 a 80 MB de dados.</p>
+    <div class="dg-vel">
+      <section class="dg-vel-medidor">
+        ${medidorSvg()}
+        <div class="dg-m-leitura"><span id="dg-m-num">${vel.rodando ? "…" : i.download ?? "0"}</span><small id="dg-m-un">Mbps</small></div>
+        <div class="dg-m-fase" id="dg-m-fase">${vel.rodando ? FASES[vel.fase] || "Preparando" : r ? "Download medido" : "Pronto para testar"}</div>
+        <div class="dg-m-prog"><span id="dg-m-prog" style="width:${vel.rodando ? Math.round(vel.fracao * 100) : r ? 100 : 0}%"></span></div>
+        <button class="dg-btn dg-pri dg-grande" id="dg-vel-ir" ${vel.rodando ? "disabled" : ""}>${vel.rodando ? `<span class="dg-giro"></span> Testando…` : `${ic("play", 16)} ${r ? "Testar de novo" : "Iniciar teste"}`}</button>
+      </section>
+      <section class="dg-vel-num">
+        <div class="dg-metrica ${corMetrica(i.download, R.download * 5, R.download, false)}"><span>Download</span><b>${fmt(i.download, " Mbps", 1)}</b><em>mínimo ${R.download} Mbps</em></div>
+        <div class="dg-metrica ${corMetrica(i.upload, R.upload * 5, R.upload, false)}"><span>Upload</span><b>${fmt(i.upload, " Mbps", 1)}</b><em>mínimo ${R.upload} Mbps</em></div>
+        <div class="dg-metrica ${corMetrica(i.ping, R.ping / 2, R.ping * 1.5)}"><span>Resposta (ping)</span><b>${fmt(i.ping, " ms")}</b><em>ideal até ${R.ping} ms</em></div>
+        <div class="dg-metrica ${corMetrica(i.jitter, R.jitter / 2, R.jitter * 2)}"><span>Variação (jitter)</span><b>${fmt(i.jitter, " ms")}</b><em>estável até ${R.jitter} ms</em></div>
+        <div class="dg-metrica ${corMetrica(i.perda, 0, R.perda)}"><span>Perda</span><b>${fmt(i.perda, "%")}</b><em>ideal 0%</em></div>
+        <div class="dg-metrica ${corMetrica(s.ping, R.ping, 600)}"><span>Servidor do sistema</span><b>${s.ok === false ? "sem resposta" : fmt(s.ping, " ms")}</b><em>${s.perda ? s.perda + "% perdidos" : "Supabase"}</em></div>
+      </section>
+    </div>
+    ${r ? `<section class="dg-cmp">
+        <h3>${ic("internet", 18)} Internet × sistema (tempo de resposta)</h3>
+        <div class="dg-cmp-linha"><span>Internet (servidor neutro)</span>${barra(i.ping, maxPing)}<b>${i.ping ?? "—"} ms</b></div>
+        <div class="dg-cmp-linha sist"><span>Servidor do sistema</span>${barra(s.ping, maxPing)}<b>${s.ok === false ? "sem resposta" : (s.ping ?? "—") + " ms"}</b></div>
+      </section>
+      <section class="dg-veredito ${v.tipo}">
+        <div class="dg-ver-ic">${ic(v.tipo === "ok" ? "ok" : v.culpa === "internet" ? "internet" : "servidor", 26)}</div>
+        <div><div class="dg-heroi-rot">${v.culpa === "internet" ? "Não é o sistema" : v.culpa === "sistema" ? "É do lado do sistema" : "Conclusão"}</div>
+          <h2>${esc(v.titulo)}</h2><p>${esc(v.texto)}</p>
+          ${v.dicas?.length ? `<ol>${v.dicas.map((d) => `<li>${esc(d)}</li>`).join("")}</ol>` : ""}
+          ${r.avisos?.length ? `<p class="dg-nota">${r.avisos.map(esc).join(" ")}</p>` : ""}</div>
+      </section>` : ""}
+    ${h.length ? `<section class="dg-sec"><h3>${ic("tela", 18)} Testes anteriores neste aparelho</h3>
+      <div class="dg-hist">${h.map((x) => `<div class="dg-hist-l"><span>${dataHora(x.em)}</span><span>↓ <b>${x.internet.download ?? "—"}</b> Mbps</span><span>↑ <b>${x.internet.upload ?? "—"}</b> Mbps</span><span><b>${x.internet.ping ?? "—"}</b> ms</span><span>sistema <b>${x.servidor.ping ?? "—"}</b> ms</span><span class="dg-selo ${{ "tudo-ok": "ok-s", "internet-ruim": "erro", "sem-internet": "erro" }[x.codigo] || "aviso"}">${esc(x.titulo)}</span></div>`).join("")}</div></section>` : ""}`;
+  corpo.querySelector("#dg-vel-ir").onclick = rodarVelocidade;
+  atualizarMedidor(vel.rodando ? vel.valor : i.download);
+}
+
+function atualizarMedidor(mbps) {
+  const f = vel.fase === "ping" || vel.fase === "servidor" ? 0 : anguloMbps(mbps || 0);
+  const a = raiz?.querySelector("#dg-m-arco"), p = raiz?.querySelector("#dg-m-ponteiro");
+  if (a) a.setAttribute("d", arco(0, Math.max(0.001, f), 96));
+  if (p) p.style.transform = `rotate(${-90 + f * 180}deg)`;
+}
+
+async function rodarVelocidade() {
+  if (vel.rodando) return;
+  vel = { rodando: true, fase: "ping", valor: 0, fracao: 0, res: vel.res };
+  if (aba === "velocidade") abaVelocidade();
+  const total = { ping: [0, 0.1], download: [0.1, 0.55], upload: [0.55, 0.9], servidor: [0.9, 1], fim: [1, 1] };
+  try {
+    vel.res = await testarVelocidade(({ fase, valor, fracao }) => {
+      vel.fase = fase; vel.valor = fase === "download" || fase === "upload" ? valor : vel.valor;
+      const [a, b] = total[fase] || [0, 1];
+      vel.fracao = a + (b - a) * Math.min(1, fracao || 0);
+      if (aba !== "velocidade" || !raiz) return;
+      const num = raiz.querySelector("#dg-m-num"), un = raiz.querySelector("#dg-m-un"), fs = raiz.querySelector("#dg-m-fase"), pr = raiz.querySelector("#dg-m-prog");
+      const emMs = fase === "ping" || fase === "servidor";
+      if (num) num.textContent = valor == null || fase === "fim" ? "…" : emMs ? Math.round(valor) : valor >= 10 ? Math.round(valor) : valor.toFixed(1);
+      if (un) un.textContent = emMs ? "ms" : "Mbps";
+      if (fs) fs.textContent = FASES[fase] || "";
+      if (pr) pr.style.width = Math.round(vel.fracao * 100) + "%";
+      atualizarMedidor(vel.valor);
+    });
+  } catch (e) { aviso("O teste falhou: " + e.message, "erro"); }
+  vel.rodando = false;
+  if (raiz && aba === "velocidade") abaVelocidade();
+  desenharHeroi();
 }
 
 const vazio = (t, tipo = "") => `<div class="dg-vazio ${tipo}">${ic(tipo === "ok" ? "ok" : "alerta", 28)}<p>${esc(t)}</p></div>`;
@@ -582,7 +685,7 @@ async function gerarRelatorio() {
   if (!checks || rodando) { aviso("Terminando o check-up…"); while (rodando) await new Promise((r) => setTimeout(r, 200)); }
   const { montarRelatorio } = await import("./relatorio.js");
   const c = D()?.contexto() || {};
-  const html = montarRelatorio({ checks, eventos: D()?.eventos() || [], trilha: D()?.trilha() || [], contexto: c, versao: D()?.versao, resumo: textoResumo() });
+  const html = montarRelatorio({ checks, eventos: D()?.eventos() || [], trilha: D()?.trilha() || [], contexto: c, versao: D()?.versao, resumo: textoResumo(), velocidade: vel.res || historico()[0] || null });
   const nome = `diagnostico-${String(c.loja || "pdv").normalize("NFD").replace(/[^\w]+/g, "-").toLowerCase()}-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-")}.html`;
   const arq = new File([html], nome, { type: "text/html" });
   // Celular/tablet: compartilha direto (WhatsApp, e-mail…). Computador: baixa o arquivo.
