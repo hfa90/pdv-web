@@ -14,7 +14,7 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 - **Relatórios**: faturamento, ticket médio, lucro estimado, por dia/hora, por forma de pagamento, por operador, mais vendidos, exportação CSV.
 - **Impressão térmica**: pelo navegador (qualquer impressora) ou direto em ESC/POS via WebUSB / Web Serial (Bluetooth), 58 ou 80 mm, QR Code, corte de papel e abertura de gaveta.
 - **Nota fiscal**: NFC-e (cupom fiscal eletrônico, modelo 65) e NF-e (modelo 55) via provedor Focus NFe, com DANFE NFC-e impresso na térmica, consulta e cancelamento.
-- **Níveis de acesso**: Administrador, Gerente, Caixa, Atendente (garçom) e Cozinha.
+- **Níveis de acesso**: Administrador, Gerente, Caixa, Atendente (garçom) e Cozinha — e, acima de todos, o **superusuário** e a equipe de suporte.
 - **Registro de atividades** (auditoria) de cancelamentos, alterações de preço, caixa, usuários e notas.
 - **PIX com QR Code no caixa**: a chave da loja fica em Configurações › PIX e o PDV gera o código "copia e cola" (BR Code com CRC16) com o valor exato. Opcional: token do Mercado Pago para cobrança com confirmação automática.
 - **Mesas (restaurantes)**: mapa interativo do salão (arrastar para montar, áreas, formatos), situação ao vivo (livre, ocupada, conta pedida), lançar itens, transferir/juntar, conta por pessoa e envio para o caixa.
@@ -116,6 +116,28 @@ O menu **Plataforma** aparece só para os e-mails da tabela `plataforma_admins`.
 - **Lojas**: ativar plano, dia de vencimento, módulos, estender teste, suspender e cancelar.
 - **Contatos (leads)**, **Cobranças** (gerar mensalidades do mês, fatura avulsa, link/código de pagamento, registrar recebimento) e **Pedidos de pacotes** (aprovar/recusar, somar na mensalidade, liberar módulos).
 
+## Superusuário e Central de suporte
+
+O criador do sistema é o **superusuário** (nível `super` em `plataforma_admins`, migração `020_superusuario.sql`). Ele tem tudo o que o administrador de qualquer loja tem, mais:
+
+- **Entrar em qualquer loja** (Central de suporte › Lojas › Entrar): escolhe motivo, tempo (15 min a 8 h) e modo.
+  - *Somente leitura*: vê o sistema da loja como administrador, mas o banco recusa qualquer alteração (a transação vira somente leitura no `pgrst.db_pre_request` → `public.lis_pre_request`).
+  - *Acesso total*: age como administrador da loja (configurações, cadastros, usuários e senhas, correções). As Edge Functions (`usuarios`, `fiscal`, `pagamentos`) também respeitam a loja atendida.
+  - Uma faixa no topo mostra a loja, o modo (troca com um toque), o tempo restante, **+30 min** e **Sair da loja**. Ao acabar o tempo, sai sozinho.
+  - Entrada, troca de modo e saída aparecem no **Registro de atividades da loja** como "Suporte", e tudo o que for auditado nesse período leva `via_suporte`.
+  - No computador da equipe, em modo suporte, nada roda em segundo plano pela loja do cliente (impressão da cozinha, alarmes, envio de diagnóstico).
+  - Como funciona: `private.empresa_id()`, `private.papel()` e `private.tem_papel()` respondem pela loja da sessão aberta em `suporte_acessos`, então todas as regras (RLS e funções) continuam valendo sem mudança.
+- **Chamados de ajuda**: qualquer pessoa toca em **Pedir ajuda** (menu lateral, diagnóstico `Ctrl+Shift+D`, tela de login, app do garçom), descreve o problema e recebe um **código de 6 números**. A equipe é avisada na hora (som + contador no menu), atende pelo código e entra na loja com um clique. Ao resolver, a anotação aparece para o cliente.
+- **Avisos para as lojas** (só superusuário): manutenção, novidades e alertas para todas as lojas, um setor, uma loja e/ou alguns níveis, com início/fim e opção de aviso fixo.
+- **Equipe** (só superusuário): cadastra pessoas como *Suporte* (entram nas lojas e atendem chamados, sem Plataforma/cobranças/avisos/equipe) ou *Superusuário*. Sempre fica pelo menos um superusuário ativo. Tirar alguém da equipe encerra o acesso dele na hora.
+- **Registro do superusuário**: tudo o que a equipe fez (entrar/sair, modo, chamados, avisos, equipe). Não pode ser alterado nem apagado (gatilho no banco). O suporte vê só as próprias ações.
+- **Acessos às lojas**: histórico de quem entrou em qual loja, quando, por quê e por quanto tempo.
+- A equipe nunca é barrada pelo vínculo de aparelho (`018`).
+
+Ativar: rode `supabase/migrations/020_superusuario.sql` e republique `usuarios`, `fiscal` e `pagamentos` (usam `_shared/auth.ts`).
+
+> Segurança: a conta do superusuário abre todas as lojas. Use senha forte e exclusiva; o próximo passo recomendado é exigir verificação em duas etapas (MFA do Supabase) para a equipe.
+
 ## Configuração comercial
 
 Marca, WhatsApp de vendas e preços ficam em `assets/config.js` e valem para o site e o sistema.
@@ -156,6 +178,8 @@ app/js/recebimentos.js     aviso no caixa principal quando o garçom fecha uma c
 app/js/turno.js            "Meu turno" do garçom: recebimentos, comissão e conferência
 app/js/painel-garcons.js   painel ao vivo dos garçons (bonecos, % da meta, mapa do salão)
 app/js/dispositivos.js     acesso vinculado ao aparelho: verificação, tela de bloqueio e gestão
+app/js/suporte.js          modo suporte (faixa, entrar/sair da loja), avisos da plataforma e "Pedir ajuda"
+app/js/paginas/suporte.js  Central de suporte: lojas, chamados, acessos, registro, avisos e equipe
 app/js/diagnostico/        caixa-preta (registro.js), catálogo de problemas e soluções (catalogo.js),
                            check-up (checagens.js), painel (painel.js), relatório (relatorio.js), envio ao servidor (envio.js)
 garcom/                    app do garçom (PWA: manifest, service worker, ícones)

@@ -82,11 +82,11 @@ export function comTempo(promessa, ms = 12000) {
 // ---------- Contexto da sessão em cache ----------
 const chaveCtx = "lis-ctx";
 export function salvarContextoLocal() {
-  if (!estado.usuario || !estado.perfil) return;
+  if (!estado.usuario || !estado.perfil || estado.suporte) return; // modo suporte (loja de cliente) nunca fica guardado no aparelho
   gravar(chaveCtx, {
     salvo_em: Date.now(), usuario: { id: estado.usuario.id, email: estado.usuario.email },
     perfil: estado.perfil, empresa: estado.empresa, fiscal: estado.fiscal ? { ...estado.fiscal } : null,
-    caixa: estado.caixa, conta: estado.conta, adminPlataforma: estado.adminPlataforma,
+    caixa: estado.caixa, conta: estado.conta, adminPlataforma: estado.adminPlataforma, equipe: estado.equipe,
     dispositivo: estado.dispositivo ? { status: estado.dispositivo.status, nome: estado.dispositivo.nome, limite: estado.dispositivo.limite, aparelhos: estado.dispositivo.aparelhos, aparelho: estado.dispositivo.aparelho } : null,
   });
 }
@@ -246,8 +246,9 @@ function desenharStatus() {
 
 function sincronizarTudo() {
   if (!estado.perfil) return;
-  sincronizarFila().catch(() => {});
-  if (ultimoRasc || ler(chavePendRasc())) enviarRascunho();
+  sincronizarFila().catch(() => {}); // a fila é por loja: em modo suporte só envia a da loja atendida
+  // O rascunho é por usuário: em modo suporte não manda o da loja do próprio usuário para a do cliente
+  if (!estado.suporte && (ultimoRasc || ler(chavePendRasc()))) enviarRascunho();
 }
 
 /** Lista as vendas feitas sem internet que ainda não chegaram ao servidor. */

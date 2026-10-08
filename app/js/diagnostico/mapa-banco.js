@@ -20,7 +20,8 @@ export const ARQUIVOS = {
   "016": "016_garcom_acesso_turno.sql",
   "017": "017_diagnostico.sql",
   "018": "018_dispositivos.sql",
-  "019": "019_senha_aprovacao.sql"
+  "019": "019_senha_aprovacao.sql",
+  "020": "020_superusuario.sql"
 };
 
 const porMigracao = (o) => Object.fromEntries(Object.entries(o).flatMap(([m, nomes]) => nomes.split(" ").map((n) => [n, m])));
@@ -41,6 +42,7 @@ export const FUNCOES = porMigracao({
   "017": "diagnostico_recentes diagnostico_registrar diagnostico_servidor",
   "018": "dispositivo_desvincular dispositivo_renomear dispositivo_verificar dispositivos_listar plataforma_config_dispositivos",
   "019": "cozinha_aprovar_com_senha minha_senha_aprovacao senhas_aprovacao_loja trocar_senha_aprovacao",
+  "020": "aviso_excluir aviso_salvar avisos_ativos avisos_listar chamado_abrir chamado_atender chamado_cancelar chamado_estado chamado_fila chamado_resolver equipe_listar equipe_remover equipe_salvar lis_pre_request super_log suporte_entrar suporte_estender suporte_eu suporte_lojas suporte_modo suporte_sair suporte_sessoes",
 });
 
 /** tabela pública → número da migração */
@@ -56,6 +58,7 @@ export const TABELAS = porMigracao({
   "017": "diagnostico_eventos",
   "018": "dispositivos dispositivos_eventos",
   "019": "senha_aprovacao_tentativas senhas_aprovacao",
+  "020": "avisos_plataforma superusuario_log suporte_acessos suporte_chamados",
 });
 
 /** Edge Functions que o sistema usa (supabase/functions). */

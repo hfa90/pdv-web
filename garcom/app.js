@@ -60,8 +60,10 @@ function telaLogin(modo = "matricula") {
           <button class="btn primary lg block">Entrar</button>
         </form>
         <button class="link-btn" id="modo-mat" style="margin-top:.6rem">Entrar com matrícula ou CPF</button>`}
+      <button class="link-btn" id="g-ajuda" style="margin-top:.4rem">Não consegue entrar? Pedir ajuda</button>
       <p class="small muted" style="margin-top:1rem">${MARCA}</p>
     </div></div>`);
+  $("#g-ajuda")?.addEventListener("click", () => import("../app/js/suporte.js").then((m) => m.pedirAjuda({ app: "garcom" })).catch(erro));
   $("#modo-email")?.addEventListener("click", () => telaLogin("email"));
   $("#modo-mat")?.addEventListener("click", () => telaLogin("matricula"));
   $("#trocar-loja")?.addEventListener("click", () => { gravarLS(CHAVE_LOJA, ""); telaLogin(); });
@@ -106,6 +108,7 @@ function montar() {
       <div class="avatar">${iniciais(p.nome)}</div>
       <div class="grow g-top-txt"><strong>${estado.empresa.nome_fantasia || estado.empresa.razao_social}</strong><span>${p.nome.split(" ")[0]} · ${PAPEIS[p.papel].nome}</span></div>
       <button class="btn sm" id="btn-instalar" ${instalar || (ehIOS && !instalado()) ? "" : "hidden"}>Instalar</button>
+      <button class="btn ghost icon-btn" id="btn-ajuda" aria-label="Pedir ajuda ao suporte" title="Pedir ajuda">${icone("headset", 'width="20" height="20"')}</button>
       <button class="btn ghost icon-btn" id="btn-sair" aria-label="Sair">${icone("sair", 'width="20" height="20"')}</button>
     </header>
     <div class="g-offline" id="offline" hidden>Sem internet. Os pedidos serão enviados quando a conexão voltar.</div>
@@ -131,6 +134,7 @@ function montar() {
     </nav>
     <section class="g-detalhe" id="detalhe" hidden></section>
   </div>`);
+  $("#btn-ajuda").onclick = () => import("../app/js/suporte.js").then((m) => m.pedirAjuda({ app: "garcom" })).catch(erro);
   $("#btn-sair").onclick = async () => { if (await confirmar("Sair do app?", { ok: "Sair" })) sair(); };
   $("#btn-instalar").onclick = async () => {
     if (instalar) { instalar.prompt(); await instalar.userChoice; instalar = null; $("#btn-instalar").hidden = true; return; }

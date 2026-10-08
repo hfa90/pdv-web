@@ -9,7 +9,10 @@ export const estado = {
   fiscal: null,    // public.config_fiscal
   caixa: null,     // sessão de caixa aberta do operador
   conta: null,     // situação comercial: teste, ativo, bloqueio
-  adminPlataforma: false, // fornecedor do sistema
+  adminPlataforma: false, // superusuário (criador do sistema): Plataforma, cobranças, equipe, avisos
+  equipe: null,    // equipe da plataforma: { nivel: "super" | "suporte", nome } (migração 020)
+  suporte: null,   // modo suporte: dentro da loja de um cliente { id, empresa_id, loja, modo, motivo, expira_em }
+  perfilProprio: null, // perfil verdadeiro do superusuário/suporte (a loja dele) enquanto está em modo suporte
   offline: false,  // abriu sem internet usando a cópia local do contexto
   dispositivo: null, // vínculo do aparelho: { status: livre|liberado|vinculado|limite|conflito, nome, ... }
 };
@@ -49,6 +52,7 @@ export const ROTAS = {
   conta:         { titulo: "Minha assinatura", icone: "assinatura", papeis: ["admin", "gerente"] },
   configuracoes: { titulo: "Configurações", icone: "config",     papeis: ["admin", "gerente", "caixa", "cozinha"] },
   diagnostico:   { titulo: "Diagnóstico",   icone: "suporte",    papeis: ["admin", "gerente"] },
+  suporte:       { titulo: "Central de suporte", icone: "headset", papeis: [], soEquipe: true },
   plataforma:    { titulo: "Plataforma",    icone: "plataforma", papeis: [], soFornecedor: true },
 };
 
@@ -58,9 +62,14 @@ export const pode = (rota) => {
   const r = ROTAS[rota];
   if (!r) return false;
   if (r.soFornecedor) return estado.adminPlataforma;
+  if (r.soEquipe) return !!estado.equipe;
   return r.papeis.includes(papel()) && moduloLiberado(r.modulo);
 };
 export const eh = (...papeis) => papeis.includes(papel());
+/** Superusuário: o criador do sistema (nível "super" da equipe). */
+export const ehSuper = () => estado.equipe?.nivel === "super";
+/** Em modo suporte somente leitura o banco recusa qualquer alteração. */
+export const soLeitura = () => estado.suporte?.modo === "leitura";
 export const rotaInicial = () => (eh("admin", "gerente") ? "painel" : eh("cozinha") ? "cozinha" : "pdv");
 /** Nome da tela no menu (algumas mudam conforme o nível: "Garçons" vira "Meu desempenho" para o garçom). */
 export const tituloRota = (rota) => ROTAS[rota]?.tituloPor?.[papel()] || ROTAS[rota]?.titulo || "";
@@ -92,6 +101,7 @@ export async function carregarContexto() {
     if (!c) throw new Error("Sem internet. O primeiro acesso neste aparelho precisa de conexão; depois o caixa funciona mesmo offline.");
     estado.usuario = c.usuario; estado.perfil = c.perfil; estado.empresa = c.empresa; estado.fiscal = c.fiscal;
     estado.caixa = c.caixa; estado.conta = c.conta; estado.adminPlataforma = !!c.adminPlataforma;
+    estado.equipe = c.equipe || null; estado.suporte = null; // modo suporte nunca abre offline
     estado.dispositivo = c.dispositivo || null;
     estado.offline = true;
     marcarRede(false);
@@ -104,13 +114,34 @@ async function carregarContextoOnline() {
   if (error && ehErroDeRede(error)) throw error;
   estado.usuario = user;
   if (!user) return false;
-  estado.adminPlataforma = !!(await sb.rpc("sou_admin_plataforma")).data;
-  const perfil = await q(sb.from("perfis").select("*").eq("id", user.id).maybeSingle());
+  // Equipe da plataforma (020): superusuário/suporte e, se houver, a loja em que está em modo suporte
+  const eu = await sb.rpc("suporte_eu");
+  if (!eu.error && eu.data) {
+    estado.equipe = eu.data.equipe || null;
+    estado.adminPlataforma = estado.equipe?.nivel === "super";
+    estado.suporte = eu.data.sessao || null;
+    estado.perfilProprio = eu.data.perfil || null;
+  } else {
+    // Banco ainda sem a migração 020: só o fornecedor
+    estado.adminPlataforma = !!(await sb.rpc("sou_admin_plataforma")).data;
+    estado.equipe = estado.adminPlataforma ? { nivel: "super", nome: user.email } : null;
+    estado.suporte = null; estado.perfilProprio = null;
+  }
+  let perfil;
+  if (estado.suporte) {
+    // Modo suporte: entra como administrador da loja do cliente (o banco responde por ela)
+    const p0 = estado.perfilProprio || {};
+    perfil = { id: user.id, empresa_id: estado.suporte.empresa_id, nome: estado.equipe?.nome || p0.nome || user.email,
+      email: user.email, papel: "admin", ativo: true, suporte: true };
+  } else {
+    perfil = await q(sb.from("perfis").select("*").eq("id", user.id).maybeSingle());
+  }
   estado.perfil = perfil;
   if (!perfil) return true; // logado, mas ainda sem empresa (onboarding)
   if (!perfil.ativo) throw new Error("Seu acesso foi desativado. Fale com o administrador.");
   // Aparelho vinculado: o servidor diz se este aparelho pode ser usado por este usuário
-  try {
+  if (estado.equipe) estado.dispositivo = { status: "livre", equipe: true }; // a equipe nunca é barrada
+  else try {
     const { verificarDispositivo } = await import("./dispositivos.js");
     estado.dispositivo = await comTempo(verificarDispositivo(user.id), 10000);
   } catch (e) {
@@ -161,5 +192,6 @@ export function diasDeTeste() {
 export function limparEstado() {
   Object.keys(estado).forEach((k) => (estado[k] = null));
   estado.adminPlataforma = false;
+  estado.equipe = null; estado.suporte = null;
   estado.offline = false;
 }

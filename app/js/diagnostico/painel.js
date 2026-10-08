@@ -55,6 +55,7 @@ const P = {
   tela: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 8h18"/>',
   alerta: '<path d="M12 3l10 18H2z"/><path d="M12 10v4M12 17.5h.01"/>',
   ok: '<path d="M5 12l5 5L20 7"/>',
+  ajuda: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="2.5" y="13.5" width="4" height="6.5" rx="1.5"/><rect x="17.5" y="13.5" width="4" height="6.5" rx="1.5"/>',
 };
 const ic = (n, t = 18) => `<svg class="dg-ic" width="${t}" height="${t}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || P.alerta}</svg>`;
 
@@ -123,6 +124,7 @@ function desenharMoldura(motivo, embutido) {
         <div class="dg-acoes-topo">
           <button class="dg-btn" data-a="testar">${ic("play", 16)}<span>Testar tudo</span></button>
           <button class="dg-btn" data-a="resumo" title="Copiar um resumo para colar no WhatsApp">${ic("copiar", 16)}<span>Copiar resumo</span></button>
+          <button class="dg-btn" data-a="ajuda" title="Abrir um chamado: você recebe um código para falar com o suporte">${ic("ajuda", 16)}<span>Pedir ajuda</span></button>
           <button class="dg-btn dg-pri" data-a="relatorio" title="Arquivo completo para enviar ao suporte">${ic("baixar", 16)}<span>Gerar relatório</span></button>
           ${embutido ? "" : `<button class="dg-btn dg-icone" data-a="fechar" aria-label="Fechar">${ic("fechar", 18)}</button>`}
         </div>
@@ -149,6 +151,8 @@ function desenharMoldura(motivo, embutido) {
     if (a === "testar") { aba = "agora"; desenharAba(); testar(); }
     if (a === "resumo") copiarResumo();
     if (a === "relatorio") gerarRelatorio();
+    if (a === "ajuda") import("../suporte.js").then((m) => m.pedirAjuda({ app: location.pathname.includes("/garcom") ? "garcom" : "pdv" }))
+      .catch(() => aviso("Não foi possível abrir o pedido de ajuda agora. Chame o suporte pelo WhatsApp.", "erro"));
   });
   if (!embutido) raiz.addEventListener("click", (e) => { if (e.target === raiz) fecharPainel(); });
   // A aba remota aparece para o fornecedor e para gerente/admin (com a migração 017)

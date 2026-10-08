@@ -19,6 +19,7 @@ const ACOES = {
   "delivery.cancelar": "Cancelou pedido do delivery",
   "mesa.transferir_itens": "Transferiu itens", "mesa.taxas": "Alterou serviço/couvert da mesa", "mesa.garcom": "Trocou o garçom da mesa",
   "cozinha.recusar": "Recusou pedido da cozinha", "garcom.meta": "Alterou meta/comissão de garçom", "restaurante.config": "Alterou regras do restaurante",
+  "suporte.entrou": "Suporte entrou na loja", "suporte.saiu": "Suporte saiu da loja", "suporte.modo": "Suporte trocou o modo de acesso",
 };
 
 export default async function configuracoes(el) {
@@ -524,12 +525,13 @@ export default async function configuracoes(el) {
       if (l.acao === "venda.cancelar") return `Venda nº ${d.numero} (${d.total}) — ${d.motivo}`;
       if (l.acao.startsWith("caixa.")) return [d.valor && `R$ ${d.valor}`, d.motivo, d.informado != null && `esperado ${d.esperado}, contado ${d.informado}`].filter(Boolean).join(" · ");
       if (l.acao.startsWith("usuario.")) return [d.nome, d.papel, d.ativo === false && "bloqueado"].filter(Boolean).join(" · ");
+      if (l.acao.startsWith("suporte.")) return [d.modo && (d.modo === "total" ? "acesso total" : "somente leitura"), d.motivo, d.minutos != null && `${d.minutos} min`].filter(Boolean).join(" · ");
       if (l.acao.startsWith("fiscal.")) return [d.modelo && (d.modelo === "55" ? "NF-e" : "NFC-e"), d.venda && `venda ${d.venda}`, d.status].filter(Boolean).join(" · ");
       return "";
     };
     render($("#corpo", el), html`<div class="panel">${logs.length ? html`<div class="table-wrap"><table class="table">
       <thead><tr><th>Quando</th><th>Quem</th><th>O que</th><th>Detalhes</th></tr></thead>
-      <tbody>${logs.map((l) => html`<tr><td class="small">${dataHora(l.created_at)}</td><td>${nome[l.usuario_id] || "Sistema"}</td><td>${ACOES[l.acao] || l.acao}</td><td class="small muted">${detalhe(l)}</td></tr>`)}</tbody></table></div>`
+      <tbody>${logs.map((l) => html`<tr><td class="small">${dataHora(l.created_at)}</td><td>${l.detalhes?.via_suporte ? html`<span class="badge info">Suporte</span> ${l.detalhes.por || l.detalhes.suporte_nome || ""}` : nome[l.usuario_id] || "Sistema"}</td><td>${ACOES[l.acao] || l.acao}</td><td class="small muted">${detalhe(l)}</td></tr>`)}</tbody></table></div>`
       : html`<div class="empty"><p>Nenhuma atividade registrada.</p></div>`}</div>`);
   }
 

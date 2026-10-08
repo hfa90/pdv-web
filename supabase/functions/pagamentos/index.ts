@@ -8,6 +8,7 @@
 //   pix_status { token } | { payment_id } → consulta e, se aprovado, marca o pedido como pago
 //   webhook (?acao=webhook&e=<empresa>) → aviso do Mercado Pago
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { sessaoSuporte } from "../_shared/auth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -115,7 +116,13 @@ Deno.serve(async (req) => {
     const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
     const { data: u } = await admin.auth.getUser(jwt);
     if (!u?.user) throw new Erro(401, "Entre no sistema");
-    const { data: perfil } = await admin.from("perfis").select("empresa_id, ativo, papel").eq("id", u.user.id).maybeSingle();
+    let { data: perfil } = await admin.from("perfis").select("empresa_id, ativo, papel").eq("id", u.user.id).maybeSingle();
+    // Modo suporte (020): a equipe age como administrador da loja atendida (só no acesso total)
+    const suporte = await sessaoSuporte(admin, u.user.id).catch(() => null);
+    if (suporte) {
+      if (suporte.modo !== "total") throw new Erro(403, "Modo suporte somente leitura");
+      perfil = { empresa_id: suporte.empresa_id, ativo: true, papel: "admin" };
+    }
     // Caixa e garçom (fechamento de conta no app) geram cobrança PIX; cozinha não
     if (!perfil?.ativo || perfil.papel === "cozinha") throw new Erro(403, "Sem permissão");
     const tk = await tokenDaLoja(perfil.empresa_id);

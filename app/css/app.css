@@ -1119,3 +1119,53 @@ label.turno-item { cursor: pointer; }
 .minha-senha-ic { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); flex: none; }
 .minha-senha-cod { font-size: 1.4rem; letter-spacing: .12em; font-variant-numeric: tabular-nums; }
 .kds-ctl { margin: 0 0 1rem; }
+
+/* =====================================================================
+   Superusuário e suporte (020)
+   ===================================================================== */
+/* Faixa do modo suporte: sempre visível enquanto a equipe está na loja de um cliente */
+.faixa-suporte-wrap { position: sticky; top: 0; z-index: 48; }
+.faixa-suporte { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; padding: .5rem 1rem;
+  background: #1E3A8A; color: #fff; font-size: var(--fs-sm); box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+.faixa-suporte.total { background: #9A3412; }
+.faixa-suporte .fs-ic { display: inline-flex; }
+.faixa-suporte .fs-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 52vw; }
+.faixa-suporte .fs-motivo { opacity: .75; }
+.fs-modos { display: inline-flex; background: rgba(255,255,255,.14); border-radius: 999px; padding: 2px; }
+.fs-modos button, .fs-btn { display: inline-flex; align-items: center; gap: .3rem; border: 0; background: transparent; color: #fff;
+  font: inherit; font-weight: 600; padding: .3rem .7rem; border-radius: 999px; cursor: pointer; }
+.fs-modos button.ativo { background: #fff; color: #1E3A8A; }
+.faixa-suporte.total .fs-modos button.ativo { color: #9A3412; }
+.fs-btn { background: rgba(255,255,255,.14); }
+.fs-btn:hover, .fs-modos button:not(.ativo):hover { background: rgba(255,255,255,.26); }
+.fs-btn.sair { background: #fff; color: #111; }
+.fs-tempo { display: inline-flex; align-items: center; gap: .3rem; font-variant-numeric: tabular-nums; opacity: .9; }
+.fs-tempo.pouco { color: #FDE68A; font-weight: 700; opacity: 1; }
+.faixa-suporte svg { stroke: currentColor; }
+
+/* Avisos da plataforma no topo */
+#avisos-plataforma:empty { display: none; }
+.aviso-plat { display: flex; align-items: center; gap: .7rem; padding: .6rem 1rem; font-size: var(--fs-sm);
+  background: var(--primary-soft); color: var(--ink); border-bottom: 1px solid var(--line); }
+.aviso-plat.warn { background: var(--amber-soft); }
+.aviso-plat.ok { background: var(--ok-soft); }
+.aviso-plat > svg { flex: none; stroke: currentColor; }
+.aviso-plat strong { margin-right: .25rem; }
+
+/* Entrar na loja */
+.opcoes-modo { display: grid; gap: .5rem; }
+.opcao-modo { display: flex; gap: .7rem; align-items: flex-start; padding: .75rem .9rem; border: 1px solid var(--line); border-radius: var(--r-md); cursor: pointer; }
+.opcao-modo:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.opcao-modo span { display: grid; gap: .15rem; }
+.opcao-modo small { color: var(--muted); }
+.opcao-modo input { margin-top: .25rem; }
+
+/* Chamados */
+.chamado-cod { text-align: center; display: grid; gap: .6rem; }
+.cod-grande { font-size: clamp(2.4rem, 9vw, 3.4rem); font-weight: 700; letter-spacing: .12em; font-variant-numeric: tabular-nums; color: var(--primary); }
+.cod-input { max-width: 190px; font-size: 1.1rem; letter-spacing: .12em; font-variant-numeric: tabular-nums; }
+.cod-mini { font-variant-numeric: tabular-nums; letter-spacing: .06em; }
+.linha-destaque { background: color-mix(in srgb, var(--amber-soft) 70%, transparent); }
+.sinais { display: flex; flex-wrap: wrap; gap: .3rem; }
+.d-block { display: block; }
+@media (max-width: 900px) { .faixa-suporte .fs-motivo { display: none; } .faixa-suporte .fs-txt { max-width: 100%; } }

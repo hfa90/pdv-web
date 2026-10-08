@@ -47,6 +47,7 @@ const PAGINAS = {
   financeiro: () => import("./paginas/financeiro.js"),
   alertas: () => import("./paginas/alertas.js"),
   diagnostico: () => import("./paginas/diagnostico.js"),
+  suporte: () => import("./paginas/suporte.js"),
 };
 
 const app = document.getElementById("app");
@@ -74,18 +75,21 @@ function montarShell() {
         </nav>
         <div class="sidebar-foot">
           <div id="aviso-conta"></div>
-          ${["gerente", "caixa"].includes(p.papel) && pode("mesas") ? html`<button class="btn ghost block btn-senha-aprov" id="btn-senha-aprov" style="justify-content:flex-start" title="Senha que o garçom usa para aprovar pedidos">${icone("cadeado", 'width="18" height="18"')} <span class="sair-rotulo">Senha de aprovação</span></button>` : ""}
+          ${estado.equipe ? "" : html`<button class="btn ghost block btn-ajuda" id="btn-ajuda" style="justify-content:flex-start" title="Abrir um chamado com o suporte">${icone("headset", 'width="18" height="18"')} <span class="sair-rotulo">Pedir ajuda</span></button>`}
+          ${["gerente", "caixa"].includes(p.papel) && pode("mesas") && !estado.suporte ? html`<button class="btn ghost block btn-senha-aprov" id="btn-senha-aprov" style="justify-content:flex-start" title="Senha que o garçom usa para aprovar pedidos">${icone("cadeado", 'width="18" height="18"')} <span class="sair-rotulo">Senha de aprovação</span></button>` : ""}
           <button class="btn ghost block btn-tema" id="btn-tema" style="justify-content:flex-start" title="Alternar tema claro/escuro">
             <span id="ic-tema">${icone(window.lisTema?.atual() === "escuro" ? "lua" : "sol", 'width="18" height="18"')}</span>
             <span class="tema-rotulo">Tema escuro</span><span class="tema-switch" aria-hidden="true"></span></button>
           <div class="user-chip" title="${p.nome}">
             <div class="avatar">${iniciais(p.nome)}</div>
-            <div class="grow small"><div style="font-weight:600">${p.nome}</div><div class="muted">${PAPEIS[p.papel].nome}</div></div>
+            <div class="grow small"><div style="font-weight:600">${p.nome}</div><div class="muted">${estado.suporte ? "Suporte · administrador" : estado.equipe?.nivel === "super" ? `${PAPEIS[p.papel].nome} · superusuário` : PAPEIS[p.papel].nome}</div></div>
           </div>
           <button class="btn ghost block btn-sair" id="btn-sair" style="justify-content:flex-start" title="Sair">${icone("sair", 'width="18" height="18"')} <span class="sair-rotulo">Sair</span></button>
         </div>
       </aside>
       <div class="main">
+        <div id="faixa-suporte" class="faixa-suporte-wrap" hidden></div>
+        <div id="avisos-plataforma"></div>
         <div class="topbar-mobile">
           <button class="btn ghost icon-btn" id="btn-menu" aria-label="Abrir menu">${icone("menu", 'width="22" height="22"')}</button>
           <strong>${nomeLoja}</strong>
@@ -98,8 +102,17 @@ function montarShell() {
   $("#btn-menu").onclick = () => $("#sidebar").classList.toggle("aberta");
   $("#btn-tema").onclick = () => window.lisTema?.alternar();
   $("#btn-senha-aprov")?.addEventListener("click", () => import("./aprovacoes.js").then((m) => m.abrirMinhaSenha()).catch(erro));
+  $("#btn-ajuda")?.addEventListener("click", () => import("./suporte.js").then((m) => m.pedirAjuda({ app: "pdv" })).catch(erro));
   ligarMenuRecolhivel();
   desenharAvisoConta();
+  // Superusuário / equipe de suporte (020)
+  if (estado.equipe || estado.suporte) import("./suporte.js").then((m) => {
+    m.desenharFaixaSuporte($("#faixa-suporte"));
+    m.iniciarAlertaChamados();
+  }).catch(() => {});
+  else import("./suporte.js").then((m) => m.iniciarAvisosPlataforma($("#avisos-plataforma"))).catch(() => {});
+  // Modo suporte: o computador da equipe não imprime pedidos, não toca alarmes nem manda diagnóstico pela loja do cliente
+  if (estado.suporte) { iniciarContingencia(); return; }
   iniciarContingencia();
   // Diagnóstico: manda os erros deste aparelho para o suporte ver de longe
   import("./diagnostico/envio.js").then((m) => m.iniciarEnvio()).catch(() => {});
@@ -236,6 +249,7 @@ async function sair() {
   sb.removeAllChannels?.();
   import("./aprovacoes.js").then((m) => m.pararAprovacoes()).catch(() => {});
   import("./recebimentos.js").then((m) => m.pararRecebimentos()).catch(() => {});
+  import("./suporte.js").then((m) => m.pararAlertaChamados()).catch(() => {});
   await sb.auth.signOut();
   limparContextoLocal();
   limparEstado();

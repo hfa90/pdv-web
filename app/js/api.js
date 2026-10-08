@@ -46,6 +46,7 @@ export function mensagemErro(err) {
   if (/duplicate key.*barras/i.test(m)) return "Já existe um produto com este código de barras";
   if (/duplicate key.*codigo/i.test(m)) return "Já existe um produto com este código";
   if (/duplicate key.*categorias/i.test(m)) return "Já existe uma categoria com este nome";
+  if (/read-only transaction/i.test(m)) return "Modo suporte somente leitura: nada foi alterado. Para mudar algo, troque para “Acesso total” na faixa do topo.";
   if (/row-level security|permission denied/i.test(m)) return "Você não tem permissão para esta ação";
   if (/Failed to fetch|NetworkError/i.test(m)) return "Sem conexão com o servidor. Verifique a internet.";
   if (/violates foreign key/i.test(m)) return "Este registro está em uso e não pode ser excluído";

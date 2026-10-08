@@ -41,7 +41,8 @@ export function telaLogin(app, aoEntrar, modo = "entrar") {
       <div class="row" style="justify-content:space-between">
         <button class="link-btn" data-modo="recuperar">Esqueci a senha</button>
         <button class="link-btn" data-modo="criar">Criar conta da loja</button>
-      </div>`,
+      </div>
+      <button class="link-btn" id="pedir-ajuda" style="align-self:center">Não consegue entrar? Pedir ajuda ao suporte</button>`,
     criar: html`
       <div><h1>Criar conta</h1><p class="muted">Quem cria a conta vira o administrador da loja.</p></div>
       <form class="stack" id="f">
@@ -64,6 +65,7 @@ export function telaLogin(app, aoEntrar, modo = "entrar") {
   };
   render(app, moldura(telas[modo]));
   app.querySelectorAll("[data-modo]").forEach((b) => (b.onclick = () => telaLogin(app, aoEntrar, b.dataset.modo)));
+  app.querySelector("#pedir-ajuda")?.addEventListener("click", () => import("../suporte.js").then((m) => m.pedirAjuda({ app: "pdv" })).catch(() => {}));
   const msg = (t, tipo = "") => render($("#msg"), t ? html`<div class="alerta ${tipo}">${t}</div>` : "");
 
   $("#f").onsubmit = async (e) => {
