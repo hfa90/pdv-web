@@ -383,7 +383,8 @@ export default async function plataforma(el) {
         <div class="row"><button type="button" class="btn danger" data-a="suspender">Suspender (inadimplência)</button><button type="button" class="btn danger" data-a="cancelar">Cancelar</button></div>
         <h3 style="margin-top:.5rem">Licenças e dados</h3>
         <div class="row wrap"><button type="button" class="btn" data-a="licencas">${icone("calendario", 'width="16" height="16"')} Renovar / expirar licenças</button>
-          <button type="button" class="btn" data-a="backup">${icone("pacote", 'width="16" height="16"')} Backups desta loja</button></div>
+          <button type="button" class="btn" data-a="backup">${icone("pacote", 'width="16" height="16"')} Backups desta loja</button>
+          <button type="button" class="btn" data-a="usuarios">${icone("usuarios", 'width="16" height="16"')} Usuários (excluir)</button></div>
         <p class="hint">Para exportar, importar ou excluir lojas do banco: aba Dados e backup.</p>
       </form>`,
       onPronto: (d, fechar) => {
@@ -398,6 +399,11 @@ export default async function plataforma(el) {
       const [{ alterarLicencas }, todas] = await Promise.all([import("../plataforma-dados.js"), rpc("plataforma_licencas")]);
       const alvo = todas.find((x) => x.id === l.id);
       if (alvo && (await alterarLicencas([alvo]))) desenhar();
+      return;
+    }
+    if (acao.a === "usuarios") {
+      const { abrirUsuariosLoja } = await import("../usuario-excluir.js");
+      if (await abrirUsuariosLoja(l)) desenhar();
       return;
     }
     if (acao.a === "backup") {
