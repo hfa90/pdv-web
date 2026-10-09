@@ -1,6 +1,6 @@
 // Usuários da loja e níveis de acesso.
 import { sb, q, fn, rpc } from "../api.js";
-import { estado, eh, PAPEIS } from "../estado.js";
+import { estado, eh, ehSuper, PAPEIS } from "../estado.js";
 import { formatarDoc, somenteDigitos, docValido } from "../ui.js";
 import { html, render, $, $$, lerForm, toast, erro, modal, dataHora, iniciais } from "../ui.js";
 import { icone } from "../icons.js";
@@ -26,7 +26,7 @@ export default async function usuarios(el) {
 
   async function carregar() {
     const [lista, ac] = await Promise.all([
-      q(sb.from("perfis").select("*").order("ativo", { ascending: false }).order("nome")),
+      q(sb.from("perfis").select("*").is("excluido_em", null).order("ativo", { ascending: false }).order("nome")),
       rpc("acessos_garcom").catch(() => null),
     ]);
     if (ac) acessos = ac;
@@ -120,10 +120,20 @@ export default async function usuarios(el) {
             ${ac ? html`<label class="check"><input type="checkbox" name="sem_acesso"> Remover o acesso por matrícula</label>` : ""}
           </div>` : ""}
       </form>`,
-      rodape: html`<button class="btn" data-fechar>Voltar</button>${admin || podeSenha ? html`<button class="btn primary" form="f-e">Salvar</button>` : ""}`,
-      onPronto: (d, f) => { d.querySelector("form").onsubmit = (e) => { e.preventDefault(); f(lerForm(e.target)); }; },
+      rodape: html`${ehSuper() && !proprio ? html`<button class="btn danger" id="excluir-u" style="margin-right:auto" title="Só o superusuário vê esta opção">${icone("lixo", 'width="16" height="16"')} Excluir usuário</button>` : ""}
+        <button class="btn" data-fechar>Voltar</button>${admin || podeSenha ? html`<button class="btn primary" form="f-e">Salvar</button>` : ""}`,
+      onPronto: (d, f) => {
+        d.querySelector("form").onsubmit = (e) => { e.preventDefault(); f(lerForm(e.target)); };
+        d.querySelector("#excluir-u")?.addEventListener("click", () => f({ excluir: true }));
+      },
     });
     if (!res) return;
+    if (res.excluir) {
+      // Superusuário (migração 022): apaga o login; com histórico, o nome fica nos relatórios
+      const { excluirUsuario } = await import("../usuario-excluir.js");
+      if (await excluirUsuario(u, { loja: estado.empresa?.nome_fantasia || estado.empresa?.razao_social })) carregar();
+      return;
+    }
     try {
       if (admin) {
         const dados = { nome: res.nome };

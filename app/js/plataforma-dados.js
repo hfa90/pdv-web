@@ -212,7 +212,7 @@ export async function abaDados(corpo, { aoMudar } = {}) {
           <td class="small">${descreverAgenda(l.backup)}${l.backup?.erro ? html`<div style="color:var(--danger)" title="${l.backup.erro}">último falhou</div>` : ""}</td>
           <td class="small">${l.backup?.ultimo ? dataHora(l.backup.ultimo) : html`<span class="muted">nunca</span>`}</td>
           <td class="r small">${l.copias}<div class="muted">${tamanho(l.espaco)}</div></td>
-          <td class="r" style="white-space:nowrap"><button class="btn sm" data-copias="${l.id}">Backups</button>
+          <td class="r" style="white-space:nowrap"><button class="btn sm" data-usuarios="${l.id}">Usuários</button> <button class="btn sm" data-copias="${l.id}">Backups</button>
             <button class="btn sm ghost" data-exp="${l.id}" title="Exportar arquivo">${icone("baixar", 'width="15" height="15"')}</button>
             ${l.protegida ? "" : html`<button class="btn sm ghost" data-exc="${l.id}" title="Excluir loja">${icone("lixo", 'width="15" height="15"')}</button>`}</td>
         </tr>`)}</tbody></table></div>` : html`<div class="empty"><p>Nenhuma loja encontrada.</p></div>`}</div>`);
@@ -234,6 +234,10 @@ export async function abaDados(corpo, { aoMudar } = {}) {
     $("#dl-exc-todas", alvo).onclick = () => excluir(st.d.lojas, true);
     $("#dl-importar", alvo).onclick = importar;
     $$("[data-copias]", alvo).forEach((b) => (b.onclick = () => abrirLoja(porId(b.dataset.copias))));
+    $$("[data-usuarios]", alvo).forEach((b) => (b.onclick = async () => {
+      const { abrirUsuariosLoja } = await import("./usuario-excluir.js");
+      if (await abrirUsuariosLoja(porId(b.dataset.usuarios))) carregar().catch(erro);
+    }));
     $$("[data-exp]", alvo).forEach((b) => (b.onclick = () => exportar([porId(b.dataset.exp)])));
     $$("[data-exc]", alvo).forEach((b) => (b.onclick = () => excluir([porId(b.dataset.exc)])));
   }
