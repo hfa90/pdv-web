@@ -1169,3 +1169,16 @@ label.turno-item { cursor: pointer; }
 .sinais { display: flex; flex-wrap: wrap; gap: .3rem; }
 .d-block { display: block; }
 @media (max-width: 900px) { .faixa-suporte .fs-motivo { display: none; } .faixa-suporte .fs-txt { max-width: 100%; } }
+
+/* ---------- Licenças e backup (021) ---------- */
+.lote-barra { height: 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.lote-barra > div { height: 100%; width: 0; background: var(--primary); transition: width .25s ease; }
+.sel-barra { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .6rem .8rem; margin-bottom: .75rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--line)); background: var(--primary-soft); border-radius: var(--r-md);
+  position: sticky; top: .5rem; z-index: 5; }
+.sel-barra[hidden] { display: none; }
+.lic-atual { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .6rem; padding: .7rem; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+.lic-atual > div { display: grid; gap: .25rem; justify-items: start; }
+.lista-excluir { display: flex; flex-wrap: wrap; gap: .35rem; max-height: 140px; overflow: auto; }
+.lista-excluir span { padding: .15rem .55rem; border-radius: 999px; background: var(--danger-soft); color: var(--danger); }
+.table input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }

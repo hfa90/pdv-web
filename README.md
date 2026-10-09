@@ -138,6 +138,40 @@ Ativar: rode `supabase/migrations/020_superusuario.sql` e republique `usuarios`,
 
 > Segurança: a conta do superusuário abre todas as lojas. Use senha forte e exclusiva; o próximo passo recomendado é exigir verificação em duas etapas (MFA do Supabase) para a equipe.
 
+## Licenças, backup e dados dos clientes
+
+Migração `021_licencas_backup.sql` + Edge Function `backup`.
+
+**Licenças (só superusuário — Plataforma › Licenças, ou Lojas › Gerenciar)**
+
+- Cada loja tem uma licença por ferramenta: **Sistema (PDV)**, **Delivery**, **Garçom e mesas** e **Nota fiscal**. Loja sem prazo definido continua como antes.
+- **Renovar** (+1 mês, +3, +6, +1 ano ou N dias, somando ao vencimento atual), **vencer em uma data**, **sem prazo** ou **expirar agora** — de uma loja ou de várias selecionadas de uma vez, com observação (ex.: "pago via PIX").
+- PDV vencido: as vendas e a abertura de caixa param na hora (mesma regra do fim do teste, em `private.conta_liberada`); os dados ficam guardados. Delivery vencido tira o cardápio do ar; garçom vencido bloqueia mesas e o app; nota fiscal vencida faz a Edge Function `fiscal` recusar a emissão.
+- A loja vê o aviso 7 dias antes (menu lateral e Minha assinatura). Tudo vai para o registro de atividades da loja e o registro do superusuário.
+
+**Backup (todas as lojas e todos os níveis)**
+
+- **Automático**: o banco faz sozinho (pg_cron a cada 15 min verifica quem está na hora). Todo dia, a cada 12 h, a cada 6 h ou uma vez por semana, no horário da loja, guardando as N últimas cópias.
+- **Manual**: botão **Fazer backup agora** (tela **Backup** no menu).
+- Na tela Backup o administrador (e o gerente) escolhe a agenda e **quais níveis** (gerente, caixa, garçom, cozinha) podem fazer backup manual e quais podem **baixar o arquivo**. **Restaurar** e **importar**: só o administrador.
+- **Restaurar** troca os dados da loja pelos da cópia; antes, o sistema guarda o estado atual ("Antes de restaurar"), então dá para desfazer. Os gatilhos ficam desligados durante a restauração (o estoque não é baixado de novo).
+- **Exportar** baixa um `.json` com tudo da loja; **Importar** envia o arquivo de volta (vira uma cópia "Importado", que pode ser restaurada). O arquivo contém dados sensíveis (chaves de pagamento e fiscais): guarde em local seguro.
+- O que entra: todas as tabelas com `empresa_id` (descobertas sozinhas — tabela nova entra sem mexer no backup), a própria loja e a lista de logins (sem senhas). Ficam de fora registros técnicos (diagnóstico, eventos de aparelho, suporte). Faturas, pedidos de pacote, licenças e a situação comercial só o superusuário restaura.
+
+**Superusuário — Plataforma › Dados e backup**
+
+- **Lojas**: selecione uma, várias ou todas para **Backup agora**, **Exportar** (um arquivo com todas as lojas selecionadas), **Agenda do backup**, **Licenças** e **Excluir**. Também **Importar arquivo** (de uma loja ou de várias) e **Excluir todas**.
+- **Excluir** apaga a loja e todos os dados dela do banco, e os logins dos usuários. Pede para digitar `EXCLUIR`, pode baixar um arquivo antes e **sempre guarda uma cópia "Antes de excluir a loja"** por 90 dias (configurável). Sua própria loja e lojas com membros da equipe ficam protegidas. O registro antifraude do teste grátis continua (o mesmo CNPJ não ganha outro teste).
+- **Cópias guardadas**: todas as cópias, inclusive de lojas excluídas — **Recriar loja** restaura uma loja excluída (os logins são recriados com o mesmo id pela Edge Function `backup`; entram com "Esqueci a senha").
+- **Regra geral do backup**: backup obrigatório (a loja não consegue desligar), pausa geral, padrão para lojas novas, máximo de cópias por loja e por quanto tempo guardar as cópias de lojas excluídas. **Aplicar o padrão em todas as lojas** de uma vez.
+
+Ativar:
+
+1. Rode `supabase/migrations/021_licencas_backup.sql` no SQL Editor (pode rodar mais de uma vez). O pg_cron já está ativo por causa do resumo diário; se não estiver, ative em *Database › Extensions* e rode de novo.
+2. Publique a função nova e a fiscal: `supabase functions deploy backup` e `supabase functions deploy fiscal`.
+
+> Espaço: as cópias ficam no próprio banco (tabela `backups`, comprimida pelo Postgres). Acompanhe o total em Dados e backup e ajuste "máximo de cópias por loja" se o plano do Supabase ficar apertado. Para guardar fora do Supabase, use **Exportar todas** periodicamente.
+
 ## Configuração comercial
 
 Marca, WhatsApp de vendas e preços ficam em `assets/config.js` e valem para o site e o sistema.
@@ -163,7 +197,7 @@ app/sw.js                      service worker do sistema (abre sem internet)
 app/js/impressao/escpos.js     comandos ESC/POS + WebUSB/Serial
 app/js/impressao/cupom.js      layout dos cupons (navegador e térmica)
 supabase/migrations/*.sql  banco, RLS e regras de negócio
-supabase/functions/*       Edge Functions (usuarios, fiscal, teste, pagamentos, resumo-diario)
+supabase/functions/*       Edge Functions (usuarios, fiscal, teste, pagamentos, resumo-diario, backup)
 assets/pix.js              gerador de PIX copia e cola + QR (usado por PDV, garçom e cardápio)
 app/js/mesa-detalhe.js     detalhe da mesa (compartilhado entre a tela Mesas e o app do garçom)
 app/js/seletor.js          seletor de itens para mesas
@@ -180,6 +214,9 @@ app/js/painel-garcons.js   painel ao vivo dos garçons (bonecos, % da meta, mapa
 app/js/dispositivos.js     acesso vinculado ao aparelho: verificação, tela de bloqueio e gestão
 app/js/suporte.js          modo suporte (faixa, entrar/sair da loja), avisos da plataforma e "Pedir ajuda"
 app/js/paginas/suporte.js  Central de suporte: lojas, chamados, acessos, registro, avisos e equipe
+app/js/paginas/backup.js   tela Backup da loja (agenda, cópias, exportar, importar, restaurar)
+app/js/backup-util.js      peças do backup: arquivo .json, progresso em lote, restauração, formulário da agenda
+app/js/plataforma-dados.js Plataforma › Licenças e Dados e backup (superusuário)
 app/js/diagnostico/        caixa-preta (registro.js), catálogo de problemas e soluções (catalogo.js),
                            check-up (checagens.js), painel (painel.js), relatório (relatorio.js), envio ao servidor (envio.js)
 garcom/                    app do garçom (PWA: manifest, service worker, ícones)
@@ -240,6 +277,7 @@ execute-as na ordem e publique as funções:
 supabase db push
 supabase functions deploy usuarios
 supabase functions deploy fiscal
+supabase functions deploy backup
 ```
 
 ## Nota fiscal (NFC-e / NF-e)

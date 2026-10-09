@@ -1,6 +1,6 @@
 // Ponto de entrada: autenticação, roteamento por hash e layout.
 import { sb } from "./api.js";
-import { estado, carregarContexto, limparEstado, pode, rotaInicial, ROTAS, PAPEIS, atualizarConta, diasDeTeste, tituloRota, aprovaCozinha } from "./estado.js";
+import { estado, carregarContexto, limparEstado, pode, rotaInicial, ROTAS, PAPEIS, atualizarConta, diasDeTeste, tituloRota, aprovaCozinha, licenca } from "./estado.js";
 import { linkWhatsApp, MARCA } from "./config.js";
 import { html, render, $, $$, iniciais, carregando, erro, confirmar, toast } from "./ui.js";
 import { icone } from "./icons.js";
@@ -48,6 +48,7 @@ const PAGINAS = {
   alertas: () => import("./paginas/alertas.js"),
   diagnostico: () => import("./paginas/diagnostico.js"),
   suporte: () => import("./paginas/suporte.js"),
+  backup: () => import("./paginas/backup.js"),
 };
 
 const app = document.getElementById("app");
@@ -162,16 +163,28 @@ function desenharAvisoConta() {
   const c = estado.conta;
   const alvo = $("#aviso-conta"), mob = $("#aviso-conta-mob");
   if (!alvo) return;
-  if (!c || c.status === "ativo") { render(alvo, ""); if (mob) render(mob, ""); return; }
-  const ponto = html`<div class="aviso-mini ${c.bloqueio ? "bloq" : ""}" title="${c.bloqueio || "Teste grátis em andamento"}"></div>`;
+  // Licença do sistema (021): vencida vira bloqueio (c.bloqueio); vencendo em até 7 dias, aviso
+  const lic = licenca("pdv");
+  const licVencendo = lic.ok && lic.dias != null && lic.dias <= 7;
+  if (!c || (c.status === "ativo" && !c.bloqueio && !licVencendo)) { render(alvo, ""); if (mob) render(mob, ""); return; }
+  const ponto = html`<div class="aviso-mini ${c.bloqueio ? "bloq" : ""}" title="${c.bloqueio || (c.status === "ativo" ? "Licença perto de vencer" : "Teste grátis em andamento")}"></div>`;
   const dias = diasDeTeste();
-  const zap = linkWhatsApp(`Olá! Estou testando o sistema na loja ${estado.empresa?.nome_fantasia || ""} e quero contratar.`);
+  const teste = c.status === "teste";
+  const zap = linkWhatsApp(teste ? `Olá! Estou testando o sistema na loja ${estado.empresa?.nome_fantasia || ""} e quero contratar.`
+    : `Olá! Sou da loja ${estado.empresa?.nome_fantasia || ""} e quero renovar a licença do sistema.`);
   const gestor = ["admin", "gerente"].includes(estado.perfil?.papel);
   if (c.bloqueio) {
     render(alvo, html`${ponto}<div class="aviso-conta bloqueado"><strong>Vendas pausadas</strong><span>${c.bloqueio}</span>
-      ${gestor ? html`<a class="btn sm primary block" href="#/conta">Ver planos</a>` : ""}
-      ${gestor && zap ? html`<a class="btn sm block" href="${zap}" target="_blank" rel="noopener">${icone("whatsapp", 'width="16" height="16"')} Contratar</a>` : ""}</div>`);
-    if (mob) render(mob, html`<span class="badge danger">Teste encerrado</span>`);
+      ${gestor ? html`<a class="btn sm primary block" href="#/conta">${teste ? "Ver planos" : "Minha assinatura"}</a>` : ""}
+      ${gestor && zap ? html`<a class="btn sm block" href="${zap}" target="_blank" rel="noopener">${icone("whatsapp", 'width="16" height="16"')} ${teste ? "Contratar" : "Falar com o suporte"}</a>` : ""}</div>`);
+    if (mob) render(mob, html`<span class="badge danger">${teste ? "Teste encerrado" : "Vendas pausadas"}</span>`);
+    return;
+  }
+  if (!teste) {
+    render(alvo, html`${ponto}<div class="aviso-conta"><strong>Licença do sistema</strong>
+      <span>${lic.dias === 0 ? "Vence hoje" : lic.dias === 1 ? "Vence amanhã" : `Vence em ${lic.dias} dias`} (${new Date(lic.expira_em).toLocaleDateString("pt-BR")})</span>
+      ${gestor && zap ? html`<a class="btn sm block" href="${zap}" target="_blank" rel="noopener">${icone("whatsapp", 'width="16" height="16"')} Renovar</a>` : ""}</div>`);
+    if (mob) render(mob, html`<span class="badge warn">Licença · ${lic.dias}d</span>`);
     return;
   }
   render(alvo, html`${ponto}<div class="aviso-conta"><strong>Teste grátis</strong>

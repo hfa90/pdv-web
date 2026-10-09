@@ -81,6 +81,12 @@ Deno.serve(async (req) => {
 
     // ---------------- EMITIR ----------------
     if (body.acao === "emitir") {
+      // Licença da nota fiscal (migração 021): vencida, não emite
+      const { data: lic } = await admin.from("licencas").select("expira_em")
+        .eq("empresa_id", perfil.empresa_id).eq("modulo", "fiscal").maybeSingle();
+      if (lic?.expira_em && new Date(lic.expira_em) <= new Date()) {
+        throw new HttpError(403, `A licença da nota fiscal venceu em ${new Date(lic.expira_em).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}. Fale com o suporte para renovar.`);
+      }
       const modelo = body.modelo === "55" ? "55" : "65";
       // O garçom emite a NFC-e só das contas que ele mesmo fechou no app
       const garcomApp = perfil.papel === "atendente" && modelo === "65";

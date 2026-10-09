@@ -31,12 +31,14 @@ export default async function plataforma(el) {
   let aba = "faturamento", filtro = "";
 
   render(el, html`<div class="page" style="max-width:1400px">
-    <div class="page-head"><div><h1>Plataforma</h1><p>Faturamento de todos os clientes, contatos, testes e cobranças. Só você vê esta tela.</p></div></div>
+    <div class="page-head"><div><h1>Plataforma</h1><p>Faturamento de todos os clientes, contatos, testes, cobranças, licenças e backup. Só você vê esta tela.</p></div></div>
     <div class="kpis" id="kpis"></div>
     <div class="tabs">
       <button data-aba="faturamento" class="ativo">${icone("relatorios", 'width="16" height="16" style="vertical-align:-3px"')} Faturamento dos clientes</button>
       <button data-aba="lojas">Lojas</button><button data-aba="leads">Contatos (leads)</button>
-      <button data-aba="cobrancas">Cobranças</button><button data-aba="pedidos">Pedidos de pacotes <span class="badge warn" id="n-pedidos" hidden></span></button></div>
+      <button data-aba="cobrancas">Cobranças</button><button data-aba="pedidos">Pedidos de pacotes <span class="badge warn" id="n-pedidos" hidden></span></button>
+      <button data-aba="licencas">${icone("calendario", 'width="16" height="16" style="vertical-align:-3px"')} Licenças</button>
+      <button data-aba="dados">${icone("pacote", 'width="16" height="16" style="vertical-align:-3px"')} Dados e backup</button></div>
     <div id="corpo"></div></div>`);
   $$(".tabs button", el).forEach((b) => (b.onclick = () => { aba = b.dataset.aba; $$(".tabs button", el).forEach((x) => x.classList.toggle("ativo", x === b)); desenhar(); }));
 
@@ -54,7 +56,7 @@ export default async function plataforma(el) {
   }
 
   async function desenhar() {
-    try { await ({ faturamento, leads, lojas, cobrancas, pedidos })[aba](); } catch (e) { erro(e); }
+    try { await ({ faturamento, leads, lojas, cobrancas, pedidos, licencas, dados })[aba](); } catch (e) { erro(e); }
   }
 
   // ================= Faturamento consolidado de todos os clientes =================
@@ -193,6 +195,16 @@ export default async function plataforma(el) {
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     a.download = `faturamento-clientes-${fat.periodo}.csv`; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  // ================= Licenças e Dados/backup (migração 021) =================
+  async function licencas() {
+    const { abaLicencas } = await import("../plataforma-dados.js");
+    await abaLicencas($("#corpo", el), { aoMudar: () => kpis().catch(() => {}) });
+  }
+  async function dados() {
+    const { abaDados } = await import("../plataforma-dados.js");
+    await abaDados($("#corpo", el), { aoMudar: () => kpis().catch(() => {}) });
   }
 
   // ================= Cobranças (faturas) =================
@@ -369,6 +381,10 @@ export default async function plataforma(el) {
           <button type="button" class="btn" data-a="estender">Estender teste</button></div>
         <h3 style="margin-top:.5rem">Bloquear</h3>
         <div class="row"><button type="button" class="btn danger" data-a="suspender">Suspender (inadimplência)</button><button type="button" class="btn danger" data-a="cancelar">Cancelar</button></div>
+        <h3 style="margin-top:.5rem">Licenças e dados</h3>
+        <div class="row wrap"><button type="button" class="btn" data-a="licencas">${icone("calendario", 'width="16" height="16"')} Renovar / expirar licenças</button>
+          <button type="button" class="btn" data-a="backup">${icone("pacote", 'width="16" height="16"')} Backups desta loja</button></div>
+        <p class="hint">Para exportar, importar ou excluir lojas do banco: aba Dados e backup.</p>
       </form>`,
       onPronto: (d, fechar) => {
         const f = d.querySelector("form");
@@ -378,6 +394,18 @@ export default async function plataforma(el) {
     });
     if (!acao) return;
     if (["suspender", "cancelar"].includes(acao.a) && !(await confirmar(`Confirmar: ${acao.a} a loja ${l.loja}? As vendas ficam bloqueadas.`, { perigo: true, ok: "Confirmar" }))) return;
+    if (acao.a === "licencas") {
+      const [{ alterarLicencas }, todas] = await Promise.all([import("../plataforma-dados.js"), rpc("plataforma_licencas")]);
+      const alvo = todas.find((x) => x.id === l.id);
+      if (alvo && (await alterarLicencas([alvo]))) desenhar();
+      return;
+    }
+    if (acao.a === "backup") {
+      const { montarPainelBackup } = await import("./backup.js");
+      await modal({ titulo: `Backup · ${l.loja}`, largo: true, corpo: html`<div id="painel-loja-bk"></div>`,
+        onPronto: (d) => montarPainelBackup(d.querySelector("#painel-loja-bk"), l.id) });
+      return;
+    }
     if (acao.a === "dia") {
       try { await rpc("plataforma_dia_vencimento", { p_id: l.id, p_dia: acao.dia }); toast("Dia de vencimento salvo", "ok"); } catch (e) { erro(e); }
       return;

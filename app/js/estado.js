@@ -50,6 +50,7 @@ export const ROTAS = {
   relatorios:    { titulo: "Relatórios",    icone: "relatorios", papeis: ["admin", "gerente"] },
   usuarios:      { titulo: "Usuários",      icone: "usuarios",   papeis: ["admin", "gerente"] },
   conta:         { titulo: "Minha assinatura", icone: "assinatura", papeis: ["admin", "gerente"] },
+  backup:        { titulo: "Backup",        icone: "pacote",     papeis: [], soBackup: true }, // quem vê: o banco decide (021)
   configuracoes: { titulo: "Configurações", icone: "config",     papeis: ["admin", "gerente", "caixa", "cozinha"] },
   diagnostico:   { titulo: "Diagnóstico",   icone: "suporte",    papeis: ["admin", "gerente"] },
   suporte:       { titulo: "Central de suporte", icone: "headset", papeis: [], soEquipe: true },
@@ -63,6 +64,7 @@ export const pode = (rota) => {
   if (!r) return false;
   if (r.soFornecedor) return estado.adminPlataforma;
   if (r.soEquipe) return !!estado.equipe;
+  if (r.soBackup) return !!estado.conta?.backup?.ver; // admin sempre; outros níveis conforme a loja configurou
   return r.papeis.includes(papel()) && moduloLiberado(r.modulo);
 };
 export const eh = (...papeis) => papeis.includes(papel());
@@ -180,6 +182,13 @@ export async function atualizarConta() {
     salvarContextoLocal();
   } catch { /* sem rede: mantém a situação conhecida */ }
   return estado.conta;
+}
+
+/** Licença de uma ferramenta (pdv, delivery, garcom, fiscal): { ok, expira_em, dias } — dias null = sem prazo. */
+export function licenca(modulo = "pdv") {
+  const l = estado.conta?.licencas?.[modulo];
+  if (!l?.expira_em) return { ok: true, expira_em: null, dias: null };
+  return { ok: !!l.ok, expira_em: l.expira_em, dias: Math.max(0, Math.ceil((new Date(l.expira_em) - Date.now()) / 864e5)) };
 }
 
 /** Dias que faltam no teste (arredondado para cima). */

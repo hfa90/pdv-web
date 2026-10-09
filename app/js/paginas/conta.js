@@ -2,7 +2,7 @@
 // faturas, pendências da loja e pacotes adicionais.
 import { rpc } from "../api.js";
 import { estado, eh, diasDeTeste } from "../estado.js";
-import { html, render, $, $$, dinheiro, data, dataHora, toast, erro, modal, confirmar, numero, urlSegura } from "../ui.js";
+import { html, raw, render, $, $$, dinheiro, data, dataHora, toast, erro, modal, confirmar, numero, urlSegura } from "../ui.js";
 import { icone } from "../icons.js";
 import { linkWhatsApp, MARCA, PRECOS } from "../config.js";
 import { PLANOS, PACOTES, nomePlano, nomePacote } from "../pacotes.js";
@@ -14,6 +14,8 @@ const dataBr = (d) => (d ? new Date(d + (d.length === 10 ? "T12:00:00" : "")).to
 
 export default async function conta(el) {
   const admin = eh("admin");
+
+  const zapSuporte = () => linkWhatsApp(`Olá! Sou da loja ${estado.empresa?.nome_fantasia || estado.empresa?.razao_social || ""} e quero renovar a licença.`);
 
   async function carregar() {
     const [a, baixo] = await Promise.all([rpc("minha_assinatura"), rpc("produtos_estoque_baixo").catch(() => [])]);
@@ -31,6 +33,14 @@ export default async function conta(el) {
       lista.push([d <= 2 ? "alta" : "media", "relogio", d === 0 ? "Seu teste termina hoje" : `Faltam ${d} dia(s) de teste`, `${a.uso.vendas_mes} vendas feitas. Contrate um plano para não parar de vender — tudo continua de onde parou.`, "#planos", "Contratar"]);
     }
     if (a.bloqueio && a.status !== "teste") lista.push(["alta", "alerta", "Vendas pausadas", a.bloqueio, null, null]);
+    // Licenças com prazo (021): vencidas ou vencendo em até 7 dias
+    const NOMES_LIC = { pdv: "do sistema", delivery: "do delivery", garcom: "do app do garçom", fiscal: "da nota fiscal" };
+    Object.entries(estado.conta?.licencas || {}).forEach(([m, l]) => {
+      if (!l?.expira_em || m === "pdv" && a.bloqueio) return;
+      const d = Math.ceil((new Date(l.expira_em) - Date.now()) / 864e5);
+      if (!l.ok || d <= 0) lista.push(["alta", "alerta", `Licença ${NOMES_LIC[m] || m} vencida`, `Venceu em ${dataBr(l.expira_em)}. Fale com o suporte para renovar.`, zapSuporte(), zapSuporte() && "Renovar"]);
+      else if (d <= 7) lista.push(["media", "calendario", `Licença ${NOMES_LIC[m] || m} vence ${d === 1 ? "amanhã" : `em ${d} dias`}`, `Válida até ${dataBr(l.expira_em)}.`, zapSuporte(), zapSuporte() && "Renovar"]);
+    });
     if (!e.cnpj || !e.logradouro) lista.push(["info", "loja", "Dados da loja incompletos", "CNPJ e endereço aparecem no cupom e são obrigatórios para a nota fiscal.", "#/configuracoes/loja", "Completar"]);
     if (!e.pix_chave) lista.push(["info", "pix", "Chave PIX não cadastrada", "Com a chave, o caixa mostra o QR Code com o valor exato da venda.", "#/configuracoes/pix", "Cadastrar"]);
     if (["sistema_nota", "combo", "kit_compra"].includes(a.plano) && !estado.fiscal?.habilitado) lista.push(["info", "nota", "Nota fiscal não ativada", "Seu plano inclui NFC-e. Configure o certificado e o CSC.", "#/configuracoes/fiscal", "Configurar"]);
@@ -104,7 +114,7 @@ export default async function conta(el) {
           <div class="panel-pad pendencias">
             ${pend.length ? pend.map(([nivel, ic, tit, sub, link, acao]) => html`<div class="pend ${nivel}"><div class="p-ic">${icone(ic)}</div>
               <div class="grow"><strong>${tit}</strong><small>${sub}</small></div>
-              ${link ? html`<a class="btn sm" href="${link}" ${link === "#planos" ? 'data-planos="1"' : ""}>${acao}</a>` : ""}</div>`)
+              ${link ? html`<a class="btn sm" href="${link}" ${link === "#planos" ? raw('data-planos="1"') : ""} ${/^https:/.test(link) ? raw('target="_blank" rel="noopener"') : ""}>${acao}</a>` : ""}</div>`)
             : html`<div class="pend ok"><div class="p-ic">${icone("check")}</div><div class="grow"><strong>Tudo em dia</strong><small>Nenhuma pendência na sua loja.</small></div></div>`}
           </div></div>
         <div class="panel"><div class="panel-head"><h2>Uso neste mês</h2></div>
