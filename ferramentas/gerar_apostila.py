@@ -30,7 +30,7 @@ def paginas_dos_capitulos(pdf, total):
     achou = {}
     n_pag = int(re.search(r"Pages:\s+(\d+)", subprocess.run(["pdfinfo", pdf], capture_output=True, text=True).stdout).group(1))
     for pg in range(3, n_pag + 1):
-        t = subprocess.run(["pdftotext", "-f", str(pg), "-l", str(pg), "-layout", pdf, "-"], capture_output=True, text=True).stdout
+        t = subprocess.run(["pdftotext", "-f", str(pg), "-l", str(pg), "-raw", pdf, "-"], capture_output=True, text=True).stdout
         for m in re.finditer(r"CAP[IÍ]TULO (\d+)\b", t, re.I):
             achou.setdefault(m.group(1), pg)
     return achou, n_pag

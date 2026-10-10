@@ -14,10 +14,10 @@
   :root { --p: #136F63; --p2: #E3F1EE; --ink: #18211F; --mut: #5E6B67; --line: #DDE3E0; --amb: #FFF4DC; --amb-ink: #8A5300; --red: #B42318; }
   * { box-sizing: border-box; }
   html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { margin: 0; font: 10.5pt/1.5 "Inter", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; color: var(--ink); background: #fff; }
+  body { margin: 0; font: 10.5pt/1.5 "Liberation Sans", Arial, Helvetica, sans-serif; color: var(--ink); background: #fff; }
   @page { size: A4; margin: 16mm 15mm 18mm;
-    @bottom-left { content: "Manual do sistema PDV · versão 3.0"; font: 8pt "Segoe UI", Arial, sans-serif; color: #5E6B67; }
-    @bottom-right { content: counter(page); font: 600 9pt "Segoe UI", Arial, sans-serif; color: #136F63; } }
+    @bottom-left { content: "Manual do sistema PDV · versão 3.0"; font: 8pt "Liberation Sans", Arial, sans-serif; color: #5E6B67; }
+    @bottom-right { content: counter(page); font: 600 9pt "Liberation Sans", Arial, sans-serif; color: #136F63; } }
   @page :first { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
   @media screen { body { max-width: 820px; margin: 0 auto; padding: 24px; background: #f4f6f5; } .folha { background: #fff; padding: 28px 34px; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(0,0,0,.08); } }
   h1, h2, h3, h4 { line-height: 1.2; margin: 0; }
