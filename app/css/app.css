@@ -1182,3 +1182,11 @@ label.turno-item { cursor: pointer; }
 .lista-excluir { display: flex; flex-wrap: wrap; gap: .35rem; max-height: 140px; overflow: auto; }
 .lista-excluir span { padding: .15rem .55rem; border-radius: 999px; background: var(--danger-soft); color: var(--danger); }
 .table input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
+
+/* ---------- Mudança de setor (023) ---------- */
+.lista-setor { margin: 0; padding-left: 1.1rem; display: grid; gap: .2rem; font-size: var(--fs-sm); }
+.passo-setor { display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: .9rem 1rem; border: 1px solid var(--line); border-radius: var(--r-md); }
+.passo-setor > div { flex: 1 1 280px; display: grid; gap: .35rem; }
+.passo-setor.feito { border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); background: var(--ok-soft); }
+.passo-setor[aria-disabled="true"] { opacity: .55; }
+

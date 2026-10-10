@@ -235,6 +235,8 @@ async function iniciar() {
     }
     montarShell();
     navegar();
+    // Mudança de setor pedida pelo suporte (023): avisa e obriga o backup antes
+    if (!estado.offline) import("./mudanca-segmento.js").then((m) => m.verificarMudancaSegmento()).catch(() => {});
     if (estado.dispositivo?.status === "vinculado") toast(`Este aparelho foi vinculado ao seu acesso como “${estado.dispositivo.nome}”.`, "ok");
   } catch (e) {
     if (ehErroDeRede(e) || /Sem internet/.test(e.message)) {

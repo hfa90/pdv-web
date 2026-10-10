@@ -17,6 +17,7 @@ const PLANOS = [
   ["interno", "Interno (sem cobrança)", 0],
 ];
 
+const SETORES = [["padaria", "Padaria"], ["mercadinho", "Mercadinho"], ["supermercado", "Supermercado"], ["lanchonete", "Lanchonete"], ["cafe", "Café / cafeteria"], ["restaurante", "Restaurante (mesas e app do garçom)"]];
 const valorBr = (n) => Number(n || 0).toFixed(2).replace(".", ",");
 const zap = (n) => {
   const d = String(n || "").replace(/\D/g, "");
@@ -357,6 +358,8 @@ export default async function plataforma(el) {
 
   async function gerenciar(l) {
     const planoAtual = PLANOS.some(([k]) => k === l.plano) ? l.plano : "combo";
+    const pedidosSetor = await rpc("plataforma_segmento_pedidos", { p_empresa: l.id }).catch(() => []);
+    const setorPendente = pedidosSetor.find((p) => p.status === "pendente");
     const acao = await modal({
       titulo: l.loja,
       corpo: html`<form id="f-loja" class="stack">
@@ -381,6 +384,21 @@ export default async function plataforma(el) {
           <button type="button" class="btn" data-a="estender">Estender teste</button></div>
         <h3 style="margin-top:.5rem">Bloquear</h3>
         <div class="row"><button type="button" class="btn danger" data-a="suspender">Suspender (inadimplência)</button><button type="button" class="btn danger" data-a="cancelar">Cancelar</button></div>
+        <h3 style="margin-top:.5rem">Setor da loja</h3>
+        ${setorPendente ? html`<div class="alerta warn">Mudança pedida: <strong>${setorPendente.de_nome} → ${setorPendente.para_nome}</strong>
+            (${setorPendente.escopo === "tudo" ? "apaga tudo" : "apaga só o catálogo"}) em ${dataHora(setorPendente.solicitado_em)}.
+            ${setorPendente.baixado_em ? html`O cliente já baixou o backup (${dataHora(setorPendente.baixado_em)}).` : "Aguardando o administrador da loja baixar o backup e confirmar."}</div>
+          <div><button type="button" class="btn" data-a="setor_cancelar">Cancelar este pedido</button></div>` : ""}
+        <p class="small muted">Setor atual: <strong>${SETORES.find(([k]) => k === l.segmento)?.[1] || l.segmento || "—"}</strong>. A mudança só acontece quando o administrador da loja
+          baixar o backup completo e confirmar (o sistema obriga). Os produtos viram os de exemplo do novo setor.</p>
+        <div class="grid-2">
+          <label class="field"><span>Novo setor</span><select class="input" name="setor">${SETORES.filter(([k]) => k !== l.segmento).map(([k, n]) => html`<option value="${k}" ${k === "restaurante" ? "selected" : ""}>${n}</option>`)}</select></label>
+          <label class="field"><span>O que apagar</span><select class="input" name="escopo">
+            <option value="catalogo">Só o catálogo (produtos, categorias, estoque, promoções)</option>
+            <option value="tudo">Tudo (loja zerada; mantém usuários, empresa e configurações)</option></select></label>
+        </div>
+        <label class="field"><span>Mensagem para o cliente (opcional)</span><input class="input" name="msg_setor" placeholder="Ex.: conforme combinado por telefone"></label>
+        <div><button type="button" class="btn" data-a="setor">${setorPendente ? "Trocar o pedido" : "Pedir mudança de setor"}</button></div>
         <h3 style="margin-top:.5rem">Licenças e dados</h3>
         <div class="row wrap"><button type="button" class="btn" data-a="licencas">${icone("calendario", 'width="16" height="16"')} Renovar / expirar licenças</button>
           <button type="button" class="btn" data-a="backup">${icone("pacote", 'width="16" height="16"')} Backups desta loja</button>
@@ -390,11 +408,23 @@ export default async function plataforma(el) {
       onPronto: (d, fechar) => {
         const f = d.querySelector("form");
         f.plano.onchange = () => { f.valor.value = valorBr(Number(f.plano.selectedOptions[0].dataset.v)); };
-        d.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => fechar({ a: b.dataset.a, plano: f.plano.value, valor: lerNumero(f.valor.value), dias: Number(f.dias.value), dia: Number(f.dia.value), modulos: { delivery: f.m_delivery.checked, garcom: f.m_garcom.checked } })));
+        d.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => fechar({ a: b.dataset.a, plano: f.plano.value, valor: lerNumero(f.valor.value), dias: Number(f.dias.value), dia: Number(f.dia.value), modulos: { delivery: f.m_delivery.checked, garcom: f.m_garcom.checked },
+          setor: f.setor.value, escopo: f.escopo.value, msg_setor: f.msg_setor.value })));
       },
     });
     if (!acao) return;
     if (["suspender", "cancelar"].includes(acao.a) && !(await confirmar(`Confirmar: ${acao.a} a loja ${l.loja}? As vendas ficam bloqueadas.`, { perigo: true, ok: "Confirmar" }))) return;
+    if (acao.a === "setor") {
+      const nome = SETORES.find(([k]) => k === acao.setor)?.[1];
+      if (!(await confirmar(`Pedir para mudar ${l.loja} para ${nome}, apagando ${acao.escopo === "tudo" ? "TUDO (vendas, clientes, caixa, produtos…)" : "o catálogo (produtos, categorias, estoque e promoções)"}? O administrador da loja vai ver o aviso ao entrar e só consegue confirmar depois de baixar o backup completo.`, { titulo: "Mudar setor da loja", ok: "Enviar pedido", perigo: acao.escopo === "tudo" }))) return;
+      try { await rpc("plataforma_segmento_solicitar", { p_empresa: l.id, p_para: acao.setor, p_escopo: acao.escopo, p_mensagem: acao.msg_setor || null }); toast("Pedido enviado: o cliente confirma ao entrar no sistema", "ok"); }
+      catch (e) { erro(e); }
+      return;
+    }
+    if (acao.a === "setor_cancelar") {
+      try { await rpc("plataforma_segmento_cancelar", { p_id: setorPendente.id }); toast("Pedido de mudança cancelado", "ok"); } catch (e) { erro(e); }
+      return;
+    }
     if (acao.a === "licencas") {
       const [{ alterarLicencas }, todas] = await Promise.all([import("../plataforma-dados.js"), rpc("plataforma_licencas")]);
       const alvo = todas.find((x) => x.id === l.id);
