@@ -21,7 +21,11 @@ export const ARQUIVOS = {
   "017": "017_diagnostico.sql",
   "018": "018_dispositivos.sql",
   "019": "019_senha_aprovacao.sql",
-  "020": "020_superusuario.sql"
+  "020": "020_superusuario.sql",
+  "021": "021_licencas_backup.sql",
+  "022": "022_excluir_usuarios.sql",
+  "023": "023_mudar_segmento.sql",
+  "024": "024_central_ajuda.sql"
 };
 
 const porMigracao = (o) => Object.fromEntries(Object.entries(o).flatMap(([m, nomes]) => nomes.split(" ").map((n) => [n, m])));
@@ -43,6 +47,10 @@ export const FUNCOES = porMigracao({
   "018": "dispositivo_desvincular dispositivo_renomear dispositivo_verificar dispositivos_listar plataforma_config_dispositivos",
   "019": "cozinha_aprovar_com_senha minha_senha_aprovacao senhas_aprovacao_loja trocar_senha_aprovacao",
   "020": "aviso_excluir aviso_salvar avisos_ativos avisos_listar chamado_abrir chamado_atender chamado_cancelar chamado_estado chamado_fila chamado_resolver equipe_listar equipe_remover equipe_salvar lis_pre_request super_log suporte_entrar suporte_estender suporte_eu suporte_lojas suporte_modo suporte_sair suporte_sessoes",
+  "021": "backup_baixar backup_config_salvar backup_criar backup_excluir backup_exportar backup_importar backup_painel backup_restaurar backup_usuarios_faltando plataforma_backup_config_lojas plataforma_backup_config_salvar plataforma_backups plataforma_dados_gerais plataforma_dados_lojas plataforma_excluir_lojas plataforma_licenca_acao plataforma_licencas plataforma_usuarios_orfaos",
+  "022": "plataforma_excluir_usuario plataforma_usuarios_loja",
+  "023": "plataforma_segmento_cancelar plataforma_segmento_pedidos plataforma_segmento_solicitar segmento_confirmar segmento_pendente segmento_registrar_download",
+  "024": "ajuda_registrar ajuda_relatorio chamado_anexar",
 });
 
 /** tabela pública → número da migração */
@@ -59,6 +67,9 @@ export const TABELAS = porMigracao({
   "018": "dispositivos dispositivos_eventos",
   "019": "senha_aprovacao_tentativas senhas_aprovacao",
   "020": "avisos_plataforma superusuario_log suporte_acessos suporte_chamados",
+  "021": "backup_config backups licencas plataforma_config",
+  "023": "segmento_mudancas",
+  "024": "ajuda_buscas",
 });
 
 /** Edge Functions que o sistema usa (supabase/functions). */
@@ -69,6 +80,7 @@ export const EDGE = {
   "garcom-login": "login do garçom por matrícula/CPF",
   teste: "criar loja de teste grátis",
   "resumo-diario": "resumo do dia por e-mail",
+  backup: "backup das lojas (recriar logins, excluir usuários)",
 };
 
 /** Para uma função/tabela que não existe, devolve o arquivo da migração que a cria. */

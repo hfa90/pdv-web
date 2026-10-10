@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual do sistema PDV</title>
+<!--
+  Apostila gerada a partir da Central de Ajuda (app/js/ajuda/artigos.js, telas.js e o
+  catálogo do Diagnóstico). Para atualizar o PDF (assets/Manual-PDV.pdf):
+    python3 ferramentas/gerar_apostila.py
+  ou abra esta página no Chrome e use Ctrl+P › Salvar como PDF (A4, com gráficos de fundo).
+-->
+<style>
+  :root { --p: #136F63; --p2: #E3F1EE; --ink: #18211F; --mut: #5E6B67; --line: #DDE3E0; --amb: #FFF4DC; --amb-ink: #8A5300; --red: #B42318; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font: 10.5pt/1.5 "Inter", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; color: var(--ink); background: #fff; }
+  @page { size: A4; margin: 16mm 15mm 18mm;
+    @bottom-left { content: "Manual do sistema PDV · versão 3.0"; font: 8pt "Segoe UI", Arial, sans-serif; color: #5E6B67; }
+    @bottom-right { content: counter(page); font: 600 9pt "Segoe UI", Arial, sans-serif; color: #136F63; } }
+  @page :first { margin: 0; @bottom-left { content: none; } @bottom-right { content: none; } }
+  @media screen { body { max-width: 820px; margin: 0 auto; padding: 24px; background: #f4f6f5; } .folha { background: #fff; padding: 28px 34px; margin-bottom: 24px; box-shadow: 0 2px 12px rgba(0,0,0,.08); } }
+  h1, h2, h3, h4 { line-height: 1.2; margin: 0; }
+  a { color: var(--p); text-decoration: none; }
+  .quebra { break-before: page; }
+  /* Capa */
+  .capa { height: 297mm; display: flex; flex-direction: column; justify-content: space-between; padding: 26mm 22mm 20mm; background: linear-gradient(160deg, #0F5A50 0%, #136F63 55%, #1C8A7B 100%); color: #fff; }
+  @media screen { .capa { height: auto; min-height: 900px; border-radius: 12px; } }
+  .capa .marca { display: flex; gap: 10px; align-items: center; font-weight: 700; font-size: 16pt; letter-spacing: .02em; }
+  .capa .marca span { width: 40px; height: 40px; border-radius: 10px; background: #fff; color: var(--p); display: inline-flex; align-items: center; justify-content: center; font-size: 20pt; }
+  .capa h1 { font-size: 40pt; font-weight: 800; letter-spacing: -.01em; margin-top: 30mm; }
+  .capa .sub { font-size: 14pt; max-width: 135mm; margin-top: 6mm; opacity: .92; }
+  .capa .destaque { margin-top: 12mm; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 12px; padding: 6mm 7mm; max-width: 140mm; font-size: 11pt; }
+  .capa .destaque strong { display: block; font-size: 12.5pt; margin-bottom: 2mm; }
+  .capa .rodape { display: flex; justify-content: space-between; align-items: flex-end; font-size: 10pt; opacity: .9; gap: 8mm; }
+  /* Sumário */
+  .sumario h2, .cap-titulo h2 { font-size: 22pt; color: var(--p); }
+  .sumario p.intro { color: var(--mut); margin: 2mm 0 6mm; }
+  .sum-item { display: grid; grid-template-columns: 9mm 1fr 12mm; gap: 3mm; align-items: baseline; padding: 1.6mm 0; border-bottom: 1px dotted var(--line); color: var(--ink); }
+  .sum-item .n { color: var(--p); font-weight: 700; }
+  .sum-item small { color: var(--mut); }
+  .sum-item .pg { text-align: right; font-variant-numeric: tabular-nums; color: var(--mut); }
+  /* Capítulo */
+  .cap-titulo { display: flex; gap: 5mm; align-items: center; padding-bottom: 4mm; border-bottom: 3px solid var(--p); margin-bottom: 5mm; }
+  .cap-num { width: 16mm; height: 16mm; border-radius: 4mm; background: var(--p); color: #fff; font-size: 20pt; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .cap-marca { font-size: 8pt; color: var(--mut); text-transform: uppercase; letter-spacing: .12em; }
+  .cap-intro { color: var(--mut); margin-bottom: 4mm; }
+  .fotos { display: flex; gap: 4mm; margin: 2mm 0 6mm; }
+  .fotos figure { margin: 0; flex: 1; border: 1px solid var(--line); border-radius: 3mm; overflow: hidden; background: #f7f9f8; }
+  .fotos img { width: 100%; height: 48mm; object-fit: cover; object-position: top left; display: block; }
+  .fotos figcaption { font-size: 8pt; color: var(--mut); padding: 1.5mm 2.5mm; }
+  /* Artigo */
+  .art { margin: 0 0 6mm; padding-top: 1mm; }
+  .art h3 { font-size: 13.5pt; color: var(--ink); margin-bottom: 1mm; }
+  .art .meta { font-size: 8.5pt; color: var(--mut); margin-bottom: 1.5mm; display: flex; gap: 2mm; flex-wrap: wrap; }
+  .art .meta span { background: var(--p2); color: var(--p); border-radius: 99px; padding: 0 2.2mm; font-weight: 600; }
+  .art .resumo { margin: 0 0 2mm; }
+  ol.passos { counter-reset: p; list-style: none; padding: 0; margin: 1mm 0 2mm; display: grid; gap: 1.4mm; }
+  ol.passos li { counter-increment: p; display: grid; grid-template-columns: 6.5mm 1fr; gap: 2mm; break-inside: avoid; }
+  ol.passos li::before { content: counter(p); width: 5.4mm; height: 5.4mm; border-radius: 50%; background: var(--p); color: #fff; font-size: 7.5pt; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; margin-top: .4mm; }
+  .caixa { border-radius: 2.5mm; padding: 2.2mm 3.5mm; margin: 1.5mm 0; break-inside: avoid; font-size: 9.8pt; }
+  .caixa b { display: block; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .06em; margin-bottom: .5mm; }
+  .caixa ul { margin: 0; padding-left: 4.5mm; }
+  .caixa.dica { background: var(--p2); } .caixa.dica b { color: var(--p); }
+  .caixa.atencao { background: var(--amb); } .caixa.atencao b { color: var(--amb-ink); }
+  .ver { font-size: 8.5pt; color: var(--mut); }
+  /* Tabelas e listas */
+  table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  th, td { text-align: left; padding: 1.8mm 2mm; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--mut); font-size: 8pt; text-transform: uppercase; letter-spacing: .06em; }
+  tr { break-inside: avoid; }
+  .papel { border: 1px solid var(--line); border-radius: 3mm; padding: 3.5mm 4mm; margin-bottom: 3.5mm; break-inside: avoid; }
+  .papel h3 { color: var(--p); font-size: 12.5pt; margin-bottom: 1mm; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 6mm; }
+  .erro { border-left: 3px solid var(--amb-ink); padding: 1mm 0 1mm 3.5mm; margin-bottom: 4mm; break-inside: avoid; }
+  .erro h4 { font-size: 11pt; } .erro p { margin: .8mm 0; font-size: 9.6pt; }
+  .gl { display: grid; grid-template-columns: 34mm 1fr; gap: 1.2mm 4mm; font-size: 9.8pt; }
+  .gl dt { font-weight: 700; color: var(--p); } .gl dd { margin: 0; }
+  .linhas div { border-bottom: 1px solid var(--line); height: 9mm; display: flex; align-items: flex-end; font-size: 8.5pt; color: var(--mut); padding-bottom: 1mm; }
+  .chamada { background: var(--p2); border-radius: 3mm; padding: 4mm 5mm; margin: 4mm 0; break-inside: avoid; }
+  .chamada h3 { color: var(--p); font-size: 12pt; margin-bottom: 1.5mm; }
+  kbd { border: 1px solid #c5cfcb; border-bottom-width: 2px; border-radius: 1.2mm; padding: 0 1.2mm; font: 600 8.5pt inherit; background: #f7f9f8; }
+</style>
+</head>
+<body>
+<div id="apostila"></div>
+<script type="module">
+import { ARTIGOS, CATEGORIAS, GLOSSARIO } from "./js/ajuda/artigos.js";
+import { TELAS, PAPEIS_AJUDA } from "./js/ajuda/telas.js";
+import { PROBLEMAS } from "./js/diagnostico/catalogo.js";
+
+const VERSAO = "3.0", DATA = "outubro de 2026", ENDERECO = "hfa90.github.io/pdv-web/app";
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+// Negrito em nomes de botões e telas citados com “›” (Configurações › PIX)
+const txt = (s) => esc(s).replace(/([A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÀ-ú]*(?: [\wÀ-ú]+){0,3}) › ([A-ZÁÉÍÓÚÂÊÔÃÕÇ][\wÀ-ú]*(?: [\wÀ-ú]+){0,2})/g, "<b>$1 › $2</b>");
+const NIVEL = { admin: "Administrador", gerente: "Gerente", caixa: "Caixa", atendente: "Garçom", cozinha: "Cozinha" };
+const TITULO_TELA = { painel: "Painel", pdv: "Vender", mesas: "Mesas", cozinha: "Cozinha", garcons: "Garçons", delivery: "Delivery", caixa: "Caixa", vendas: "Vendas",
+  fiado: "Fiado", produtos: "Produtos", promocoes: "Promoções", compras: "Compras", estoque: "Estoque", validade: "Validade e perdas", etiquetas: "Códigos e etiquetas",
+  clientes: "Clientes", financeiro: "Financeiro", alertas: "Alertas", relatorios: "Relatórios", usuarios: "Usuários", conta: "Minha assinatura", backup: "Backup",
+  configuracoes: "Configurações", diagnostico: "Diagnóstico", ajuda: "Ajuda" };
+const FOTOS = {
+  comecar: [["celular.webp", "Funciona no computador, tablet e celular"]],
+  vender: [["pdv.webp", "Tela Vender"], ["pagamento.webp", "Receber o pagamento"], ["cupom.webp", "Cupom"]],
+  caixa: [["caixa.webp", "Tela Caixa"], ["fechar-caixa.webp", "Fechamento"]],
+  restaurante: [["mesas.webp", "Mapa do salão"], ["garcom.webp", "App do garçom"], ["pedido.webp", "Pedido"]],
+  delivery: [["cardapio.webp", "Cardápio digital"], ["pedidos.webp", "Pedidos"]],
+  gestao: [["painel.webp", "Painel"], ["relatorios.webp", "Relatórios"]],
+};
+const INTRO = {
+  comecar: "Como entrar, quem pode fazer o quê, a tela do sistema e a rotina de um dia.",
+  vender: "Lançar produtos, peso, desconto, CPF na nota, mesa/comanda e receber o pagamento.",
+  caixa: "Abrir o caixa, tirar ou pôr dinheiro na gaveta e fechar conferindo a diferença.",
+  restaurante: "Salão, mesas, app do garçom, aprovação dos pedidos e a tela da cozinha.",
+  delivery: "Cardápio digital pelo link, sem comissão, e o atendimento dos pedidos.",
+  produtos: "Cadastro, preço, importação, estoque, compras pelo XML, validade, etiquetas e promoções.",
+  clientes: "Cadastro de clientes e o fiado (crediário) com limite, prazo e cobrança.",
+  gestao: "Painel, relatórios, financeiro, conferência do PIX/cartão, alertas e registro de atividades.",
+  config: "Dados da loja, PIX, impressora, balança, restaurante e nota fiscal.",
+  equipe: "Logins da equipe, níveis de acesso, senhas e aparelhos liberados.",
+  dados: "Backup, mudança de setor da loja e a assinatura.",
+  problemas: "As mensagens mais comuns e o que fazer em cada uma. Comece sempre por aqui quando algo der errado.",
+};
+
+const cliente = ARTIGOS.filter((a) => !a.soSuper && !a.soEquipe && a.cat !== "plataforma");
+const caps = [];
+let n = 0;
+const cap = (id, titulo, sub, corpo) => { n++; caps.push({ id, n, titulo, sub }); return `<section class="quebra" id="${id}">
+  <div class="cap-titulo"><span class="cap-num">${n}</span><div><div class="cap-marca">Capítulo ${n}</div><h2>${esc(titulo)}</h2></div></div>${corpo}</section>`; };
+
+const artigo = (a) => `<article class="art" id="a-${a.id}">
+  <h3>${esc(a.titulo)}</h3>
+  <div class="meta">${(a.niveis || []).length && a.niveis.length < 5 ? `<span>${a.niveis.map((x) => NIVEL[x]).join(" · ")}</span>` : `<span>Todos</span>`}
+    ${a.rota && TITULO_TELA[a.rota] ? `Tela: ${TITULO_TELA[a.rota]}` : ""}</div>
+  <p class="resumo">${txt(a.resumo)}</p>
+  ${a.passos?.length ? `<ol class="passos">${a.passos.map((p) => `<li><span>${txt(p)}</span></li>`).join("")}</ol>` : ""}
+  ${a.dicas?.length ? `<div class="caixa dica"><b>Dicas</b><ul>${a.dicas.map((p) => `<li>${txt(p)}</li>`).join("")}</ul></div>` : ""}
+  ${a.atencao?.length ? `<div class="caixa atencao"><b>Atenção</b><ul>${a.atencao.map((p) => `<li>${txt(p)}</li>`).join("")}</ul></div>` : ""}
+  ${(a.ver || []).length ? `<div class="ver">Veja também: ${a.ver.map((v) => cliente.find((x) => x.id === v)).filter(Boolean).map((x) => `<a href="#a-${x.id}">${esc(x.titulo)}</a>`).join(" · ")}</div>` : ""}
+</article>`;
+
+let corpo = "";
+// 1. Como usar
+corpo += cap("como-usar", "Antes de começar", "o que você precisa, a Central de Ajuda e como ler esta apostila", `
+  <p>O sistema funciona no navegador: não precisa instalar nada. Basta um computador, tablet ou celular com internet e, se quiser, uma impressora térmica, uma balança e um leitor de código de barras.</p>
+  <h3 style="margin:4mm 0 2mm">O que você precisa</h3>
+  <ol class="passos">
+    <li><span><b>Navegador Google Chrome ou Microsoft Edge</b> atualizado. São os que imprimem direto na térmica e leem a balança pela porta USB/serial.</span></li>
+    <li><span><b>Internet no caixa.</b> Se ela cair, o sistema continua vendendo e envia tudo quando voltar.</span></li>
+    <li><span><b>Impressora térmica</b> de 58 ou 80 mm (opcional): Epson, Elgin, Bematech, Daruma, Tanca, Knup e similares.</span></li>
+    <li><span><b>Leitor de código de barras</b> (opcional): qualquer modelo USB que “digita” o código.</span></li>
+    <li><span><b>Balança</b> (opcional): Toledo, Filizola, Urano, Elgin ou qualquer uma que envie o peso pela porta serial.</span></li>
+  </ol>
+  <p>Endereço do sistema: <b>${ENDERECO}</b>. Salve nos favoritos ou crie um atalho na área de trabalho.</p>
+  <div class="chamada"><h3>Dúvida na hora? Use a Central de Ajuda</h3>
+    <p style="margin:0">Dentro do sistema, aperte <kbd>F1</kbd> (ou o botão <b>Ajuda</b> no menu) em qualquer tela para ver a ajuda daquela tela. Na <b>Central de Ajuda</b> você escreve a dúvida do seu jeito (“como abro o caixa”, “a impressora não imprime”), cola a mensagem de erro ou anexa um print: o sistema mostra o passo a passo. Se não resolver, toque em <b>Falar com o suporte</b> — os prints vão junto. O conteúdo desta apostila é o mesmo da Central de Ajuda.</p></div>
+  <h3 style="margin:4mm 0 2mm">Como ler esta apostila</h3>
+  <p>Cada assunto traz um resumo, o <b>passo a passo</b> numerado, <b>dicas</b> (fundo verde) e pontos de <b>atenção</b> (fundo amarelo). A etiqueta verde mostra quem usa aquele recurso (Administrador, Gerente, Caixa, Garçom, Cozinha). Os títulos do sumário e os “Veja também” são clicáveis no PDF.</p>`);
+
+// 2. Quem faz o quê
+corpo += cap("niveis", "Quem faz o quê", "o que cada nível de acesso faz e por onde começar", `
+  <p class="cap-intro">Cada login tem um nível. O menu mostra só o que a pessoa pode usar, e o servidor bloqueia o resto.</p>
+  ${Object.entries(PAPEIS_AJUDA).map(([k, p]) => `<div class="papel"><h3>${esc(p.titulo)}</h3><p style="margin:0 0 2mm">${esc(p.texto)}</p>
+    <ol class="passos">${p.comece.map((x) => `<li><span>${txt(x)}</span></li>`).join("")}</ol></div>`).join("")}`);
+
+// 3. Telas
+const nivelTela = { painel: "AG", pdv: "AGCT", mesas: "AGCT", cozinha: "AGC·K", garcons: "AG·T", delivery: "AGC", caixa: "AGC", vendas: "AGC", fiado: "AGC", produtos: "AG", promocoes: "AG",
+  compras: "AG", estoque: "AG", validade: "AGC", etiquetas: "AG", clientes: "AGCT", financeiro: "AG", alertas: "AG", relatorios: "AG", usuarios: "AG", conta: "AG", backup: "A*",
+  configuracoes: "AGC·K", diagnostico: "AG", ajuda: "Todos" };
+const LEG = { A: "Adm", G: "Ger", C: "Caixa", T: "Garçom", K: "Cozinha" };
+corpo += cap("telas", "Para que serve cada tela do menu", "o mapa do sistema", `
+  <table><thead><tr><th style="width:36mm">Tela</th><th>Para que serve</th><th style="width:30mm">Quem vê</th></tr></thead><tbody>
+  ${Object.entries(TELAS).filter(([r]) => TITULO_TELA[r]).map(([r, t]) => `<tr><td><b>${TITULO_TELA[r]}</b></td><td>${esc(t.desc)} <a href="#a-${t.artigo}">›</a></td>
+    <td>${nivelTela[r] === "Todos" ? "Todos" : nivelTela[r] === "A*" ? "Adm (e quem ele liberar)" : nivelTela[r].replace("·", "").split("").map((c) => LEG[c]).join(", ")}</td></tr>`).join("")}
+  </tbody></table>`);
+
+// 4.. categorias
+for (const [k, nome] of CATEGORIAS) {
+  if (["glossario", "plataforma"].includes(k)) continue;
+  const lista = cliente.filter((a) => a.cat === k);
+  if (!lista.length) continue;
+  const fotos = FOTOS[k] ? `<div class="fotos">${FOTOS[k].map(([f, c]) => `<figure><img src="../assets/img/${f}" alt=""><figcaption>${c}</figcaption></figure>`).join("")}</div>` : "";
+  corpo += cap("c-" + k, nome, INTRO[k] || "", `<p class="cap-intro">${esc(INTRO[k] || "")}</p>${fotos}${lista.map(artigo).join("")}`);
+}
+
+// Mensagens técnicas (catálogo do Diagnóstico)
+const prob = PROBLEMAS.filter((p) => typeof p.explicacao === "string" && Array.isArray(p.operador) && p.operador.length);
+corpo += cap("mensagens", "Mensagens de erro: o que fazer", "o catálogo do Diagnóstico, em linguagem simples", `
+  <p class="cap-intro">Quando algo dá errado, o aviso vermelho tem o botão <b>Ajuda</b> (passo a passo) e, para o administrador e o gerente, <b>Entender</b> (o Diagnóstico com os detalhes técnicos). Estes são os problemas que o sistema reconhece sozinho.</p>
+  ${prob.map((p) => `<div class="erro"><h4>${esc(p.titulo)}</h4><p>${esc(p.explicacao)}</p>
+    ${typeof p.impacto === "string" ? `<p><b>O que para:</b> ${esc(p.impacto)}</p>` : ""}
+    <p><b>O que fazer:</b> ${p.operador.map(esc).join(" ")}</p></div>`).join("")}`);
+
+// Glossário
+corpo += cap("glossario", "O que significa", "os termos do dia a dia", `<dl class="gl">${GLOSSARIO.map(([t, d]) => `<dt>${esc(t)}</dt><dd>${esc(d)}</dd>`).join("")}</dl>`);
+
+// Anotações
+corpo += cap("anotacoes", "Dados da minha loja", "para deixar perto do caixa", `
+  <p class="cap-intro">Preencha à mão e guarde perto do caixa. <b>Não anote senhas aqui.</b></p>
+  <div class="grid2 linhas">${["Nome da loja", "Código da loja (app do garçom)", "Administrador(es)", "Gerente(s)", "Chave PIX", "Impressora (modelo e largura)", "Balança (modelo e porta)",
+    "Internet: provedor e telefone", "Contador / nota fiscal", "Telefone do suporte", "Backup automático: dia e hora", "Onde guardo os backups baixados"].map((x) => `<div>${x}</div>`).join("")}</div>`);
+
+const capa = `<section class="capa">
+  <div class="marca"><span>P</span> PDV</div>
+  <div><h1>Manual do<br>sistema PDV</h1>
+    <p class="sub">Tudo o que você precisa para vender, fechar o caixa, atender as mesas, comprar, controlar o dinheiro e cuidar da loja, explicado passo a passo.</p>
+    <div class="destaque"><strong>Novo na versão ${VERSAO}</strong>Central de Ajuda dentro do sistema (F1), cozinha e garçom com aprovação por senha, aparelhos liberados, backup automático, licenças e mudança de setor da loja.</div></div>
+  <div class="rodape"><div>Para padarias, mercadinhos, supermercados, lanchonetes, cafés e restaurantes.<br>Endereço: <b>${ENDERECO}</b></div><div>Versão ${VERSAO} · ${DATA}</div></div>
+</section>`;
+const sumario = `<section class="quebra sumario"><h2>Sumário</h2><p class="intro">Clique em um capítulo para ir direto ao assunto. Este conteúdo é o mesmo da Central de Ajuda do sistema (tecla F1).</p>
+  ${caps.map((c) => `<a class="sum-item" href="#${c.id}"><span class="n">${c.n}</span><span><b>${esc(c.titulo)}</b> <small>${esc(c.sub)}</small></span><span class="pg" data-cap="${c.n}"></span></a>`).join("")}</section>`;
+
+document.getElementById("apostila").innerHTML = capa + sumario + corpo;
+window.capitulos = caps.map((c) => ({ n: c.n, titulo: c.titulo }));
+window.preencherPaginas = (mapa) => { for (const [k, v] of Object.entries(mapa)) { const e = document.querySelector(`.pg[data-cap="${k}"]`); if (e) e.textContent = v; } };
+await Promise.all([...document.images].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; })));
+window.apostilaPronta = true;
+</script>
+</body>
+</html>

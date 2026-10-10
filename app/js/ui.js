@@ -123,8 +123,15 @@ export function toast(msg, tipo = "", diagId = null) {
     b.onclick = () => { el.remove(); window.lisDiag.abrir(diagId); };
     el.appendChild(b);
   }
+  if (tipo === "erro" && window.lisAjuda && !/^#\/ajuda/.test(location.hash)) {
+    // "Ajuda": procura a mensagem na Central de Ajuda (passo a passo para resolver)
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "toast-entender"; b.textContent = "Ajuda";
+    b.onclick = () => { el.remove(); dlg?.close(); window.lisAjuda(msg); };
+    el.appendChild(b);
+  }
   box.appendChild(el);
-  setTimeout(() => el.remove(), tipo === "erro" ? (diagId ? 9000 : 6000) : 3200);
+  setTimeout(() => el.remove(), tipo === "erro" ? (diagId ? 9000 : 7000) : 3200);
 }
 /** Mostra o erro para a pessoa e registra no diagnóstico (com o botão "Entender"). */
 export const erro = (e) => {

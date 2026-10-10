@@ -5,6 +5,7 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 
 ## O que tem
 
+- **Central de Ajuda sem IA** (menu Ajuda, tecla F1): busca do jeito leigo, cola a mensagem de erro ou anexa um print (lido por OCR no navegador), passo a passo por nível e chamado ao suporte com os anexos. A apostila em PDF é gerada do mesmo conteúdo.
 - **PDV** rápido para teclado, leitor de código de barras e tela touch: favoritos, categorias, busca, `3*789…` para multiplicar, etiquetas de balança (EAN-13 iniciado em 2), produtos por peso, observações por item, desconto/acréscimo/taxa de serviço, vários pagamentos com troco.
 - **Pedidos e comandas** (mesa, comanda, senha) que podem ser lançados por atendentes e fechados no caixa.
 - **Caixa**: abertura com fundo de troco, sangria, suprimento, resumo parcial e fechamento com conferência (esperado × contado).
@@ -172,6 +173,36 @@ Ativar:
 
 > Espaço: as cópias ficam no próprio banco (tabela `backups`, comprimida pelo Postgres). Acompanhe o total em Dados e backup e ajuste "máximo de cópias por loja" se o plano do Supabase ficar apertado. Para guardar fora do Supabase, use **Exportar todas** periodicamente.
 
+## Excluir usuários (só o superusuário)
+
+Migração `022_excluir_usuarios.sql`. Só o superusuário exclui usuários — de qualquer loja, inclusive administradores (botão **Excluir usuário** na edição do usuário — em Plataforma ou em Usuários dentro da loja, em modo suporte). O administrador da loja continua só **bloqueando** o acesso.
+
+- O login é apagado. Quem nunca vendeu some de vez; quem tem histórico fica só como nome nos relatórios, marcado "excluído".
+- Antes de excluir, o banco guarda um backup da loja ("Antes de excluir…"), então dá para desfazer em Backup.
+- Nunca exclui o próprio superusuário nem membros da equipe. Um gatilho em `auth.users` faz a mesma limpeza se o login for apagado pelo painel do Supabase.
+
+## Mudar o setor da loja (ex.: Supermercado → Restaurante)
+
+Migração `023_mudar_segmento.sql`. O superusuário pede a mudança em Plataforma › Lojas › Gerenciar › **Pedir mudança de setor**, escolhendo apagar só o catálogo (produtos, categorias, estoque, promoções) ou **tudo** (vendas, caixa, clientes, fiado, financeiro…; ficam usuários, dados da empresa, configurações e assinatura). Os produtos passam a ser os de exemplo do novo setor; restaurante já libera mesas e o app do garçom.
+
+- O administrador da loja vê o aviso ao entrar, com a lista do que será apagado, e **só consegue confirmar depois de baixar o backup completo** (um único `.json` com tudo da loja; o download fica registrado). Depois digita `APAGAR`.
+- O banco ainda guarda uma cópia "Antes de mudar o setor" (restaurável em Backup). O superusuário pode cancelar o pedido enquanto estiver pendente.
+
+## Central de Ajuda (sem IA) e apostila
+
+Migração `024_central_ajuda.sql`. Menu **Ajuda** para todos os níveis (inclusive cozinha) e tecla **F1** em qualquer tela.
+
+- **Busca do jeito leigo**: a pessoa escreve como fala ("como abro o caixa", "impresora nao imprimi", "cliente quer pagar depois"). A busca roda no navegador, **sem IA**: tira acentos e palavras vazias, entende sinônimos (`SINONIMOS`), aceita erro de digitação, dá peso maior ao título e mostra só o que o nível da pessoa usa. Se a resposta é tarefa de outro nível (o caixa perguntando como mudar preço), avisa quem faz. Sugestões enquanto digita e "Você quis dizer…".
+- **Mensagem de erro**: colar a mensagem (ou anexar o print) passa pelo catálogo do Diagnóstico e mostra "Reconheci esta mensagem" com o que fazer. Todo aviso vermelho do sistema tem o botão **Ajuda**, que abre a busca com aquela mensagem.
+- **Anexos**: print (Ctrl+V), foto, PDF ou texto. O texto da imagem é lido por OCR no próprio navegador (Tesseract.js, reconhecimento de letras — não é IA generativa; baixado do jsDelivr na primeira vez) e usado na busca. PDF com texto é lido pelo pdf.js. Word vai só como anexo.
+- **Falar com o suporte**: abre o chamado com a dúvida, os anexos (bucket privado `ajuda-anexos`: cada pessoa grava só na própria pasta, só a equipe vê), o texto lido e os artigos já vistos. Na Central de suporte o chamado mostra os anexos (links temporários) e o que a Ajuda reconheceu.
+- **Ajuda desta tela (F1)**, **apresentação do primeiro acesso** (diferente por nível: o que você faz, o seu menu, por onde começar, onde pedir ajuda) e dica de cada item do menu ao passar o mouse.
+- **O que falta explicar**: Central de suporte › **Ajuda** mostra as buscas sem resultado, os mais procurados e os artigos que "não ajudaram" (`ajuda_registrar` / `ajuda_relatorio`; nada é registrado para a equipe).
+- **Conteúdo**: `app/js/ajuda/artigos.js` (artigos, glossário, sinônimos) e `app/js/ajuda/telas.js` (para que serve cada tela e cada nível). Os problemas do Diagnóstico entram sozinhos. Para ensinar algo novo, copie um artigo parecido.
+- **Apostila**: `assets/Manual-PDV.pdf` é gerada do mesmo conteúdo — `python3 ferramentas/gerar_apostila.py` (Playwright + poppler) ou abra `app/apostila.html` no Chrome e salve como PDF. Assim a apostila e a Ajuda dizem sempre a mesma coisa.
+
+Ativar: rode `supabase/migrations/024_central_ajuda.sql` no SQL Editor (pode rodar mais de uma vez). Sem ela a Ajuda funciona igual; só não envia anexos nem registra as buscas.
+
 ## Configuração comercial
 
 Marca, WhatsApp de vendas e preços ficam em `assets/config.js` e valem para o site e o sistema.
@@ -196,6 +227,13 @@ app/js/contingencia.js         modo offline, fila de vendas e venda em andamento
 app/sw.js                      service worker do sistema (abre sem internet)
 app/js/impressao/escpos.js     comandos ESC/POS + WebUSB/Serial
 app/js/impressao/cupom.js      layout dos cupons (navegador e térmica)
+app/js/ajuda/artigos.js        base da Central de Ajuda e da apostila (artigos, glossário, sinônimos)
+app/js/ajuda/telas.js          para que serve cada tela e cada nível
+app/js/ajuda/busca.js          busca sem IA (sinônimos, erro de digitação, nível de acesso)
+app/js/ajuda/anexos.js         leitura de print/PDF (OCR no navegador) e envio ao suporte
+app/js/ajuda/contexto.js       F1, ajuda da tela e apresentação do primeiro acesso
+app/apostila.html              apostila montada da Central de Ajuda (gera o PDF)
+ferramentas/gerar_apostila.py  gera assets/Manual-PDV.pdf
 supabase/migrations/*.sql  banco, RLS e regras de negócio
 supabase/functions/*       Edge Functions (usuarios, fiscal, teste, pagamentos, resumo-diario, backup)
 assets/pix.js              gerador de PIX copia e cola + QR (usado por PDV, garçom e cardápio)
@@ -227,7 +265,7 @@ cardapio/                  cardápio digital público e acompanhamento do pedido
 
 Uma "caixa-preta" grava tudo o que dá errado em cada aparelho — com o passo a passo do que a pessoa fez antes — e um painel explica o problema e a solução.
 
-- **Abrir:** `Ctrl+Shift+D` (ou `Ctrl+Alt+D`) em qualquer tela, inclusive no login; menu **Diagnóstico** (admin/gerente); 5 toques rápidos na logo (celular/tablet); ou o botão **Entender** que aparece em todo aviso de erro. Se o sistema não abrir, o painel abre sozinho.
+- **Abrir:** `Ctrl+Shift+D` (ou `Ctrl+Alt+D`) em qualquer tela, inclusive no login; menu **Diagnóstico** (admin/gerente); 5 toques rápidos na logo (celular/tablet); ou o botão **Entender** que aparece em todo aviso de erro (ao lado do botão **Ajuda**, que leva ao passo a passo na Central de Ajuda). Se o sistema não abrir, o painel abre sozinho.
 - **Check-up agora:** semáforo geral e testes de internet (latência), servidor, sessão, relógio do aparelho, migrações aplicadas (diz qual `.sql` falta), assinatura, caixa, vendas offline, armazenamento, versão/cache, bibliotecas, impressora, balança, Edge Functions e Realtime.
 - **Problemas:** erros agrupados pela causa. Cada um abre um cartão com: o que aconteceu (em linguagem simples), o que para, causas prováveis, passos para o operador, passos para o suporte, comando SQL pronto, botões que resolvem (limpar cache, renovar sessão, liberar espaço, ver vendas pendentes…), trecho do código com a linha do erro e a trilha de cliques.
 - **Linha do tempo:** tudo o que aconteceu, com filtros e busca.
@@ -300,6 +338,7 @@ supabase functions deploy backup
 
 | Tecla | Ação |
 |---|---|
+| F1 | Ajuda da tela (em qualquer tela) |
 | F2 | Buscar produto |
 | F4 | Alterar quantidade do item selecionado |
 | F6 | Desconto / acréscimo |

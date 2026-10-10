@@ -53,6 +53,7 @@ export const ROTAS = {
   backup:        { titulo: "Backup",        icone: "pacote",     papeis: [], soBackup: true }, // quem vê: o banco decide (021)
   configuracoes: { titulo: "Configurações", icone: "config",     papeis: ["admin", "gerente", "caixa", "cozinha"] },
   diagnostico:   { titulo: "Diagnóstico",   icone: "suporte",    papeis: ["admin", "gerente"] },
+  ajuda:         { titulo: "Ajuda",         icone: "ajuda",      papeis: ["admin", "gerente", "caixa", "atendente", "cozinha"] },
   suporte:       { titulo: "Central de suporte", icone: "headset", papeis: [], soEquipe: true },
   plataforma:    { titulo: "Plataforma",    icone: "plataforma", papeis: [], soFornecedor: true },
 };

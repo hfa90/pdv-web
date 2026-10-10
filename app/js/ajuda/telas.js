@@ -1,0 +1,46 @@
+// Para que serve cada tela do menu (curto). Usado no menu (dica ao passar o mouse),
+// na apresentação do primeiro acesso, no botão "Ajuda desta tela" (F1) e na apostila.
+// O artigo completo de cada tela está em artigos.js (campo `artigo`).
+export const TELAS = {
+  painel:        { desc: "Resumo do dia: quanto vendeu, horários de pico, caixas abertos e estoque baixo.", artigo: "tela-painel" },
+  pdv:           { desc: "A frente de caixa: lançar produtos, desconto, mesa/comanda e receber o pagamento.", artigo: "tela-vender" },
+  mesas:         { desc: "Mapa do salão: abrir mesa, lançar pedido, pedir conta, transferir e fechar.", artigo: "tela-mesas" },
+  cozinha:       { desc: "Pedidos para preparar: aprovar, preparar, marcar pronto e servido.", artigo: "tela-cozinha" },
+  garcons:       { desc: "Desempenho dos garçons: vendas, comissão, metas e turno.", artigo: "tela-garcons" },
+  delivery:      { desc: "Pedidos do cardápio digital: aceitar, preparar, enviar e entregar.", artigo: "tela-delivery" },
+  caixa:         { desc: "Abrir o caixa, sangria, suprimento, resumo parcial e fechamento.", artigo: "tela-caixa" },
+  vendas:        { desc: "Histórico das vendas: reimprimir, nota fiscal e cancelar.", artigo: "tela-vendas" },
+  fiado:         { desc: "Quem deve, quanto venceu, receber e cobrar pelo WhatsApp.", artigo: "tela-fiado" },
+  produtos:      { desc: "Cadastro de produtos e categorias: preço, custo, código de barras e cardápio.", artigo: "tela-produtos" },
+  promocoes:     { desc: "Leve X pague Y, preço por horário, atacado e combos: o caixa aplica sozinho.", artigo: "tela-promocoes" },
+  compras:       { desc: "Nota do fornecedor pelo XML, sugestão de compra, curva ABC e produtos parados.", artigo: "tela-compras" },
+  estoque:       { desc: "Entradas, saídas, contagem (inventário) e histórico do estoque.", artigo: "tela-estoque" },
+  validade:      { desc: "Lotes vencendo e perdas (vencido, quebra, sobra do dia).", artigo: "tela-validade" },
+  etiquetas:     { desc: "Gerar código de barras, QR Code e etiquetas de preço.", artigo: "tela-etiquetas" },
+  clientes:      { desc: "Cadastro de clientes para CPF na nota, NF-e e fiado.", artigo: "tela-clientes" },
+  financeiro:    { desc: "Lucro real, fluxo de caixa, contas a pagar, taxas e conferência do PIX/cartão.", artigo: "tela-financeiro" },
+  alertas:       { desc: "Antifraude por operador e resumo do dia por e-mail.", artigo: "tela-alertas" },
+  relatorios:    { desc: "Faturamento, ticket médio, mais vendidos e vendas por operador.", artigo: "tela-relatorios" },
+  usuarios:      { desc: "Logins da equipe, níveis de acesso, senhas e aparelhos liberados.", artigo: "tela-usuarios" },
+  conta:         { desc: "Seu plano, faturas, pendências da loja e pacotes adicionais.", artigo: "tela-assinatura" },
+  backup:        { desc: "Cópias de segurança: automático, manual, baixar, importar e restaurar.", artigo: "tela-backup" },
+  configuracoes: { desc: "Loja, PIX, impressora, balança, restaurante, delivery, nota fiscal e atividades.", artigo: "tela-configuracoes" },
+  diagnostico:   { desc: "Quando algo dá errado: check-up, explicação do erro e solução.", artigo: "tela-diagnostico" },
+  ajuda:         { desc: "Tire dúvidas: busque do seu jeito, anexe um print do erro ou peça ajuda.", artigo: "tela-ajuda" },
+  suporte:       { desc: "Central da equipe: chamados, entrar nas lojas, avisos e equipe.", artigo: "tela-central-suporte" },
+  plataforma:    { desc: "Só o superusuário: faturamento de todas as lojas, cobranças, licenças e backup.", artigo: "tela-plataforma" },
+};
+
+/** O que cada nível faz no sistema (apresentação do primeiro acesso e apostila). */
+export const PAPEIS_AJUDA = {
+  admin: { titulo: "Você é o Administrador", texto: "Você pode tudo na loja: vender, cadastrar, ver o financeiro, criar logins da equipe, configurar a loja, a nota fiscal e a assinatura.",
+    comece: ["Complete os dados da loja e a chave PIX em Configurações.", "Cadastre os produtos (ou importe a planilha) em Produtos.", "Crie um login para cada funcionário em Usuários.", "Faça uma venda de teste: abra o caixa, venda e feche o caixa."] },
+  gerente: { titulo: "Você é Gerente", texto: "Você cuida do dia a dia: produtos, compras, estoque, promoções, financeiro, relatórios, alertas e a equipe de caixa e garçons.",
+    comece: ["Confira os alertas e o resumo do dia.", "Dê entrada nas notas dos fornecedores em Compras.", "Acompanhe os caixas em Caixa e os pedidos abertos."] },
+  caixa: { titulo: "Você é do Caixa", texto: "Você vende, recebe os pagamentos, abre e fecha o seu caixa, recebe o fiado e registra perdas.",
+    comece: ["Abra o caixa com o dinheiro do troco (menu Caixa).", "Venda pela tela Vender: toque nos produtos ou passe no leitor.", "No fim do turno, conte o dinheiro e feche o caixa."] },
+  atendente: { titulo: "Você é Garçom / Atendente", texto: "Você lança pedidos nas mesas e comandas, acompanha a cozinha e vê o seu desempenho e comissão. O pagamento é recebido pelo caixa (ou pelo app do garçom, se a loja permitir).",
+    comece: ["Abra a mesa em Mesas e lance os itens.", "Acompanhe quando o pedido ficar pronto.", "Peça a conta e leve ao caixa (ou feche pelo app)."] },
+  cozinha: { titulo: "Você é da Cozinha", texto: "Você vê só a tela da cozinha: os pedidos aprovados chegam sozinhos; marque “Preparando” e “Pronto” para o garçom ser avisado.",
+    comece: ["Deixe a tela Cozinha aberta (dá para pôr em tela cheia).", "Toque em Preparar e depois em Pronto em cada pedido."] },
+};

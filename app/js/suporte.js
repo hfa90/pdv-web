@@ -146,33 +146,97 @@ function infoAparelho(app) {
   };
 }
 
-/** Abre a janela "Pedir ajuda". Se já há um chamado aberto neste aparelho, mostra o código dele. */
-export async function pedirAjuda({ app = "pdv" } = {}) {
+/**
+ * Abre a janela "Pedir ajuda". Se já há um chamado aberto neste aparelho, mostra o código dele
+ * (e manda para ele os anexos novos, se vierem).
+ * Vindo da Central de Ajuda: mensagem já escrita, anexos (prints/documentos) e o que a pessoa procurou (extra).
+ */
+export async function pedirAjuda({ app = "pdv", mensagem = "", anexos = [], extra = null } = {}) {
+  const logado = !!estado.usuario?.id;
+  let lista = logado ? [...anexos] : [];
   const aberto = lerLS(CHAMADO_KEY());
   if (aberto) {
     try {
       const { data } = await sb.rpc("chamado_estado", { p_id: aberto.id, p_segredo: aberto.segredo });
-      if (data && ["aguardando", "em_atendimento"].includes(data.status)) return mostrarChamado(aberto);
+      if (data && ["aguardando", "em_atendimento"].includes(data.status)) {
+        if (lista.length || extra) await enviarAnexos(aberto, lista, extra);
+        return mostrarChamado(aberto);
+      }
     } catch { /* abre um novo */ }
     gravarLS(CHAMADO_KEY(), null);
   }
+  const { ACEITA, LIMITE_BYTES, MAX_ANEXOS, tamanhoTxt, tipoAmigavel } = logado ? await import("./ajuda/anexos.js") : {};
   const dados = await modal({
     titulo: "Pedir ajuda ao suporte",
     corpo: html`<form id="f-ajuda" class="stack">
-      <p class="muted small">Conte rapidinho o que está acontecendo. Você recebe um código de 6 números para falar com o suporte, e ele já vê os detalhes deste aparelho.</p>
-      <label class="field"><span>O que está acontecendo?</span><textarea class="input" name="msg" rows="3" maxlength="1000" required placeholder="Ex.: a impressora parou de imprimir o cupom"></textarea></label>
+      <p class="muted small">Conte rapidinho o que está acontecendo. Você recebe um código de 6 números para falar com o suporte, e ele já vê os detalhes deste aparelho${logado ? " e os arquivos que você anexar" : ""}.</p>
+      <label class="field"><span>O que está acontecendo?</span><textarea class="input" name="msg" rows="3" maxlength="1000" required placeholder="Ex.: a impressora parou de imprimir o cupom">${mensagem}</textarea></label>
+      ${logado ? html`<div class="field"><span>Prints, fotos ou documentos (opcional)</span>
+        <div id="ch-anexos" class="anexos-lista"></div>
+        <label class="btn sm" style="justify-self:start">${icone("clipe", 'width="16" height="16"')} Anexar arquivo<input type="file" id="ch-arq" accept="${ACEITA}" multiple hidden></label>
+        <p class="hint">Até ${MAX_ANEXOS} arquivos de até 5 MB. Dica: aperte a tecla PrtSc (Print Screen) e cole aqui com Ctrl+V.</p></div>` : ""}
       <label class="field"><span>WhatsApp ou telefone para retorno (opcional)</span><input class="input" name="contato" inputmode="tel" maxlength="40"></label>
     </form>`,
     rodape: html`<button class="btn" data-fechar>Voltar</button><button class="btn primary" form="f-ajuda">${icone("headset", 'width="18" height="18"')} Pedir ajuda</button>`,
-    onPronto: (d, fechar) => { d.querySelector("form").onsubmit = (e) => { e.preventDefault(); fechar({ msg: e.target.msg.value.trim(), contato: e.target.contato.value.trim() }); }; },
+    onPronto: (d, fechar) => {
+      const desenhar = () => {
+        const alvo = d.querySelector("#ch-anexos");
+        if (!alvo) return;
+        render(alvo, lista.length ? html`${lista.map((f, i) => html`<div class="anexo-item"><span>${icone("clipe", 'width="14" height="14"')}</span>
+          <span class="grow">${f.name} <span class="muted small">· ${tipoAmigavel(f)} · ${tamanhoTxt(f.size)}</span></span>
+          <button type="button" class="btn ghost icon-btn sm" data-tirar="${i}" aria-label="Tirar ${f.name}">✕</button></div>`)}` : "");
+        alvo.querySelectorAll("[data-tirar]").forEach((b) => (b.onclick = () => { lista.splice(+b.dataset.tirar, 1); desenhar(); }));
+      };
+      const somar = (arqs) => {
+        for (const f of arqs) {
+          if (lista.length >= MAX_ANEXOS) { toast(`No máximo ${MAX_ANEXOS} arquivos`, "erro"); break; }
+          if (f.size > LIMITE_BYTES && !/^image\//.test(f.type)) { toast(`${f.name} passa de 5 MB`, "erro"); continue; }
+          lista.push(f);
+        }
+        desenhar();
+      };
+      desenhar();
+      const inp = d.querySelector("#ch-arq");
+      if (inp) inp.onchange = () => { somar([...inp.files]); inp.value = ""; };
+      if (logado) d.addEventListener("paste", (e) => {
+        const fs = [...(e.clipboardData?.files || [])];
+        if (fs.length) { e.preventDefault(); somar(fs.map((f, i) => f.name && f.name !== "image.png" ? f : new File([f], `print-${Date.now()}-${i}.png`, { type: f.type }))); }
+      });
+      d.querySelector("form").onsubmit = (e) => { e.preventDefault(); fechar({ msg: e.target.msg.value.trim(), contato: e.target.contato.value.trim() }); };
+    },
   });
   if (!dados) return;
   try {
     const { data, error } = await sb.rpc("chamado_abrir", { p_app: app, p_mensagem: dados.msg, p_contato: dados.contato || null, p_info: infoAparelho(app) });
     if (error) throw new Error(/chamado_abrir|function/i.test(error.message) ? "O suporte ainda não está disponível neste sistema." : error.message);
     gravarLS(CHAMADO_KEY(), data);
+    if (lista.length || extra) await enviarAnexos(data, lista, extra);
     mostrarChamado(data);
   } catch (e) { erro(e); }
+}
+
+/** Sobe os arquivos para a pasta da pessoa (bucket privado "ajuda-anexos") e liga ao chamado (024). */
+async function enviarAnexos(chamado, arquivos, extra) {
+  const uid = estado.usuario?.id;
+  if (!uid) return;
+  const { prepararEnvio, nomeSeguro } = await import("./ajuda/anexos.js");
+  const enviados = [];
+  let falhas = 0;
+  for (const [i, original] of arquivos.slice(0, 5).entries()) {
+    try {
+      const f = await prepararEnvio(original);
+      const caminho = `${uid}/${chamado.id}/${Date.now()}-${i}-${nomeSeguro(f.name)}`;
+      const { error } = await sb.storage.from("ajuda-anexos").upload(caminho, f, { contentType: f.type || "application/octet-stream", upsert: false });
+      if (error) throw error;
+      enviados.push({ caminho, nome: original.name, tipo: f.type, tamanho: f.size });
+    } catch { falhas++; }
+  }
+  try {
+    const { error } = await sb.rpc("chamado_anexar", { p_id: chamado.id, p_segredo: chamado.segredo, p_anexos: enviados, p_extra: extra || {} });
+    if (error) throw error;
+  } catch { if (enviados.length) falhas = enviados.length + falhas; }
+  if (falhas) toast(`${falhas} arquivo(s) não foram enviados. Fale o código ao suporte e mande pelo WhatsApp se ele pedir.`, "erro");
+  else if (enviados.length) toast(`${enviados.length} arquivo(s) enviados ao suporte`, "ok");
 }
 const CHAMADO_KEY = () => CHAVE_CHAMADO;
 

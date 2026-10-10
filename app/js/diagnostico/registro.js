@@ -13,7 +13,7 @@
 // - Nada de senha, token ou número de cartão é gravado (ver limpar()).
 // =====================================================================
 
-export const VERSAO_APP = "2026.10.08.1";
+export const VERSAO_APP = "2026.10.10.1";
 
 const CHAVE = "lis-diag-eventos";
 const CHAVE_TRILHA = "lis-diag-trilha";

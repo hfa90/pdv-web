@@ -5,6 +5,7 @@ import { linkWhatsApp, MARCA } from "./config.js";
 import { html, render, $, $$, iniciais, carregando, erro, confirmar, toast } from "./ui.js";
 import { icone } from "./icons.js";
 import { telaLogin, telaOnboarding, telaNovaSenha } from "./paginas/login.js";
+import { TELAS } from "./ajuda/telas.js";
 import { iniciarContingencia, ehErroDeRede, limparContextoLocal } from "./contingencia.js";
 
 // Diagnóstico: os arquivos principais carregaram (o vigia da abertura para de esperar)
@@ -49,6 +50,7 @@ const PAGINAS = {
   diagnostico: () => import("./paginas/diagnostico.js"),
   suporte: () => import("./paginas/suporte.js"),
   backup: () => import("./paginas/backup.js"),
+  ajuda: () => import("./paginas/ajuda.js"),
 };
 
 const app = document.getElementById("app");
@@ -72,11 +74,11 @@ function montarShell() {
         </div>
         <nav class="nav" aria-label="Menu principal">
           ${Object.entries(ROTAS).filter(([r]) => pode(r)).map(([r, def]) =>
-            html`<a href="#/${r}" data-rota="${r}" title="${tituloRota(r)}">${icone(def.icone)}<span>${tituloRota(r)}</span></a>`)}
+            html`<a href="#/${r}" data-rota="${r}" title="${TELAS[r] ? `${tituloRota(r)}: ${TELAS[r].desc}` : tituloRota(r)}">${icone(def.icone)}<span>${tituloRota(r)}</span></a>`)}
         </nav>
         <div class="sidebar-foot">
           <div id="aviso-conta"></div>
-          ${estado.equipe ? "" : html`<button class="btn ghost block btn-ajuda" id="btn-ajuda" style="justify-content:flex-start" title="Abrir um chamado com o suporte">${icone("headset", 'width="18" height="18"')} <span class="sair-rotulo">Pedir ajuda</span></button>`}
+          <button class="btn ghost block btn-ajuda" id="btn-ajuda" style="justify-content:flex-start" title="Ajuda desta tela (F1): como usar, dúvidas e falar com o suporte">${icone("ajuda", 'width="18" height="18"')} <span class="sair-rotulo">Ajuda <span class="kbd">F1</span></span></button>
           ${["gerente", "caixa"].includes(p.papel) && pode("mesas") && !estado.suporte ? html`<button class="btn ghost block btn-senha-aprov" id="btn-senha-aprov" style="justify-content:flex-start" title="Senha que o garçom usa para aprovar pedidos">${icone("cadeado", 'width="18" height="18"')} <span class="sair-rotulo">Senha de aprovação</span></button>` : ""}
           <button class="btn ghost block btn-tema" id="btn-tema" style="justify-content:flex-start" title="Alternar tema claro/escuro">
             <span id="ic-tema">${icone(window.lisTema?.atual() === "escuro" ? "lua" : "sol", 'width="18" height="18"')}</span>
@@ -103,7 +105,10 @@ function montarShell() {
   $("#btn-menu").onclick = () => $("#sidebar").classList.toggle("aberta");
   $("#btn-tema").onclick = () => window.lisTema?.alternar();
   $("#btn-senha-aprov")?.addEventListener("click", () => import("./aprovacoes.js").then((m) => m.abrirMinhaSenha()).catch(erro));
-  $("#btn-ajuda")?.addEventListener("click", () => import("./suporte.js").then((m) => m.pedirAjuda({ app: "pdv" })).catch(erro));
+  // Central de Ajuda (024): botão Ajuda/F1 mostra a ajuda da tela aberta; erros ganham o atalho "Ajuda"
+  $("#btn-ajuda")?.addEventListener("click", () => import("./ajuda/contexto.js").then((m) => m.abrirAjudaDaTela()).catch(erro));
+  import("./ajuda/contexto.js").then((m) => m.iniciarAtalhoAjuda()).catch(() => {});
+  window.lisAjuda = (msg) => { location.hash = "#/ajuda/q/" + encodeURIComponent(String(msg || "").slice(0, 300)); };
   ligarMenuRecolhivel();
   desenharAvisoConta();
   // Superusuário / equipe de suporte (020)
@@ -237,6 +242,8 @@ async function iniciar() {
     navegar();
     // Mudança de setor pedida pelo suporte (023): avisa e obriga o backup antes
     if (!estado.offline) import("./mudanca-segmento.js").then((m) => m.verificarMudancaSegmento()).catch(() => {});
+    // Apresentação do primeiro acesso (uma vez por pessoa e nível)
+    if (!estado.offline && !estado.suporte) import("./ajuda/contexto.js").then((m) => m.talvezMostrarTour()).catch(() => {});
     if (estado.dispositivo?.status === "vinculado") toast(`Este aparelho foi vinculado ao seu acesso como “${estado.dispositivo.nome}”.`, "ok");
   } catch (e) {
     if (ehErroDeRede(e) || /Sem internet/.test(e.message)) {

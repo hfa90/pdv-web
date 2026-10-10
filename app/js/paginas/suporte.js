@@ -3,9 +3,10 @@
 //  Chamados  → pedidos de ajuda com código de 6 números, ao vivo
 //  Acessos   → histórico de quem entrou em qual loja, quando e por quê
 //  Registro  → tudo o que a equipe fez (imutável)
+//  Ajuda     → o que os clientes procuram na Central de Ajuda e não acham (024)
 //  Avisos    → mensagens para todas as lojas, um setor ou uma loja (superusuário)
 //  Equipe    → quem é suporte e quem é superusuário (superusuário)
-import { rpc } from "../api.js";
+import { rpc, sb } from "../api.js";
 import { estado, ehSuper } from "../estado.js";
 import { html, render, $, $$, dataHora, toast, erro, modal, confirmar, debounce, formatarDoc, numero } from "../ui.js";
 import { icone } from "../icons.js";
@@ -35,7 +36,7 @@ const paraLocal = (d) => d ? new Date(new Date(d) - new Date().getTimezoneOffset
 export default async function central(el) {
   const sup = ehSuper();
   let aba = "lojas";
-  const abas = [["lojas", "Lojas"], ["chamados", "Chamados"], ["acessos", "Acessos às lojas"], ["registro", "Registro"],
+  const abas = [["lojas", "Lojas"], ["chamados", "Chamados"], ["acessos", "Acessos às lojas"], ["registro", "Registro"], ["ajuda", "Ajuda"],
     ...(sup ? [["avisos", "Avisos"], ["equipe", "Equipe"]] : [])];
 
   render(el, html`<div class="page" style="max-width:1400px">
@@ -52,7 +53,7 @@ export default async function central(el) {
   const desenhar = async () => {
     const corpo = $("#corpo", el);
     render(corpo, html`<div class="loading"><div class="spinner"></div></div>`);
-    try { await ({ lojas, chamados, acessos, registro, avisos, equipe })[aba](corpo); }
+    try { await ({ lojas, chamados, acessos, registro, ajuda, avisos, equipe })[aba](corpo); }
     catch (e) { erro(e); render(corpo, html`<div class="alerta">${/suporte_|chamado_|equipe_|avisos_|super_log/.test(e.message) ? "Rode a migração 020_superusuario.sql no Supabase." : e.message}</div>`); }
   };
 
@@ -131,6 +132,8 @@ export default async function central(el) {
           <td><strong>${c.loja}</strong><div class="small muted">${c.usuario_nome || "Sem login"}${c.contato ? ` · ${c.contato}` : ""}</div></td>
           <td class="small" style="max-width:360px">${c.mensagem || html`<span class="muted">—</span>`}
             ${c.info?.rota ? html`<div class="muted">Tela: ${c.info.rota}${c.info.online === false ? " · sem internet" : ""}</div>` : ""}
+            ${c.info?.anexos?.length ? html`<div class="muted">${icone("clipe", 'width="13" height="13"')} ${c.info.anexos.length} anexo(s)</div>` : ""}
+            ${c.info?.problema_reconhecido ? html`<div class="muted">Reconhecido: ${c.info.problema_reconhecido}</div>` : ""}
             ${c.nota ? html`<div style="margin-top:.25rem">✔ ${c.nota}</div>` : ""}</td>
           <td><span class="badge ${c.status === "aguardando" ? "warn" : c.status === "em_atendimento" ? "info" : c.status === "resolvido" ? "ok" : ""}">${NOME_STATUS[c.status] || c.status}</span>
             ${c.atendido_nome ? html`<div class="small muted">${c.atendido_nome}</div>` : ""}</td>
@@ -155,13 +158,21 @@ export default async function central(el) {
         <div class="linha-valor"><span>Pessoa</span><strong>${c.usuario_nome || "Sem login"}</strong></div>
         ${c.contato ? html`<div class="linha-valor"><span>Contato</span><strong>${c.contato}</strong></div>` : ""}
         <div class="alerta info">${c.mensagem || "Sem descrição"}</div>
+        ${c.info?.problema_reconhecido ? html`<div class="linha-valor"><span>A Ajuda reconheceu</span><strong>${c.info.problema_reconhecido}</strong></div>` : ""}
+        ${c.info?.busca ? html`<div class="linha-valor"><span>Procurou na Ajuda</span><strong>${c.info.busca}</strong></div>` : ""}
+        ${c.info?.anexos?.length ? html`<div><strong class="small">Anexos</strong><div class="anexos-ch" id="ch-anexos">${c.info.anexos.map((a, i) => html`<div class="anexo-ch" data-i="${i}">
+          <span class="spinner" style="width:18px;height:18px;border-width:2px"></span><span>${a.nome}</span></div>`)}</div></div>` : ""}
+        ${c.info?.texto_lido ? html`<details><summary class="small">Texto lido do print</summary><pre class="small" style="white-space:pre-wrap;margin:.5rem 0 0;max-height:200px;overflow:auto">${c.info.texto_lido}</pre></details>` : ""}
         ${c.info ? html`<details><summary class="small">Detalhes do aparelho</summary><pre class="small" style="white-space:pre-wrap;margin:.5rem 0 0">${JSON.stringify(c.info, null, 2)}</pre></details>` : ""}
         ${c.empresa_id ? "" : html`<p class="small muted">A pessoa pediu ajuda sem estar logada (ex.: não consegue entrar). Procure a loja na aba Lojas ou fale pelo contato.</p>`}
       </div>`,
       rodape: html`${zap(c.contato) ? html`<a class="btn" href="${zap(c.contato)}" target="_blank" rel="noopener">${icone("whatsapp", 'width="18" height="18"')} WhatsApp</a>` : ""}
         <button class="btn" data-fechar>Fechar</button>
         ${c.empresa_id ? html`<button class="btn primary" id="ch-entrar">${icone("entrar", 'width="18" height="18"')} Entrar na loja</button>` : ""}`,
-      onPronto: (d, fechar) => { d.querySelector("#ch-entrar")?.addEventListener("click", () => fechar("entrar")); },
+      onPronto: (d, fechar) => {
+        d.querySelector("#ch-entrar")?.addEventListener("click", () => fechar("entrar"));
+        mostrarAnexos(d, c.info?.anexos || []);
+      },
     });
     if (acao === "entrar") entrarNaLoja({ id: c.empresa_id, loja: c.loja }, { chamado: c });
   }
@@ -208,6 +219,40 @@ export default async function central(el) {
         : html`<div class="empty"><p>Nada registrado ainda.</p></div>`}</div>`);
     const b = $("#busca-log", corpo);
     b.onchange = () => { buscaLog = b.value.trim(); desenhar(); };
+  }
+
+  // ================= Ajuda: o que os clientes procuram (024) =================
+  let diasAjuda = 30;
+  async function ajuda(corpo) {
+    let r;
+    try { r = await rpc("ajuda_relatorio", { p_dias: diasAjuda }); }
+    catch (e) { render(corpo, html`<div class="alerta">${/ajuda_relatorio|function/.test(e.message) ? "Rode a migração 024_central_ajuda.sql no Supabase." : e.message}</div>`); return; }
+    const { porId } = await import("../ajuda/busca.js");
+    const tituloArt = (id) => porId(id)?.titulo || id;
+    render(corpo, html`
+      <div class="toolbar"><select class="input" id="dias-ajuda" style="max-width:200px">${[7, 30, 90, 365].map((d) => html`<option value="${d}" ${d === diasAjuda ? "selected" : ""}>Últimos ${d} dias</option>`)}</select>
+        <span class="grow"></span><span class="muted small">A Central de Ajuda responde com os artigos de app/js/ajuda/artigos.js. Use esta lista para escrever o que falta.</span></div>
+      <div class="kpis">
+        <div class="panel kpi"><div class="k-label">Buscas</div><div class="k-valor">${numero(r.buscas)}</div><div class="k-sub">${numero(r.pessoas)} pessoas usaram a Ajuda</div></div>
+        <div class="panel kpi"><div class="k-label">Sem resposta</div><div class="k-valor">${numero(r.sem_resultado_total)}</div>
+          <div class="k-sub">${r.buscas ? Math.round((r.sem_resultado_total / r.buscas) * 100) : 0}% das buscas</div></div>
+        <div class="panel kpi"><div class="k-label">Por nível</div><div class="k-sub" style="font-size:var(--fs-sm)">${Object.entries(r.por_papel || {}).map(([k, v]) => `${k}: ${v}`).join(" · ") || "—"}</div></div>
+      </div>
+      <div class="ajuda-rel-grid" style="margin-top:1rem">
+        <div class="panel"><h3 style="padding:.9rem 1rem 0">Procuraram e não acharam</h3>${r.sem_resultado.length ? html`<div class="table-wrap"><table class="table">
+          <thead><tr><th>O que escreveram</th><th class="r">Vezes</th><th class="r">Lojas</th></tr></thead>
+          <tbody>${r.sem_resultado.map((x) => html`<tr><td>${x.termo}</td><td class="r">${x.vezes}</td><td class="r">${x.lojas}</td></tr>`)}</tbody></table></div>`
+          : html`<div class="empty"><p>Nenhuma busca sem resposta. 🎉</p></div>`}</div>
+        <div class="panel"><h3 style="padding:.9rem 1rem 0">Artigos (aberturas e “isso ajudou?”)</h3>${r.artigos.length ? html`<div class="table-wrap"><table class="table">
+          <thead><tr><th>Artigo</th><th class="r">Aberto</th><th class="r">Ajudou</th><th class="r">Não ajudou</th></tr></thead>
+          <tbody>${r.artigos.map((x) => html`<tr class="${x.nao_ajudou > x.ajudou ? "linha-destaque" : ""}"><td><a href="#/ajuda/a/${x.artigo}">${tituloArt(x.artigo)}</a></td>
+            <td class="r">${x.aberturas}</td><td class="r">${x.ajudou}</td><td class="r">${x.nao_ajudou}</td></tr>`)}</tbody></table></div>`
+          : html`<div class="empty"><p>Nenhum artigo aberto no período.</p></div>`}</div>
+        <div class="panel"><h3 style="padding:.9rem 1rem 0">Mais procurados</h3>${r.mais_buscados.length ? html`<div class="table-wrap"><table class="table">
+          <tbody>${r.mais_buscados.map((x) => html`<tr><td><a href="#/ajuda/q/${encodeURIComponent(x.termo)}">${x.termo}</a></td><td class="r">${x.vezes}</td></tr>`)}</tbody></table></div>`
+          : html`<div class="empty"><p>Sem buscas no período.</p></div>`}</div>
+      </div>`);
+    $("#dias-ajuda", corpo).onchange = (e) => { diasAjuda = +e.target.value; desenhar(); };
   }
 
   // ================= Avisos (superusuário) =================
@@ -312,4 +357,20 @@ export default async function central(el) {
 
   await desenhar();
   return () => window.removeEventListener("chamados", aoChamado);
+}
+
+/** Anexos do chamado (bucket privado "ajuda-anexos"): links temporários de 10 minutos. */
+async function mostrarAnexos(d, anexos) {
+  for (const [i, a] of anexos.entries()) {
+    const alvo = d.querySelector(`.anexo-ch[data-i="${i}"]`);
+    if (!alvo) continue;
+    try {
+      const { data, error } = await sb.storage.from("ajuda-anexos").createSignedUrl(a.caminho, 600);
+      if (error) throw error;
+      const url = data.signedUrl;
+      render(alvo, /^image\//.test(a.tipo || "")
+        ? html`<a href="${url}" target="_blank" rel="noopener"><img src="${url}" alt="${a.nome}"></a><span>${a.nome}</span>`
+        : html`<a class="btn sm" href="${url}" target="_blank" rel="noopener">${icone("baixar", 'width="16" height="16"')} Abrir</a><span>${a.nome}</span>`);
+    } catch { render(alvo, html`<span class="muted">${a.nome} (não abriu)</span>`); }
+  }
 }
