@@ -426,12 +426,37 @@ export default async function plataforma(el) {
     }));
   }
 
+  // ================= LGPD e termos (029) =================
+  async function painelLgpd() {
+    const alvo = $("#lgpd", el);
+    if (!alvo) return;
+    let r;
+    try { r = await rpc("plataforma_lgpd"); }
+    catch (e) {
+      if (/plataforma_lgpd|function|does not exist/i.test(e.message)) return render(alvo, html`<div class="alerta warn">Falta aplicar a migração <code>029_termos_lgpd.sql</code> (aceite dos termos e prazos da LGPD).</div>`);
+      throw e;
+    }
+    if (!alvo.isConnected) return;
+    render(alvo, html`<details class="panel" ${r.excluir.length ? "open" : ""}>
+      <summary class="panel-head" style="cursor:pointer;list-style:none;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center"><h2>Termos e LGPD</h2><span class="grow"></span>
+        <span class="badge">Versão vigente ${r.versao_vigente}</span>
+        ${r.excluir.length ? html`<span class="badge danger">${r.excluir.length} loja(s) para excluir os dados</span>` : ""}
+        ${r.sem_aceite.length ? html`<span class="badge warn">${r.sem_aceite.length} sem aceite</span>` : html`<span class="badge ok">Todas aceitaram</span>`}</summary>
+      <div class="panel-pad stack">
+        ${r.excluir.length ? html`<div class="alerta warn">Canceladas há mais de 90 dias: pela Política de Privacidade, os dados devem ser excluídos agora (aba Dados e backup › Excluir lojas). ${r.excluir.map((x) => html`<div><strong>${x.loja}</strong> · cancelada em ${data(x.cancelado_em)}</div>`)}</div>` : ""}
+        ${r.sem_aceite.length ? html`<p class="small" style="margin:0"><strong>Sem aceite da versão vigente</strong> (o administrador vê o pedido ao entrar): ${r.sem_aceite.map((x) => x.loja).join(", ")}</p>` : ""}
+        ${r.ultimos_aceites.length ? html`<div class="table-wrap"><table class="table"><thead><tr><th>Quando</th><th>Loja</th><th>Quem</th><th>Versão</th><th>IP</th></tr></thead>
+          <tbody>${r.ultimos_aceites.map((x) => html`<tr><td class="small">${dataHora(x.aceito_em)}</td><td>${x.loja || "—"}</td><td class="small">${x.nome || ""}<div class="muted">${x.email || ""}</div></td><td>${x.versao}</td><td class="small mono-pq">${x.ip || "—"}</td></tr>`)}</tbody></table></div>`
+          : html`<p class="muted small" style="margin:0">Nenhum aceite registrado ainda.</p>`}
+      </div></details>`);
+  }
+
   async function lojas() {
     const [lista, mods, venc] = await Promise.all([rpc("plataforma_lojas"), rpc("plataforma_lojas_modulos").catch(() => []), rpc("plataforma_lojas_vencimento").catch(() => [])]);
     const porId = Object.fromEntries((mods || []).map((m) => [m.id, m]));
     const vencId = Object.fromEntries((venc || []).map((m) => [m.id, m.dia_vencimento]));
     lista.forEach((l) => Object.assign(l, porId[l.id] || {}, { dia_vencimento: vencId[l.id] }));
-    render($("#corpo", el), html`<div class="panel">${lista.length ? html`<div class="table-wrap"><table class="table">
+    render($("#corpo", el), html`<div id="lgpd" style="margin-bottom:1rem"></div><div class="panel">${lista.length ? html`<div class="table-wrap"><table class="table">
       <thead><tr><th>Loja</th><th>Contato</th><th>Situação</th><th>Plano</th><th class="r">Vendas</th><th>Última venda</th><th></th></tr></thead>
       <tbody>${lista.map((l) => {
         const vencido = l.status_conta === "teste" && l.teste_expira_em && new Date(l.teste_expira_em) < new Date();
@@ -444,6 +469,7 @@ export default async function plataforma(el) {
         <td class="r">${l.vendas}</td><td class="small">${l.ultima_venda ? dataHora(l.ultima_venda) : "—"}</td>
         <td><div class="row" style="gap:.35rem;flex-wrap:nowrap"><button class="btn sm" data-loja="${l.id}">Gerenciar</button><button class="btn sm ghost" data-apar="${l.id}" title="Aparelhos autorizados e limites">${icone("escudo", 'width="15" height="15"')} Aparelhos</button></div></td></tr>`; })}</tbody></table></div>`
       : html`<div class="empty"><p>Nenhuma loja cadastrada.</p></div>`}</div>`);
+    painelLgpd().catch(erro);
     $$("[data-loja]", el).forEach((b) => (b.onclick = () => gerenciar(lista.find((l) => l.id === b.dataset.loja))));
     $$("[data-apar]", el).forEach((b) => (b.onclick = () => import("../dispositivos.js").then((m) => m.modalAparelhosLoja(lista.find((l) => l.id === b.dataset.apar))).catch(erro)));
   }

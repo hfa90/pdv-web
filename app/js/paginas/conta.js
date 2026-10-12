@@ -160,6 +160,15 @@ export default async function conta(el) {
         : html`<div class="empty"><p>${teste ? "As faturas aparecem aqui depois que você contratar um plano." : "Nenhuma fatura ainda."}</p></div>`}
       </div>
 
+      <div class="panel panel-pad row wrap docs-legais" style="margin-bottom:1rem;gap:1rem">
+        <div class="grow"><h2 style="margin:0 0 .2rem">Contrato e privacidade</h2>
+          <p class="muted small" style="margin:0">${estado.conta?.termos ? (estado.conta.termos.aceito ? `Versão ${estado.conta.termos.versao} aceita pela loja.` : `A versão ${estado.conta.termos.versao} ainda precisa ser aceita pelo administrador.`) : "Regras do serviço e como cuidamos dos dados da sua loja e dos seus clientes."}</p></div>
+        <div class="row wrap" style="gap:.5rem">
+          <a class="btn sm" href="../termos.html" target="_blank" rel="noopener">Termos de Uso</a>
+          <a class="btn sm" href="../privacidade.html" target="_blank" rel="noopener">Privacidade</a>
+          <a class="btn sm" href="../tratamento-de-dados.html" target="_blank" rel="noopener">Tratamento de dados</a></div>
+      </div>
+
       ${a.solicitacoes.length ? html`<div class="panel"><div class="panel-head"><h2>Meus pedidos</h2></div><div class="table-wrap"><table class="table">
         <thead><tr><th>Quando</th><th>Pedido</th><th>Situação</th><th>Resposta</th><th></th></tr></thead>
         <tbody>${a.solicitacoes.map((s) => html`<tr><td class="small">${dataHora(s.created_at)}</td>

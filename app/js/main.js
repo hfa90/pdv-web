@@ -1,8 +1,8 @@
 // Ponto de entrada: autenticação, roteamento por hash e layout.
-import { sb } from "./api.js";
+import { sb, rpc } from "./api.js";
 import { estado, carregarContexto, limparEstado, pode, rotaInicial, ROTAS, PAPEIS, atualizarConta, diasDeTeste, tituloRota, aprovaCozinha, licenca } from "./estado.js";
 import { linkWhatsApp, MARCA } from "./config.js";
-import { html, raw, render, $, $$, iniciais, carregando, erro, confirmar, toast } from "./ui.js";
+import { html, raw, render, $, $$, iniciais, carregando, erro, confirmar, toast, modal } from "./ui.js";
 import { simbolo, palavra, fecharAbertura } from "../../assets/marca.js";
 import { icone } from "./icons.js";
 import { telaLogin, telaOnboarding, telaNovaSenha } from "./paginas/login.js";
@@ -245,6 +245,46 @@ async function navegar() {
   }
 }
 
+/** Termos de Uso / Privacidade / Tratamento de Dados: pede o aceite da versão vigente ao administrador. */
+async function pedirAceiteTermos() {
+  const t = estado.conta?.termos;
+  if (!t || t.aceito || estado.perfil?.papel !== "admin" || estado.suporte) return; // sem a migração 029, não faz nada
+  const primeira = !t.resumo || /primeira versão/i.test(t.resumo);
+  await modal({
+    titulo: primeira ? "Termos de uso e privacidade" : "Atualizamos nossos termos",
+    fixo: true,
+    corpo: html`<div class="stack">
+      <p style="margin:0">${primeira
+        ? "Para continuar usando o sistema, o administrador da loja precisa ler e aceitar os documentos abaixo. Eles explicam as regras do serviço e como cuidamos dos dados da sua loja e dos seus clientes."
+        : html`Publicamos a versão ${t.versao}. ${t.resumo || ""}`}</p>
+      <ul class="lista-legal">
+        <li><a href="../termos.html" target="_blank" rel="noopener">Termos de Uso</a></li>
+        <li><a href="../privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a></li>
+        <li><a href="../tratamento-de-dados.html" target="_blank" rel="noopener">Acordo de Tratamento de Dados</a> (os dados dos seus clientes)</li>
+      </ul>
+      <label class="check aceite-termos"><input type="checkbox" id="aceite-ok"> <span>Li e aceito os três documentos em nome da loja.</span></label>
+      <div id="aceite-msg"></div></div>`,
+    rodape: html`<button class="btn ghost" id="aceite-sair">Sair do sistema</button><button class="btn primary" id="aceite-btn" disabled>Aceitar e continuar</button>`,
+    onPronto: (d, fechar) => {
+      // Sem aceite não segue: some o ✕ e o Esc não fecha
+      d.querySelector(".modal-head [data-fechar]")?.remove();
+      d.addEventListener("cancel", (e) => e.preventDefault());
+      d.querySelector("#aceite-sair").onclick = () => { fechar(false); sair(); };
+      const cb = d.querySelector("#aceite-ok"), bt = d.querySelector("#aceite-btn");
+      cb.onchange = () => { bt.disabled = !cb.checked; };
+      bt.onclick = async () => {
+        bt.disabled = true;
+        try {
+          const r = await rpc("aceitar_termos", { p_versao: t.versao, p_navegador: navigator.userAgent.slice(0, 300) });
+          estado.conta.termos = r || { ...t, aceito: true };
+          toast("Obrigado! Aceite registrado.", "ok");
+          fechar(true);
+        } catch (e) { bt.disabled = false; render(d.querySelector("#aceite-msg"), html`<div class="alerta">${e.message}</div>`); }
+      };
+    },
+  });
+}
+
 // A abertura da marca (index.html) some quando a primeira tela fica pronta
 async function iniciar() {
   try { await iniciarApp(); } finally { fecharAbertura(); }
@@ -263,6 +303,8 @@ async function iniciarApp() {
     }
     montarShell();
     navegar();
+    // Documentos legais (029): o administrador aceita a versão vigente antes de continuar
+    if (!estado.offline) pedirAceiteTermos().catch(() => {});
     // Mudança de setor pedida pelo suporte (023): avisa e obriga o backup antes
     if (!estado.offline) import("./mudanca-segmento.js").then((m) => m.verificarMudancaSegmento()).catch(() => {});
     // Apresentação do primeiro acesso (uma vez por pessoa e nível)

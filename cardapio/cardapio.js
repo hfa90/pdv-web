@@ -5,6 +5,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../assets/config.js";
 import { html, render, raw, dinheiro, debounce, urlSegura } from "../app/js/ui.js";
 import { payloadPix, qrSvg, qrPronto, txidVenda } from "../assets/pix.js";
 import { simbolo, carregador } from "../assets/marca.js";
+const SITE_LEGAL = new URL("../", import.meta.url).href; // termos.html e privacidade.html ficam na raiz do site
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const app = document.getElementById("app");
@@ -271,6 +272,7 @@ async function finalizar() {
     <div class="resumo" id="resumo"></div>
     <button class="btn-pri" id="enviar">Fazer pedido</button>
     <p class="muted pequeno">Ao enviar, a loja recebe o pedido na hora e você acompanha cada etapa nesta página.</p>
+    <p class="muted pequeno">Seu nome, telefone e endereço são usados por ${dados.loja.nome} só para preparar e entregar este pedido e falar com você sobre ele. <a href="${SITE_LEGAL}privacidade.html#clientes-das-lojas" target="_blank" rel="noopener">Privacidade</a></p>
   </form>`, {
     classe: "alta",
     onPronto: (d, fechar) => {

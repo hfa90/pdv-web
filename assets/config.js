@@ -12,6 +12,20 @@ export const SUPABASE_URL = "https://bcdoiaojhytxeoullskz.supabase.co";
 export const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjZG9pYW9qaHl0eGVvdWxsc2t6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEwNzk1OTEsImV4cCI6MjEwNjY1NTU5MX0.mL1Q86QquCI7FslgdcLNe8Iu9OpsGJb14DDZVVJn8Ng";
 
+// Dados legais do fornecedor (Termos de Uso, Política de Privacidade e Acordo de Tratamento de Dados).
+// Preencha antes de vender: enquanto vazio, as páginas mostram "[a preencher]" em destaque.
+export const LEGAL = {
+  razaoSocial: "",            // ex.: "Hayden Fernandes Tecnologia LTDA"
+  cnpj: "",                   // ex.: "00.000.000/0001-00"
+  endereco: "",               // endereço completo da sede
+  cidadeForo: "",             // comarca do foro, ex.: "Manaus/AM"
+  emailContato: "",           // atendimento geral
+  emailPrivacidade: "",       // canal do titular de dados (LGPD), ex.: "privacidade@seudominio.com.br"
+  encarregado: "",            // nome do encarregado de dados (DPO)
+  versao: "1.0",              // mude ao alterar os textos: o administrador de cada loja aceita de novo
+  vigenteDesde: "2026-10-12",
+};
+
 // Preços (R$). Mudou aqui, muda no site e no simulador.
 export const PRECOS = {
   sistema: 99.9,           // só o sistema, sem nota fiscal

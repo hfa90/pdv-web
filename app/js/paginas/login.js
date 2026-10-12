@@ -1,7 +1,7 @@
 // Entrar, criar conta, recuperar senha e cadastro inicial da empresa.
 import { sb, fn, mensagemErro } from "../api.js";
 import { estado } from "../estado.js";
-import { MARCA, linkWhatsApp } from "../config.js";
+import { MARCA, LEGAL, linkWhatsApp } from "../config.js";
 import { obterDispositivo, obterImpressao } from "../../../assets/dispositivo.js";
 
 const estado_usuario = () => estado.usuario;
@@ -25,7 +25,8 @@ function moldura(conteudo) {
         <div class="l t"><span>Total</span><span>R$ 18,98</span></div>
       </div>
     </section>
-    <section class="auth-form"><div class="auth-box">${conteudo}</div></section>
+    <section class="auth-form"><div class="auth-box">${conteudo}</div>
+      <nav class="auth-legal" aria-label="Documentos legais"><a href="../termos.html" target="_blank" rel="noopener">Termos de Uso</a><a href="../privacidade.html" target="_blank" rel="noopener">Privacidade</a></nav></section>
   </div>`;
 }
 
@@ -51,6 +52,7 @@ export function telaLogin(app, aoEntrar, modo = "entrar") {
         <label class="field"><span>E-mail</span><input class="input" name="email" type="email" autocomplete="username" required></label>
         <label class="field"><span>Senha</span><input class="input" name="senha" type="password" minlength="8" autocomplete="new-password" required>
           <span class="hint">Mínimo de 8 caracteres.</span></label>
+        <label class="check aceite-termos"><input type="checkbox" name="aceite" required> <span>Li e aceito os <a href="../termos.html" target="_blank" rel="noopener">Termos de Uso</a>, a <a href="../privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a> e o <a href="../tratamento-de-dados.html" target="_blank" rel="noopener">Acordo de Tratamento de Dados</a>.</span></label>
         <div id="msg"></div>
         <button class="btn primary lg block">Criar conta</button>
       </form>
@@ -116,7 +118,8 @@ export function telaOnboarding(app, aoConcluir) {
         <label class="field"><span>WhatsApp</span><input class="input" name="whatsapp" value="${meta.whatsapp || ""}" inputmode="tel" placeholder="(92) 99999-0000" required></label>
         <label class="field"><span>CPF ou CNPJ</span><input class="input" name="documento" value="${meta.documento || ""}" inputmode="numeric" required></label>
       </div>
-      <p class="hint">O teste é de um por negócio. Esses dados não são compartilhados.</p>
+      <p class="hint">O teste é de um por negócio. Usamos esses dados só para criar a loja e evitar testes repetidos (veja a <a href="../privacidade.html#dados" target="_blank" rel="noopener">Política de Privacidade</a>).</p>
+      <label class="check aceite-termos"><input type="checkbox" name="aceite" required> <span>Li e aceito os <a href="../termos.html" target="_blank" rel="noopener">Termos de Uso</a>, a <a href="../privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a> e o <a href="../tratamento-de-dados.html" target="_blank" rel="noopener">Acordo de Tratamento de Dados</a>.</span></label>
       <div id="msg"></div>
       <button class="btn primary lg block">Começar meu teste de 7 dias</button>
     </form>
@@ -133,6 +136,8 @@ export function telaOnboarding(app, aoConcluir) {
         await fn("teste", { acao: "iniciar", ...d, documento: somenteDigitos(d.documento),
           dispositivo: obterDispositivo(), impressao: await obterImpressao() });
         sessionStorage.removeItem("pdv-nome");
+        // Aceite dos documentos legais (029): fica registrado com data, IP e navegador
+        try { await sb.rpc("aceitar_termos", { p_versao: LEGAL.versao, p_navegador: navigator.userAgent.slice(0, 300) }); } catch { /* o aviso ao entrar pede de novo */ }
         toast("Loja de teste criada. Boas vendas!", "ok");
         location.hash = "#/painel";
         aoConcluir();

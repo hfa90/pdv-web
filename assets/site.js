@@ -116,7 +116,7 @@ fTeste.addEventListener("submit", async (e) => {
   if (!docValido(d.documento)) return mensagem(msg, "CPF ou CNPJ inválido. Confira os números.");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) return mensagem(msg, "Informe um e-mail válido.");
   if ((d.senha || "").length < 8) return mensagem(msg, "A senha precisa ter pelo menos 8 caracteres.");
-  if (!fTeste.aceite.checked) return mensagem(msg, "Marque a autorização de contato para continuar.");
+  if (!fTeste.aceite.checked) return mensagem(msg, "Para criar a loja, leia e aceite os Termos de Uso e a Política de Privacidade.");
   mensagem(msg, "");
   const botao = fTeste.querySelector("button[type=submit]");
   botao.disabled = true; const rotulo = botao.textContent; botao.textContent = "Criando…";

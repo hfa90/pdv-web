@@ -176,7 +176,7 @@ function desenhar() {
         <p class="muted">${d.pode_pedir ? "Você já pode olhar o cardápio e fazer o pedido. O garçom confirma e abre a sua mesa." : "Chame o garçom para abrir a sua mesa."}</p></section>`}
 
       <p class="pequeno muted centro mesa-rodape">Esta página mostra só a conta desta mesa. Pagamento e pedidos são conferidos pela equipe.</p>
-      <p class="centro"><a class="lis-assina" href="https://hfa90.github.io/pdv-web/" target="_blank" rel="noopener">${raw(simbolo({ tam: 16, cor: "var(--lis-verde-logo)" }))} Feito com Lis PDV</a></p>
+      <p class="centro"><a class="lis-assina" href="https://hfa90.github.io/pdv-web/" target="_blank" rel="noopener">${raw(simbolo({ tam: 16, cor: "var(--lis-verde-logo)" }))} Feito com Lis PDV</a> · <a class="lis-assina" href="../privacidade.html#clientes-das-lojas" target="_blank" rel="noopener">Privacidade</a></p>
     </main>
     ${itensCarrinho ? html`<div class="barra-sacola"><button class="btn-sacola" data-a="revisar"><span class="contador">${itensCarrinho}</span><span>Ver meu pedido</span><span>${dinheiro(totalCarrinho())}</span></button></div>` : ""}`);
 }

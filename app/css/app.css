@@ -1532,3 +1532,11 @@ kbd { display: inline-block; padding: .05rem .4rem; border: 1px solid var(--line
 .asaas > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .asaas > summary::-webkit-details-marker { display: none; }
 .mono-pq { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: var(--fs-xs); }
+
+/* Documentos legais (029): aceite no cadastro e links */
+.aceite-termos { align-items: flex-start; font-size: var(--fs-sm); line-height: 1.45; }
+.aceite-termos input { margin-top: .2rem; flex: none; }
+.auth-form { grid-template-rows: 1fr auto; }
+.auth-legal { display: flex; gap: 1rem; justify-content: center; font-size: var(--fs-xs); padding-top: 1rem; }
+.auth-legal a { color: var(--muted); }
+.lista-legal { margin: 0; padding-left: 1.2em; display: grid; gap: .35rem; }

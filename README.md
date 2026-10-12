@@ -216,6 +216,20 @@ uma sincronização diária (06:10) corrige qualquer aviso perdido. Ativar, muda
 loja na Plataforma já ajusta a assinatura no Asaas. A nota fiscal de serviço (NFS-e) da mensalidade
 pode ser emitida automaticamente pelo próprio Asaas (Notas fiscais › Configurar emissão automática para assinaturas).
 
+## Termos de Uso, Privacidade e LGPD
+
+Páginas públicas: `termos.html`, `privacidade.html` e `tratamento-de-dados.html` (raiz do site).
+
+- **Antes de vender**, preencha `LEGAL` em `assets/config.js`: razão social, CNPJ, endereço, foro e e-mails
+  (enquanto vazio, as páginas mostram “[a preencher]” em destaque). Peça a um advogado para revisar os textos.
+- **Editar os textos:** altere `ferramentas/legal/*.html` e rode `python3 ferramentas/gerar_legais.py`.
+- **Nova versão:** aumente `LEGAL.versao` e cadastre a versão no banco
+  (`insert into termos_versoes (versao, resumo) values ('1.1', 'O que mudou')`). O administrador de cada loja
+  aceita de novo ao entrar.
+- **Prova do aceite:** quem, quando, IP e navegador ficam em `termos_aceites` (Plataforma › Lojas › Termos e LGPD).
+- **Prazos da LGPD:** a migração `029_termos_lgpd.sql` agenda uma limpeza diária (contatos e testes não convertidos:
+  2 anos; diagnósticos: 12 meses). Lojas canceladas há mais de 90 dias aparecem no painel para exclusão dos dados.
+
 ## Superusuário e Central de suporte
 
 O criador do sistema é o **superusuário** (nível `super` em `plataforma_admins`, migração `020_superusuario.sql`). Ele tem tudo o que o administrador de qualquer loja tem, mais:

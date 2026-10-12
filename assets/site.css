@@ -476,3 +476,7 @@ html[data-tema="escuro"] .teste::before { opacity: .1; }
   .js-on .revelar { opacity: 1; transform: none; }
 }
 @media (min-width: 1001px) { .hero h1 .h1-fim { white-space: nowrap; } .hero h1 { font-size: clamp(38px, 4.3vw, 58px); } }
+
+/* Documentos legais (029) */
+.aceite a, .nota-legal a { color: var(--primary); }
+.nota-legal { font-size: 13px; color: var(--muted); margin: -6px 0 14px; line-height: 1.45; }
