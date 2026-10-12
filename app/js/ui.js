@@ -26,6 +26,9 @@ export function html(strings, ...vals) {
 }
 
 export function render(el, conteudo) {
+  // Alvo inexistente: a tela mudou antes de um carregamento terminar (ex.: saiu da Plataforma
+  // enquanto os números ainda chegavam). Não há onde desenhar; ignorar evita o erro "innerHTML of null".
+  if (!el) return;
   el.innerHTML = typeof conteudo === "object" && RAW in conteudo ? conteudo[RAW] : esc(conteudo);
 }
 

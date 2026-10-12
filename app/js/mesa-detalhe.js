@@ -24,14 +24,14 @@ async function buscarQr(mesaId, vendaId) {
   return { chamados, pagos };
 }
 
-const TIPO_CHAMADO = { garcom: "chamou o garçom", conta: "pediu a conta", pedido: "fez um pedido", pix: "avisou um PIX" };
+const TIPO_CHAMADO = { garcom: "chamou o garçom", conta: "pediu a conta", pedido: "fez um pedido", pix: "avisou um PIX", validar: "pediu para validar o pagamento" };
 function avisosQr(qr) {
   const pago = qr.pagos.reduce((a, p) => a + Number(p.valor), 0);
   return html`${qr.chamados.map((c) => html`<div class="md-aviso chamado">${icone(c.tipo === "pix" ? "pix" : "sino", 'width="18" height="18"')}
       <span class="grow"><strong>Cliente ${TIPO_CHAMADO[c.tipo]} pelo QR</strong> · ${duracao(minutosDesde(c.criado_em)) || "agora"}
         ${c.tipo === "pedido" ? html`<br><span class="small">${(c.itens || []).map((i) => `${i.quantidade}× ${i.nome}`).join(", ")}</span>` : ""}
-        ${c.tipo === "pix" ? html` · ${dinheiro(c.valor)} ${c.automatico ? "(confirmado)" : "(confira o comprovante)"}` : ""}</span>
-      <button class="btn sm ${c.tipo === "pedido" ? "primary" : ""}" data-chamado="${c.id}" data-tipo="${c.tipo}">${c.tipo === "pedido" ? "Ver pedido" : "Atendido"}</button></div>`)}
+        ${c.tipo === "pix" ? html` · ${dinheiro(c.valor)} ${c.automatico ? "(confirmado)" : "(confira se caiu na conta da loja)"}` : ""}</span>
+      <button class="btn sm ${c.tipo === "pedido" ? "primary" : ""}" data-chamado="${c.id}" data-tipo="${c.tipo}">${c.tipo === "pedido" ? "Ver pedido" : c.tipo === "pix" && !c.automatico ? "Conferir PIX" : "Atendido"}</button></div>`)}
     ${pago ? html`<div class="md-aviso pago-qr">${icone("pix", 'width="18" height="18"')}<span class="grow"><strong>${dinheiro(pago)} já pago por PIX pelo QR.</strong> Entra sozinho como pagamento ao fechar a conta.</span></div>` : ""}`;
 }
 

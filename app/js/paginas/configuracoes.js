@@ -1,7 +1,8 @@
 // Configurações: dados da loja, impressora térmica, emissão fiscal e registro de atividades.
 import { sb, q, rpc } from "../api.js";
 import { estado, eh, cfgRestaurante } from "../estado.js";
-import { esc, html, render, $, $$, lerForm, lerNumero, toast, erro, ocupado, dataHora, docValido, somenteDigitos, formatarDoc } from "../ui.js";
+import { esc, html, render, $, $$, lerForm, lerNumero, toast, erro, ocupado, dataHora, docValido, somenteDigitos, formatarDoc, confirmar } from "../ui.js";
+import { SUPABASE_URL } from "../config.js";
 import { configImpressora, salvarConfigImpressora, imprimirTeste, abrirGaveta } from "../impressao/cupom.js";
 import { parearUSB, parearSerial, suportaUSB, suportaSerial } from "../impressao/escpos.js";
 import { TIPOS_CHAVE, normalizarChave, payloadPix, qrSvg, qrPronto } from "../../../assets/pix.js";
@@ -14,7 +15,8 @@ const ACOES = {
   "empresa.criar": "Criou a loja", "caixa.abrir": "Abriu o caixa", "caixa.fechar": "Fechou o caixa", "caixa.sangria": "Fez sangria",
   "caixa.suprimento": "Fez suprimento", "venda.cancelar": "Cancelou venda", "produto.preco": "Alterou preço", "usuario.criar": "Criou usuário",
   "usuario.alterar": "Alterou usuário", "usuario.senha": "Redefiniu senha", "fiscal.emitir": "Emitiu nota", "fiscal.cancelar": "Cancelou nota",
-  "fiscal.credenciais": "Alterou credenciais fiscais", "pix.mercado_pago": "Alterou cobrança PIX automática",
+  "fiscal.credenciais": "Alterou credenciais fiscais", "pix.mercado_pago": "Alterou cobrança PIX automática", "pagamento.provedor": "Alterou operadora de pagamento",
+  "restaurante.qr_pagamento": "Alterou pagamento pelo QR da mesa", "mesa.pix_conferido": "Confirmou PIX da mesa", "mesa.pix_recusado": "Não confirmou PIX da mesa",
   "mesa.transferir": "Transferiu mesa", "mesa.juntar": "Juntou mesas", "mesa.remover_item": "Tirou item da mesa",
   "delivery.cancelar": "Cancelou pedido do delivery",
   "mesa.transferir_itens": "Transferiu itens", "mesa.taxas": "Alterou serviço/couvert da mesa", "mesa.garcom": "Trocou o garçom da mesa",
@@ -31,7 +33,7 @@ export default async function configuracoes(el) {
   const avancada = (k) => k === "atividades" || (k === "balanca" && !balancaAtiva());
   const todasAbas = [
     eh("admin", "gerente") && ["loja", "Loja"],
-    eh("admin", "gerente") && ["pix", "PIX"],
+    eh("admin", "gerente") && ["pix", "PIX e pagamentos"],
     eh("admin", "gerente") && estado.conta?.delivery_contratado && ["delivery", "Delivery e cardápio"],
     eh("admin", "gerente") && estado.conta?.garcom && ["restaurante", "Restaurante"],
     ["impressora", "Impressora"],
@@ -125,7 +127,7 @@ export default async function configuracoes(el) {
         <div><h2>QR Code na mesa</h2><p class="muted small">O cliente aponta a câmera para o QR da mesa e, sem baixar app, vê a conta ao vivo, chama o garçom e pede a conta. Imprima os QRs em <a href="#/mesas">Mesas</a> › QR nas mesas.</p></div>
         <label class="check"><input type="checkbox" name="qr_ativo" ${c.qr_ativo !== false ? "checked" : ""}> <strong>Ligar o QR nas mesas</strong></label>
         <label class="check"><input type="checkbox" name="qr_pedir" ${c.qr_pedir !== false ? "checked" : ""}> <span><strong>Cliente pode fazer pedidos pelo QR</strong> <span class="muted small">(o garçom confirma antes de ir para a conta e a cozinha. Aparecem os produtos marcados para o cardápio digital; se você não usa o cardápio, todos os vendidos por unidade)</span></span></label>
-        <label class="check"><input type="checkbox" name="qr_pagar" ${c.qr_pagar !== false ? "checked" : ""}> <span><strong>Cliente pode pagar por PIX pelo QR</strong> <span class="muted small">(${cxStatus?.pix_automatico ? "com Mercado Pago: confirmação automática e o valor já entra como pago ao fechar a mesa" : "pela chave PIX da loja: o cliente avisa que pagou e o garçom confere o comprovante. Com o Mercado Pago ligado (Configurações › PIX), a confirmação fica automática"})</span></span></label>
+        <p class="hint" style="margin:0">Pagamento pelo QR (ligar/desligar, operadora e PIX pela chave): <a href="#/configuracoes/pix">Configurações › PIX e pagamentos</a>${eh("admin") ? "" : " (somente o administrador altera)"}.</p>
       </section>
 
       <section class="panel panel-pad stack">
@@ -164,7 +166,7 @@ export default async function configuracoes(el) {
         comissao_percentual: num("comissao_percentual"), comissao_base: x.comissao_base, meta_mensal_padrao: num("meta_mensal_padrao"),
         aprovacao_cozinha: x.aprovacao_cozinha, preparo_alvo_min: Math.round(num("preparo_alvo_min")),
         tempo_alerta_min: Math.round(num("tempo_alerta_min")), tempo_critico_min: Math.round(num("tempo_critico_min")), ocioso_min: Math.round(num("ocioso_min")),
-        qr_ativo: x.qr_ativo, qr_pedir: x.qr_pedir, qr_pagar: x.qr_pagar,
+        qr_ativo: x.qr_ativo, qr_pedir: x.qr_pedir,
         aprovacao_auto_ate: x.aprovacao_auto_ate ? num("aprovacao_auto_ate") : 0, aprovacao_auto_confiavel: x.aprovacao_auto_confiavel,
       };
       if (Object.values(dados).some((n) => typeof n === "number" && !(n >= 0))) return toast("Confira os números digitados", "erro");
@@ -363,10 +365,26 @@ export default async function configuracoes(el) {
     return () => fecharBalanca();
   }
 
-  // ---------- PIX ----------
+  // ---------- PIX e pagamentos ----------
   async function pix() {
     const e = estado.empresa; const ro = !eh("admin");
-    const mp = await rpc("mercado_pago_status").catch(() => false);
+    const [st, mpLegado] = await Promise.all([
+      rpc("pagamento_provedor_status").catch(() => null),           // 027
+      rpc("mercado_pago_status").catch(() => false),
+    ]);
+    const cfgR = cfgRestaurante();
+    const temMesas = !!estado.conta?.garcom;
+    const configurado = st?.configurado || { mercadopago: !!mpLegado };
+    let escolhido = st?.provedor || (mpLegado ? "mercadopago" : "");
+    const PROV = [
+      ["mercadopago", "Mercado Pago", "QR PIX único por cobrança. Também confirma sozinho o PIX do caixa e do cardápio digital."],
+      ["pagbank", "PagBank (PagSeguro)", "QR PIX único por cobrança, confirmado pela API do PagBank."],
+      ["getnet", "Getnet", "QR PIX único por cobrança. Cadastre o endereço de aviso no portal da Getnet."],
+      ["infinitepay", "InfinitePay", "Página de pagamento da InfinitePay: o cliente paga com PIX ou cartão."],
+    ];
+    const urlAviso = (p) => st?.webhook_segredo
+      ? `${SUPABASE_URL}/functions/v1/pagamentos?acao=webhook&e=${st.empresa_id}&p=${p}&k=${st.webhook_segredo}` : "";
+
     render($("#corpo", el), html`<div class="stack-lg">
       <form id="f-pix" class="panel panel-pad stack-lg">
         <div><h2>Chave PIX da loja</h2><p class="muted">Com a chave cadastrada, o PDV mostra o QR Code com o valor exato quando o cliente escolhe PIX. O dinheiro cai direto na sua conta, sem intermediário e sem taxa.</p></div>
@@ -384,24 +402,54 @@ export default async function configuracoes(el) {
         ${ro ? "" : html`<div class="row wrap"><button class="btn primary">Salvar chave PIX</button>${e.pix_chave ? html`<button type="button" class="btn ghost" id="tirar-pix">Remover chave</button>` : ""}</div>`}
         </fieldset>
       </form>
-      <form id="f-mp" class="panel panel-pad stack">
-        <div class="row" style="justify-content:space-between;align-items:flex-start">
-          <div><h2>Confirmação automática (opcional)</h2>
-          <p class="muted">Com uma conta Mercado Pago, cada cobrança ganha um QR único e o sistema confirma o pagamento sozinho, no PDV e no cardápio digital. Sem isso, o caixa confere o PIX no celular e confirma.</p></div>
-          ${mp ? html`<span class="badge ok">ativo</span>` : html`<span class="badge">desligado</span>`}
+
+      <form id="f-prov" class="panel panel-pad stack" autocomplete="off">
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:1rem">
+          <div><h2>Confirmação automática de pagamento</h2>
+          <p class="muted">Conecte a conta da loja em uma operadora. Cada cobrança ganha um QR único e o sistema só marca como pago quando a operadora confirma, na mesa certa e no valor certo. Sem isso, a equipe confere o PIX no app do banco.</p></div>
+          ${st?.ativo ? html`<span class="badge ok">${PROV.find(([k]) => k === st.ativo)?.[1]} ativo</span>` : mpLegado ? html`<span class="badge ok">Mercado Pago ativo</span>` : html`<span class="badge">desligado</span>`}
         </div>
-        <fieldset ${ro ? "disabled" : ""} style="border:0;padding:0;margin:0" class="stack">
-          <label class="field"><span>Access Token de produção do Mercado Pago</span>
-            <input class="input" name="token" type="password" autocomplete="off" placeholder="${mp ? "•••••••• (deixe vazio para manter)" : "APP_USR-..."}"></label>
-          <p class="hint">Mercado Pago › Seu negócio › Configurações › Credenciais. O token fica guardado no servidor e não volta para o navegador.</p>
-          ${ro ? "" : html`<div class="row wrap"><button class="btn">Salvar token</button>${mp ? html`<button type="button" class="btn ghost" id="tirar-mp">Desligar</button>` : ""}</div>`}
+        ${!st ? html`<div class="alerta warn">Falta aplicar a migração <code>027_pagamento_mesa.sql</code> para usar PagBank, Getnet e InfinitePay.</div>` : ""}
+        ${ro ? html`<div class="alerta info">Somente o administrador pode alterar as operadoras de pagamento.</div>` : ""}
+        <fieldset ${ro || !st ? "disabled" : ""} style="border:0;padding:0;margin:0" class="stack">
+          <div class="prov-lista" role="radiogroup" aria-label="Operadora">
+            <label class="prov-op"><input type="radio" name="provedor" value="" ${!escolhido ? "checked" : ""}>
+              <span><strong>Nenhuma</strong><small>a equipe confere o PIX no app do banco</small></span></label>
+            ${PROV.map(([k, n, d]) => html`<label class="prov-op"><input type="radio" name="provedor" value="${k}" ${escolhido === k ? "checked" : ""}>
+              <span><strong>${n}</strong> ${configurado[k] ? html`<span class="badge ok sm">credenciais salvas</span>` : ""}<small>${d}</small></span></label>`)}
+          </div>
+          <div id="prov-campos"></div>
+          <label class="field" style="max-width:260px"><span>Ambiente</span><select class="input" name="ambiente">
+            <option value="producao" ${st?.ambiente !== "teste" ? "selected" : ""}>Produção (dinheiro real)</option>
+            <option value="teste" ${st?.ambiente === "teste" ? "selected" : ""}>Teste / sandbox</option></select></label>
+          <p class="hint">As credenciais ficam guardadas no servidor e nunca voltam para o navegador. Campos vazios mantêm o que já foi salvo.</p>
+          ${ro ? "" : html`<div class="row wrap"><button class="btn primary">Salvar operadora</button>
+            <button type="button" class="btn" id="prov-testar" ${st?.ativo ? "" : "disabled"}>Testar conexão</button></div>`}
         </fieldset>
-      </form></div>`);
+      </form>
+
+      ${temMesas ? html`<form id="f-qrpag" class="panel panel-pad stack">
+        <div><h2>Pagamento pelo QR da mesa</h2><p class="muted">Escolha como o cliente pode pagar pelo celular, sem chamar o garçom. Desligando, ele continua vendo a conta, chamando o garçom e pedindo a conta; o pagamento fica com o garçom e o caixa (maquininha, dinheiro, PIX no caixa).</p></div>
+        ${ro ? html`<div class="alerta info">Somente o administrador (ou o suporte em acesso total) liga e desliga o pagamento pelo QR.</div>` : ""}
+        <fieldset ${ro ? "disabled" : ""} style="border:0;padding:0;margin:0" class="stack">
+          <label class="check"><input type="checkbox" name="qr_pagar" ${cfgR.qr_pagar !== false ? "checked" : ""}> <span><strong>Cliente pode pagar pelo QR da mesa</strong> <span class="muted small">(desmarque para desativar o pagamento pela mesa e deixar só as outras formas)</span></span></label>
+          <div class="qrpag-formas stack" style="padding-left:1.6rem">
+            <label class="check"><input type="checkbox" name="qr_pagar_auto" ${cfgR.qr_pagar_auto !== false ? "checked" : ""}> <span><strong>Cobrança com confirmação automática</strong> <span class="muted small">(${st?.ativo ? `pela ${PROV.find(([k]) => k === st.ativo)?.[1]}` : "configure uma operadora acima"}; a mais segura contra fraude)</span></span></label>
+            <label class="check"><input type="checkbox" name="qr_pagar_chave" ${cfgR.qr_pagar_chave !== false ? "checked" : ""}> <span><strong>PIX pela chave da loja</strong> <span class="muted small">(${e.pix_chave ? "o cliente toca em “Já paguei”, o valor sai da conta e o garçom confere se caiu" : "cadastre a chave PIX acima"}. Usado quando não há operadora)</span></span></label>
+          </div>
+          <p class="hint" style="margin:0">Com as duas ligadas, a mesa usa a confirmação automática. Depois de pagar, o cliente vê um aviso grande para chamar o garçom e validar.</p>
+          ${ro ? "" : html`<div><button class="btn primary">Salvar pagamento pelo QR</button></div>`}
+        </fieldset>
+      </form>` : ""}
+    </div>`);
+
+    // ----- Chave PIX -----
     const f = $("#f-pix", el);
     await qrPronto();
     const previa = () => {
       const x = lerForm(f);
       const alvo = $("#previa", el);
+      if (!alvo) return;
       if (!x.pix_tipo || !x.pix_chave) return render(alvo, html`<p class="hint">Preencha tipo e chave para ver a prévia do QR.</p>`);
       if (!normalizarChave(x.pix_tipo, x.pix_chave)) return render(alvo, html`<p class="hint" style="color:var(--danger)">Chave não confere com o tipo escolhido.</p>`);
       const codigo = payloadPix({ tipo: x.pix_tipo, chave: x.pix_chave, nome: x.pix_nome, cidade: x.pix_cidade, valor: 1, txid: "TESTE" });
@@ -425,17 +473,97 @@ export default async function configuracoes(el) {
     $("#tirar-pix", el)?.addEventListener("click", async () => {
       try { estado.empresa = await q(sb.from("empresas").update({ pix_tipo: null, pix_chave: null }).eq("id", e.id).select().single()); toast("Chave removida", "ok"); pix().catch(erro); } catch (err) { erro(err); }
     });
-    const fm = $("#f-mp", el);
-    fm.onsubmit = async (ev) => {
-      ev.preventDefault();
-      const tk = fm.token.value.trim();
-      if (!tk) return toast("Cole o Access Token", "erro");
-      if (!/^APP_USR-|^TEST-/.test(tk)) return toast("O token do Mercado Pago começa com APP_USR-", "erro");
-      try { await rpc("salvar_mercado_pago", { p_token: tk }); toast("Confirmação automática ligada", "ok"); pix().catch(erro); } catch (err) { erro(err); }
+
+    // ----- Operadora -----
+    const fp = $("#f-prov", el);
+    const campo = (nome, rotulo, ok, ph, tipo = "password") => html`<label class="field"><span>${rotulo}</span>
+      <input class="input" name="${nome}" type="${tipo}" autocomplete="off" spellcheck="false" placeholder="${ok ? "•••••••• (deixe vazio para manter)" : ph}"></label>`;
+    const desenharCampos = () => {
+      const alvo = $("#prov-campos", el);
+      if (!alvo) return;
+      const p = escolhido;
+      const remover = configurado[p] && !ro ? html`<button type="button" class="btn ghost sm" data-remover="${p}">Apagar credenciais salvas</button>` : "";
+      const aviso = (k) => urlAviso(k) ? html`<div class="field"><span>Endereço de aviso (webhook)</span>
+          <div class="row" style="gap:.5rem"><input class="input" readonly value="${urlAviso(k)}" id="url-aviso"><button type="button" class="btn sm" id="copiar-aviso">Copiar</button></div>
+          <small class="hint">${k === "getnet" ? "Cole no portal da Getnet › Notificações (PIX). " : ""}Ele contém o segredo da loja: não compartilhe.</small></div>` : "";
+      if (!p) return render(alvo, "");
+      if (p === "mercadopago") return render(alvo, html`<div class="stack prov-campos">
+        ${campo("mercadopago_token", "Access Token de produção", configurado.mercadopago, "APP_USR-...")}
+        <p class="hint">Mercado Pago › Seu negócio › Configurações › Credenciais. O aviso de pagamento é cadastrado sozinho em cada cobrança.</p>${remover}</div>`);
+      if (p === "pagbank") return render(alvo, html`<div class="stack prov-campos">
+        ${campo("pagbank_token", "Token da conta PagBank", configurado.pagbank, "Token gerado no PagBank")}
+        <p class="hint">PagBank › Minha conta › Integrações › Gerar token. O aviso de pagamento vai em cada cobrança e o sistema confere o pedido direto na API do PagBank.</p>${remover}</div>`);
+      if (p === "getnet") return render(alvo, html`<div class="stack prov-campos">
+        <div class="grid-3">
+          ${campo("getnet_client_id", "Client ID", configurado.getnet, "client_id")}
+          ${campo("getnet_client_secret", "Client Secret", configurado.getnet, "client_secret")}
+          <label class="field"><span>Seller ID</span><input class="input" name="getnet_seller_id" autocomplete="off" spellcheck="false" placeholder="${st?.getnet_seller_id || "seller_id"}"></label>
+        </div>
+        <p class="hint">Portal do desenvolvedor Getnet › Minhas credenciais. O PIX precisa estar habilitado na conta.</p>
+        ${aviso("getnet")}${remover}</div>`);
+      if (p === "infinitepay") return render(alvo, html`<div class="stack prov-campos">
+        <label class="field" style="max-width:320px"><span>InfiniteTag (sem o $)</span><input class="input" name="infinitepay_handle" autocomplete="off" spellcheck="false" placeholder="${st?.infinitepay_handle || "minhaloja"}"></label>
+        <p class="hint">É o seu nome de usuário no app InfinitePay. O cliente é levado para a página de pagamento da InfinitePay (PIX ou cartão) e volta para a mesa; o sistema confere o pagamento na InfinitePay antes de marcar como pago.</p>
+        ${remover}</div>`);
     };
-    $("#tirar-mp", el)?.addEventListener("click", async () => {
-      try { await rpc("salvar_mercado_pago", { p_token: "" }); toast("Confirmação automática desligada", "ok"); pix().catch(erro); } catch (err) { erro(err); }
+    fp.querySelectorAll("[name=provedor]").forEach((r) => (r.onchange = () => { escolhido = r.value; desenharCampos(); }));
+    fp.addEventListener("click", async (ev) => {
+      const b = ev.target.closest("button"); if (!b) return;
+      if (b.id === "copiar-aviso") {
+        navigator.clipboard?.writeText($("#url-aviso", el).value).then(() => toast("Endereço copiado", "ok")).catch(() => toast("Selecione e copie o endereço", "erro"));
+      }
+      if (b.dataset.remover) {
+        if (!(await confirmar(`Apagar as credenciais de ${PROV.find(([k]) => k === b.dataset.remover)?.[1]}?`))) return;
+        try { await rpc("salvar_pagamento_provedor", { p: { remover: b.dataset.remover } }); toast("Credenciais apagadas", "ok"); pix().catch(erro); } catch (err) { erro(err); }
+      }
+      if (b.id === "prov-testar") {
+        await ocupado(b, async () => {
+          try {
+            const { data, error } = await sb.functions.invoke("pagamentos", { body: { acao: "provedor_testar" } });
+            if (error) { let m = error.message; try { m = (await error.context?.json?.())?.error || m; } catch { /* ignora */ } throw new Error(m); }
+            if (data?.error) throw new Error(data.error);
+            toast(`Conexão com ${data.nome} funcionando ✓`, "ok");
+          } catch (err) { erro(err); }
+        });
+      }
     });
+    fp.onsubmit = async (ev) => {
+      ev.preventDefault();
+      if (!st) return;
+      const x = lerForm(fp);
+      const p = { provedor: escolhido || null, ambiente: x.ambiente };
+      for (const k of ["mercadopago_token", "pagbank_token", "getnet_client_id", "getnet_client_secret", "getnet_seller_id", "infinitepay_handle"]) {
+        if (x[k]?.trim()) p[k] = x[k].trim();
+      }
+      if (p.mercadopago_token && !/^(APP_USR-|TEST-)/.test(p.mercadopago_token)) return toast("O token do Mercado Pago começa com APP_USR-", "erro");
+      await ocupado(fp.querySelector("button.primary"), async () => {
+        try {
+          await rpc("salvar_pagamento_provedor", { p });
+          toast(escolhido ? "Operadora salva. Use “Testar conexão” para conferir." : "Confirmação automática desligada", "ok");
+          pix().catch(erro);
+        } catch (err) { erro(err); }
+      });
+    };
+    desenharCampos();
+
+    // ----- Pagamento pelo QR da mesa (só administrador / superusuário) -----
+    const fq = $("#f-qrpag", el);
+    if (fq) {
+      const sincronizar = () => { const on = fq.qr_pagar.checked; fq.querySelectorAll(".qrpag-formas input").forEach((i) => { i.disabled = ro || !on; }); };
+      fq.qr_pagar.onchange = sincronizar; sincronizar();
+      fq.onsubmit = async (ev) => {
+        ev.preventDefault();
+        const d = { qr_pagar: fq.qr_pagar.checked, qr_pagar_auto: fq.qr_pagar_auto.checked, qr_pagar_chave: fq.qr_pagar_chave.checked };
+        if (d.qr_pagar && !d.qr_pagar_auto && !d.qr_pagar_chave) return toast("Marque pelo menos uma forma ou desligue o pagamento pelo QR", "erro");
+        await ocupado(fq.querySelector("button.primary"), async () => {
+          try {
+            const nova = await rpc("salvar_qr_pagamento", { p: d });
+            estado.empresa.config_restaurante = { ...(estado.empresa.config_restaurante || {}), ...nova };
+            toast(d.qr_pagar ? "Pagamento pelo QR atualizado" : "Pagamento pelo QR desativado · o cliente paga com o garçom ou no caixa", "ok");
+          } catch (err) { erro(err); }
+        });
+      };
+    }
   }
 
   // ---------- Delivery e cardápio ----------

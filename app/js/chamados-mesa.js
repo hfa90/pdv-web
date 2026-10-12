@@ -14,9 +14,11 @@ const TITULO = {
   garcom: (c) => `${rotuloMesa(c.mesa)} chamou o garçom`,
   conta: (c) => `${rotuloMesa(c.mesa)} pediu a conta`,
   pedido: (c) => `${rotuloMesa(c.mesa)} fez um pedido`,
-  pix: (c) => `${rotuloMesa(c.mesa)} pagou ${dinheiro(c.valor)} por PIX`,
+  pix: (c) => c.automatico ? `${rotuloMesa(c.mesa)} pagou ${dinheiro(c.valor)} (confirmado)` : `${rotuloMesa(c.mesa)} diz que pagou ${dinheiro(c.valor)} por PIX`,
+  validar: (c) => `${rotuloMesa(c.mesa)} pede para validar o pagamento`,
 };
-const ICONE = { garcom: "sino", conta: "conta", pedido: "chapeu", pix: "pix" };
+const ICONE = { garcom: "sino", conta: "conta", pedido: "chapeu", pix: "pix", validar: "pix" };
+const titulo = (c) => (TITULO[c.tipo] || TITULO.garcom)(c);
 
 /** Chamados pendentes agora (para selos nas mesas). */
 export const chamadosAtuais = () => pendentes;
@@ -30,7 +32,7 @@ async function atualizar(avisar) {
   if (avisar && novos.length) {
     const c = novos[novos.length - 1];
     if (novos.some(meu)) { bipe(c.tipo === "pedido" ? 3 : 2); navigator.vibrate?.([200, 100, 200]); }
-    toast(`🔔 ${TITULO[c.tipo](c)}`, "ok");
+    toast(`🔔 ${titulo(c)}`, "ok");
   }
   desenharPilula();
   window.dispatchEvent(new CustomEvent("chamados-mesa", { detail: pendentes }));
@@ -48,7 +50,7 @@ function desenharPilula() {
   }
   const maisAntigo = Math.max(...pendentes.map((c) => minutosDesde(c.criado_em)));
   const primeiro = pendentes[0];
-  render(pilula, html`${icone("sino", 'width="20" height="20"')}<span><strong>${n === 1 ? TITULO[primeiro.tipo](primeiro) : `${n} chamados das mesas`}</strong>
+  render(pilula, html`${icone("sino", 'width="20" height="20"')}<span><strong>${n === 1 ? titulo(primeiro) : `${n} chamados das mesas`}</strong>
     <small>${maisAntigo ? `há ${duracao(maisAntigo)}` : "agora"} · toque para atender</small></span>`);
   pilula.classList.toggle("urgente", maisAntigo >= 2 || pendentes.some((c) => c.tipo === "pedido"));
 }
@@ -86,16 +88,19 @@ export function pararChamados() {
 function cartao(c) {
   const itens = c.itens || [];
   return html`<article class="ch-card t-${c.tipo} ${meu(c) ? "meu" : ""}" data-id="${c.id}">
-    <div class="ch-topo">${icone(ICONE[c.tipo], 'width="18" height="18"')}<strong class="grow">${TITULO[c.tipo](c)}</strong>
+    <div class="ch-topo">${icone(ICONE[c.tipo] || "sino", 'width="18" height="18"')}<strong class="grow">${titulo(c)}</strong>
       <span class="kb-tempo">${icone("relogio", 'width="14" height="14"')} ${duracao(minutosDesde(c.criado_em)) || "agora"}</span></div>
     ${c.tipo === "pedido" ? html`<ul class="kb-itens">${itens.map((i) => html`<li><b>${i.quantidade}×</b> ${i.nome}${i.observacao ? html` <em>(${i.observacao})</em>` : ""}</li>`)}</ul>
       <div class="small muted">Total estimado ${dinheiro(c.valor)} · ${c.venda_id ? "entra na conta aberta da mesa" : "a mesa será aberta ao confirmar"}</div>` : ""}
     ${c.tipo === "pix" ? html`<div class="small ${c.automatico ? "txt-ok" : "txt-alerta"}">${c.automatico
-      ? "Confirmado pelo Mercado Pago. Ao fechar a conta, este PIX já entra como pago."
-      : "PIX pela chave da loja: confira o comprovante no celular do cliente e registre ao fechar a conta."}</div>` : ""}
+      ? "Confirmado pela operadora de pagamento. Ao fechar a conta, este valor já entra como pago."
+      : html`<strong>Confira no app do banco da loja</strong> se o PIX de ${dinheiro(c.valor)} caiu. O cliente já vê o valor descontado (aguardando você). Confirmando, ele entra sozinho como PIX ao fechar a conta.`}</div>` : ""}
+    ${c.tipo === "validar" ? html`<div class="small muted">O cliente pagou pelo QR e quer que alguém confira na mesa. Veja o comprovante no celular dele.</div>` : ""}
     <div class="kb-acoes">${c.tipo === "pedido"
       ? html`<button class="btn sm ghost" data-recusar="${c.id}">Recusar</button><button class="btn sm primary" data-aceitar="${c.id}">${icone("check", 'width="16" height="16"')} Confirmar e enviar</button>`
-      : html`<button class="btn sm primary" data-atender="${c.id}">${icone("check", 'width="16" height="16"')} ${c.tipo === "pix" ? "Visto" : "Atendido"}</button>`}</div>
+      : c.tipo === "pix" && !c.automatico
+        ? html`<button class="btn sm ghost" data-naorecebi="${c.id}">Não recebi</button><button class="btn sm primary" data-atender="${c.id}">${icone("check", 'width="16" height="16"')} Confirmar recebimento</button>`
+        : html`<button class="btn sm primary" data-atender="${c.id}">${icone("check", 'width="16" height="16"')} ${c.tipo === "pix" ? "Visto" : c.tipo === "validar" ? "Validado" : "Atendido"}</button>`}</div>
   </article>`;
 }
 
@@ -123,6 +128,13 @@ export async function abrirChamados(soId = null) {
             const r = await ocupado(b, () => rpc("mesa_chamado_resolver", { p_id: b.dataset.aceitar, p_acao: "aceitar" }));
             toast(r.cozinha === "aguardando" ? "Pedido lançado · aguardando aprovação do caixa" : r.cozinha === "novo" ? "Pedido lançado e enviado para a cozinha" : "Pedido lançado na conta", "ok");
           }
+          if (b.dataset.naorecebi) {
+            const motivo = await escolherMotivo(true);
+            if (motivo == null) return;
+            await ocupado(b, () => rpc("mesa_chamado_resolver", { p_id: b.dataset.naorecebi, p_acao: "recusar", p_motivo: motivo }));
+            toast("PIX não confirmado · o valor voltou para a conta e o cliente foi avisado", "ok");
+          }
+          if (b.dataset.atender && pendentes.find((c) => c.id === b.dataset.atender)?.tipo === "pix") toast("PIX confirmado · já entra como pagamento ao fechar a conta", "ok");
           if (b.dataset.recusar) {
             const motivo = await escolherMotivo();
             if (motivo == null) return;
@@ -130,7 +142,7 @@ export async function abrirChamados(soId = null) {
             toast("Pedido recusado · o cliente foi avisado", "ok");
           }
           mudou = true;
-          pendentes = pendentes.filter((c) => c.id !== (b.dataset.atender || b.dataset.aceitar || b.dataset.recusar));
+          pendentes = pendentes.filter((c) => c.id !== (b.dataset.atender || b.dataset.aceitar || b.dataset.recusar || b.dataset.naorecebi));
           desenharPilula();
           desenhar();
         } catch (err) { erro(err); if (/cancelou|não encontrado/i.test(err.message)) { await atualizar(false); desenhar(); } }
@@ -141,22 +153,23 @@ export async function abrirChamados(soId = null) {
   return mudou;
 }
 
-/** Atende um chamado específico (tela Hoje). Pedido abre a conferência; os demais são marcados como atendidos. */
+/** Atende um chamado específico (tela Hoje). Pedido e PIX abrem a conferência; os demais são marcados como atendidos. */
 export async function resolverChamado(id, tipo) {
-  if (tipo === "pedido") return abrirChamados(id);
+  if (tipo === "pedido" || tipo === "pix") return abrirChamados(id);
   await rpc("mesa_chamado_resolver", { p_id: id, p_acao: "atender" });
   toast("Chamado atendido", "ok");
   return true;
 }
 
-function escolherMotivo() {
-  const MOTIVOS = ["Produto acabou", "Cozinha fechada", "Pedido repetido", "Mesa errada"];
+function escolherMotivo(pix = false) {
+  const MOTIVOS = pix ? ["O PIX não caiu na conta da loja", "Valor diferente do informado", "Comprovante não confere"]
+    : ["Produto acabou", "Cozinha fechada", "Pedido repetido", "Mesa errada"];
   return modal({
-    titulo: "Recusar pedido",
+    titulo: pix ? "PIX não recebido" : "Recusar pedido",
     corpo: html`<p class="muted small" style="margin-top:0">O cliente vê o motivo no celular.</p>
       <div class="lista-escolha">${MOTIVOS.map((m) => html`<button class="btn" data-m="${m}">${m}</button>`)}</div>
       <label class="field" style="margin-top:.75rem"><span>Outro motivo</span><input class="input" id="ch-mot" maxlength="120"></label>`,
-    rodape: html`<button class="btn" data-fechar>Voltar</button><button class="btn danger" id="ch-ok">Recusar</button>`,
+    rodape: html`<button class="btn" data-fechar>Voltar</button><button class="btn danger" id="ch-ok">${pix ? "Não recebi" : "Recusar"}</button>`,
     onPronto: (d, fechar) => {
       d.querySelectorAll("[data-m]").forEach((b) => (b.onclick = () => fechar(b.dataset.m)));
       d.querySelector("#ch-ok").onclick = () => fechar(d.querySelector("#ch-mot").value.trim());

@@ -2,6 +2,9 @@
 // chama o garçom, pede a conta, faz pedidos (o garçom confirma antes de irem para a cozinha)
 // e paga por PIX, inteiro ou dividido.  Acesso: /mesa/?t=<código da mesa>
 // O banco só devolve a conta desta mesa, sem dados de cliente (migração 025).
+// 027: o valor pago/informado sai da conta na hora; depois de pagar, um aviso grande pede para
+// chamar o garçom só para validar. Cobrança automática pelo provedor da loja (Mercado Pago,
+// PagBank, Getnet ou InfinitePay) ou PIX pela chave da loja conferido pelo garçom.
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../assets/config.js";
 import { html, render, raw, dinheiro, urlSegura } from "../app/js/ui.js";
@@ -99,7 +102,13 @@ function avisarMudancas(a, b) {
   const st = new Map((a.chamados || []).map((c) => [c.id, c.status]));
   for (const c of b.chamados || []) {
     const s0 = st.get(c.id);
-    if (!s0 || s0 === c.status || c.tipo !== "pedido") continue;
+    if (!s0 || s0 === c.status) continue;
+    if (c.tipo === "pix" && !c.automatico) {
+      if (c.status === "atendido") { aviso(`O garçom conferiu seu PIX de ${dinheiro(c.valor)} ✓`, "ok"); navigator.vibrate?.(60); }
+      if (c.status === "recusado") { aviso(`O garçom não encontrou seu PIX de ${dinheiro(c.valor)}. Chame o garçom.`, "erro"); navigator.vibrate?.([100, 60, 100]); }
+      continue;
+    }
+    if (c.tipo !== "pedido") continue;
     if (c.status === "atendido") { aviso("O garçom confirmou seu pedido ✓", "ok"); navigator.vibrate?.(60); }
     if (c.status === "recusado") { aviso(`Pedido não aceito${c.motivo ? ": " + c.motivo : ""}`, "erro"); navigator.vibrate?.([100, 60, 100]); }
   }
@@ -118,6 +127,7 @@ function desenhar() {
   const pessoas = Math.max(1, Number(c?.pessoas) || 1);
   const itensCarrinho = carrinho.reduce((a, i) => a + i.quantidade, 0);
   const podePagar = c && d.pode_pagar && (d.pix_automatico || d.pix) && Number(c.falta) > 0.009;
+  const pago = Number(c?.pago) || 0, informado = Number(c?.informado) || 0;
 
   render(app, html`
     <header class="topo mesa-topo">
@@ -136,7 +146,7 @@ function desenhar() {
         <button class="acao ${pend("garcom") ? "feito" : ""}" data-a="garcom"><span class="acao-ic">🔔</span><strong>${pend("garcom") ? "Garçom chamado" : "Chamar garçom"}</strong><small>${pend("garcom") ? ha(pend("garcom").criado_em) : "ele vem até a mesa"}</small></button>
         ${d.pode_pedir ? html`<button class="acao" data-a="pedir"><span class="acao-ic">🍽️</span><strong>Fazer pedido</strong><small>o garçom confirma</small></button>` : ""}
         ${c ? html`<button class="acao ${c.conta_pedida ? "feito" : ""}" data-a="conta"><span class="acao-ic">🧾</span><strong>${c.conta_pedida ? "Conta pedida" : "Pedir a conta"}</strong><small>${c.conta_pedida ? "o garçom já vem" : "fechar com o garçom"}</small></button>` : ""}
-        ${podePagar ? html`<button class="acao destaque-acao" data-a="pagar"><span class="acao-ic">💠</span><strong>Pagar com PIX</strong><small>inteiro ou dividido</small></button>` : ""}
+        ${podePagar ? html`<button class="acao destaque-acao" data-a="pagar"><span class="acao-ic">💠</span><strong>${d.pag_link ? "Pagar a conta" : "Pagar com PIX"}</strong><small>${d.pag_link ? "PIX ou cartão · inteiro ou dividido" : "inteiro ou dividido"}</small></button>` : ""}
       </div>
 
       ${c ? html`<section class="cartao conta">
@@ -154,8 +164,10 @@ function desenhar() {
           ${Number(c.couvert) ? html`<div class="linha"><span>Couvert</span><span>${dinheiro(c.couvert)}</span></div>` : ""}
           <div class="linha total"><strong>Total</strong><strong>${dinheiro(c.total)}</strong></div>
           ${pessoas > 1 ? html`<div class="linha muted"><span>Por pessoa (${pessoas})</span><span>${dinheiro(Number(c.total) / pessoas)}</span></div>` : ""}
-          ${Number(c.pago) > 0 ? html`<div class="linha pago-linha"><span>Pago pelo QR</span><span>−${dinheiro(c.pago)}</span></div>
-            <div class="linha total"><strong>${Number(c.falta) > 0.009 ? "Falta pagar" : "Tudo pago ✓"}</strong><strong>${dinheiro(c.falta)}</strong></div>` : ""}
+          ${pago > 0 || informado > 0 ? html`
+            ${pago > 0 ? html`<div class="linha pago-linha"><span>Já pago</span><span>−${dinheiro(pago)}</span></div>` : ""}
+            ${informado > 0 ? html`<div class="linha informado-linha"><span>Pago · aguardando o garçom conferir</span><span>−${dinheiro(informado)}</span></div>` : ""}
+            <div class="linha total falta-linha"><strong>${Number(c.falta) > 0.009 ? "Falta pagar" : "Tudo pago ✓"}</strong><strong>${dinheiro(c.falta)}</strong></div>` : ""}
         </div>
         <p class="pequeno muted">A conta se atualiza sozinha. A taxa de serviço é opcional: se não quiser, avise o garçom.</p>
       </section>` : html`<section class="cartao centro mesa-livre">
@@ -178,10 +190,17 @@ function situacoes() {
       else if (c.status === "atendido" && minutos(c.criado_em) < 30) linhas.push(html`<div class="situacao s-ok"><span>✓</span><div class="grow"><strong>Pedido confirmado</strong><span>${resumo}</span></div></div>`);
       else if (c.status === "recusado" && minutos(c.criado_em) < 30) linhas.push(html`<div class="situacao s-erro"><span>✕</span><div class="grow"><strong>Pedido não aceito${c.motivo ? `: ${c.motivo}` : ""}</strong><span>${resumo}</span></div></div>`);
     }
+    if (c.tipo === "pix" && !c.automatico) {
+      if (c.status === "atendido" && minutos(c.criado_em) < 30) linhas.push(html`<div class="situacao s-ok"><span>✓</span><div class="grow"><strong>PIX de ${dinheiro(c.valor)} conferido pelo garçom</strong><span>Já está descontado da conta.</span></div></div>`);
+      if (c.status === "recusado" && minutos(c.criado_em) < 60) linhas.push(html`<div class="situacao s-erro"><span>✕</span><div class="grow"><strong>O garçom não encontrou seu PIX de ${dinheiro(c.valor)}</strong><span>${c.motivo || "O valor voltou para a conta."} Chame o garçom e mostre o comprovante.</span></div></div>`);
+    }
     if (c.status !== "pendente") continue;
+    if (c.tipo === "validar") linhas.push(html`<div class="situacao s-espera"><span>🧾</span><div class="grow"><strong>Garçom chamado para validar o pagamento</strong><span>Tenha o comprovante em mãos.</span></div></div>`);
     if (c.tipo === "garcom") linhas.push(html`<div class="situacao s-espera"><span>🔔</span><div class="grow"><strong>Garçom chamado ${ha(c.criado_em)}</strong><span>Ele já foi avisado no celular.</span></div><button class="link" data-cancelar="${c.id}">Cancelar</button></div>`);
     if (c.tipo === "conta") linhas.push(html`<div class="situacao s-espera"><span>🧾</span><div class="grow"><strong>Conta pedida ${ha(c.criado_em)}</strong><span>O garçom já vem até a mesa.</span></div></div>`);
-    if (c.tipo === "pix") linhas.push(html`<div class="situacao s-espera"><span>💠</span><div class="grow"><strong>Avisamos o garçom do seu PIX de ${dinheiro(c.valor)}</strong><span>Ele vai conferir o comprovante.</span></div></div>`);
+    if (c.tipo === "pix") linhas.push(c.automatico
+      ? html`<div class="situacao s-ok"><span>✓</span><div class="grow"><strong>PIX de ${dinheiro(c.valor)} confirmado</strong><span>O garçom já foi avisado.</span></div></div>`
+      : html`<div class="situacao s-espera"><span>💠</span><div class="grow"><strong>PIX de ${dinheiro(c.valor)} aguardando o garçom conferir</strong><span>O valor já foi descontado da conta.</span></div></div>`);
   }
   return linhas.length ? html`<div class="situacoes">${linhas}</div>` : "";
 }
@@ -322,14 +341,27 @@ async function revisarPedido() {
 }
 
 // ---------- Pagar ----------
+const NOME_PROV = { mercadopago: "Mercado Pago", pagbank: "PagBank", getnet: "Getnet", infinitepay: "InfinitePay" };
+
+async function invocar(body) {
+  const { data, error } = await sb.functions.invoke("pagamentos", { body });
+  if (error) { let m = error.message; try { const j = await error.context?.json?.(); m = j?.error || m; } catch { /* ignora */ } throw new Error(m); }
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
 async function pagar() {
   const c = d.conta;
-  if (!c || !(Number(c.falta) > 0.009)) return aviso("Não há valor a pagar");
+  if (!c || !(Number(c.falta) > 0.009)) return aviso(Number(c?.informado) > 0 ? "O restante já foi informado. Aguarde o garçom conferir." : "Não há valor a pagar");
   const falta = r2(c.falta);
+  const auto = !!d.pix_automatico, link = !!d.pag_link;
+  const titulo = link ? "Pagar a conta" : "Pagar com PIX";
+  const rotuloBotao = (v) => link ? `Pagar ${dinheiro(v)} (PIX ou cartão)` : `Pagar ${dinheiro(v)} com PIX`;
   let modo = "tudo", partes = Math.max(2, Number(c.pessoas) || 2), outro = "";
   const valorEscolhido = () => modo === "tudo" ? falta : modo === "dividir" ? Math.min(falta, Math.ceil((falta / partes) * 100) / 100) : Math.min(falta, r2(String(outro).replace(/\./g, "").replace(",", ".")));
   await qrPronto().catch(() => {});
 
+  let pagoValor = null; // preenchido quando o pagamento termina: abre o aviso de validação
   await folha(html`<div id="m-pag"></div>`, {
     onPronto: (dlg, fechar) => {
       const box = dlg.querySelector("#m-pag");
@@ -338,9 +370,10 @@ async function pagar() {
 
       const escolher = () => {
         const v = valorEscolhido();
-        render(box, html`<h2>Pagar com PIX</h2>
+        render(box, html`<h2>${titulo}</h2>
           <div class="resumo"><div class="linha"><span>Total da mesa</span><span>${dinheiro(c.total)}</span></div>
-            ${Number(c.pago) ? html`<div class="linha"><span>Já pago pelo QR</span><span>−${dinheiro(c.pago)}</span></div>` : ""}
+            ${Number(c.pago) ? html`<div class="linha"><span>Já pago</span><span>−${dinheiro(c.pago)}</span></div>` : ""}
+            ${Number(c.informado) ? html`<div class="linha"><span>Aguardando o garçom conferir</span><span>−${dinheiro(c.informado)}</span></div>` : ""}
             <div class="linha total"><strong>Falta pagar</strong><strong>${dinheiro(falta)}</strong></div></div>
           <div class="opcoes tres">
             <label><input type="radio" name="modo" value="tudo" ${modo === "tudo" ? "checked" : ""}><span>Tudo<small>${dinheiro(falta)}</small></span></label>
@@ -350,39 +383,48 @@ async function pagar() {
           ${modo === "dividir" ? html`<div class="prod-acoes" style="justify-content:space-between"><span>Dividir em</span>
             <div class="passo"><button data-p="-" aria-label="Menos">−</button><span>${partes}</span><button data-p="+" aria-label="Mais">+</button></div><span>${dinheiro(v)} cada</span></div>` : ""}
           ${modo === "outro" ? html`<label class="campo">Valor (R$)<input id="m-outro" inputmode="decimal" placeholder="0,00" value="${outro}"></label>` : ""}
-          <button class="btn-pri" id="m-ir" ${v >= 0.01 ? "" : "disabled"}>Pagar ${dinheiro(v)} com PIX</button>
-          ${!d.pix_automatico ? html`<p class="pequeno muted centro">Depois de pagar, toque em “Já paguei” para o garçom conferir.</p>` : ""}`);
+          <button class="btn-pri" id="m-ir" ${v >= 0.01 ? "" : "disabled"}>${rotuloBotao(v)}</button>
+          <p class="pequeno muted centro">${auto
+            ? `Confirmação automática pelo ${NOME_PROV[d.provedor] || "banco"}. Cada pessoa paga a sua parte e o valor sai da conta na hora.`
+            : "Depois de pagar, toque em “Já paguei”: o valor sai da conta e o garçom confere."}</p>`);
         box.querySelectorAll("[name=modo]").forEach((r) => (r.onchange = () => { modo = r.value; escolher(); if (modo === "outro") box.querySelector("#m-outro")?.focus(); }));
         box.querySelectorAll("[data-p]").forEach((b) => (b.onclick = () => { partes = Math.max(2, Math.min(20, partes + (b.dataset.p === "+" ? 1 : -1))); escolher(); }));
         const inp = box.querySelector("#m-outro");
-        if (inp) inp.oninput = () => { outro = inp.value; const v2 = valorEscolhido(); const bt = box.querySelector("#m-ir"); bt.disabled = !(v2 >= 0.01); bt.textContent = `Pagar ${dinheiro(v2 || 0)} com PIX`; };
-        box.querySelector("#m-ir").onclick = (ev) => (d.pix_automatico ? pixAutomatico(ev.currentTarget, valorEscolhido()) : pixChave(valorEscolhido()));
+        if (inp) inp.oninput = () => { outro = inp.value; const v2 = valorEscolhido(); const bt = box.querySelector("#m-ir"); bt.disabled = !(v2 >= 0.01); bt.textContent = rotuloBotao(v2 || 0); };
+        box.querySelector("#m-ir").onclick = (ev) => (auto ? cobrancaAutomatica(ev.currentTarget, valorEscolhido()) : pixChave(valorEscolhido()));
       };
 
-      // PIX com confirmação automática (Mercado Pago): QR da cobrança e confirmação sozinha
-      const pixAutomatico = async (botao, valor) => {
+      // Cobrança no provedor da loja: QR único (Mercado Pago, PagBank, Getnet) ou página de pagamento (InfinitePay).
+      // O pagamento só conta quando o provedor confirma.
+      const cobrancaAutomatica = async (botao, valor) => {
         let cob;
         try {
-          cob = await ocupado(botao, async () => {
-            const { data, error } = await sb.functions.invoke("pagamentos", { body: { acao: "mesa_pix_criar", mesa: token, valor } });
-            if (error) { let m = error.message; try { const j = await error.context?.json?.(); m = j?.error || m; } catch { /* ignora */ } throw new Error(m); }
-            if (data?.error) throw new Error(data.error);
-            return data;
-          });
+          cob = await ocupado(botao, () => invocar({ acao: "mesa_pix_criar", mesa: token, valor, retorno: `${location.origin}${location.pathname}?t=${token}` }));
         } catch (err) { return aviso(msgErro(err), "erro"); }
         if (!cob) return;
+        if (cob.pago) return concluido(valor, true);
+        if (cob.link) {
+          guardar(`mesa-pg-${token}`, { id: cob.pagamento_id, valor, em: Date.now() });
+          render(box, html`<div class="cartao pix centro"><h2>Abrindo o pagamento…</h2>
+            <p class="muted">Você vai para a página segura da ${NOME_PROV[cob.provedor] || "operadora"} e volta para cá ao terminar.</p>
+            <a class="btn-pri" href="${cob.link}" rel="noopener">Ir para o pagamento</a></div>`);
+          location.href = cob.link;
+          return;
+        }
         mostrarQr(valor, cob.qr_code, cob.qr_code_base64 ? `data:image/png;base64,${cob.qr_code_base64}` : null, true);
+        let tentativas = 0;
         const conferir = async () => {
           try {
-            const { data } = await sb.functions.invoke("pagamentos", { body: { acao: "mesa_pix_status", mesa: token, pagamento_id: cob.pagamento_id } });
-            if (data?.pago || data?.status === "approved") return concluido(valor, true);
+            const r = await invocar({ acao: "mesa_pix_status", mesa: token, pagamento_id: cob.pagamento_id });
+            if (r?.pago) return concluido(valor, true);
           } catch { /* tenta de novo */ }
-          timer = setTimeout(conferir, 4000);
+          tentativas += 1;
+          timer = setTimeout(conferir, tentativas < 60 ? 4000 : 10000);
         };
         timer = setTimeout(conferir, 5000);
       };
 
-      // PIX pela chave da loja: o cliente paga e avisa; o garçom confere o comprovante
+      // PIX pela chave da loja: o cliente paga e avisa; o valor sai da conta e o garçom confere o comprovante
       const pixChave = (valor) => {
         let codigo;
         try { codigo = payloadPix({ ...d.pix, valor, mensagem: d.mesa.nome }); }
@@ -390,14 +432,14 @@ async function pagar() {
         mostrarQr(valor, codigo, null, false);
       };
 
-      const mostrarQr = (valor, codigo, imagem, auto) => {
+      const mostrarQr = (valor, codigo, imagem, automatico) => {
         render(box, html`<div class="cartao pix">
           <h2>PIX de ${dinheiro(valor)}</h2>
           <div class="pix-qr">${imagem ? html`<img src="${imagem}" alt="QR Code PIX" width="220" height="220">` : raw(qrSvg(codigo, 220))}</div>
           <p class="pequeno muted">No celular: copie o código e cole no app do banco (PIX › Copia e cola).</p>
           <button class="btn-sec" id="m-copiar">Copiar código PIX</button>
-          ${auto ? html`<p class="pix-espera"><span class="girando" style="width:18px;height:18px;border-width:2px"></span> Esperando o pagamento… a confirmação é automática.</p>`
-            : html`<button class="btn-pri" id="m-paguei">Já paguei · avisar o garçom</button>`}
+          ${automatico ? html`<p class="pix-espera"><span class="girando" style="width:18px;height:18px;border-width:2px"></span> Esperando o pagamento… a confirmação é automática.</p>`
+            : html`<button class="btn-pri" id="m-paguei">Já paguei · descontar da conta</button>`}
           <button class="link" id="m-voltar">Voltar</button></div>`);
         box.querySelector("#m-copiar").onclick = () => navigator.clipboard?.writeText(codigo).then(() => aviso("Código copiado ✓", "ok")).catch(() => aviso("Não deu para copiar. Segure no código para copiar.", "erro"));
         box.querySelector("#m-voltar").onclick = () => { clearTimeout(timer); escolher(); };
@@ -409,20 +451,82 @@ async function pagar() {
         });
       };
 
-      const concluido = (valor, auto) => {
+      const concluido = (valor, automatico) => {
         clearTimeout(timer);
-        navigator.vibrate?.([60, 40, 60]);
-        render(box, html`<div class="status st-entregue"><div class="status-ic">✅</div>
-          <h1>${auto ? "Pagamento confirmado" : "Garçom avisado"}</h1>
-          <p>${auto ? `Recebemos ${dinheiro(valor)}. O garçom já foi avisado.` : `Seu PIX de ${dinheiro(valor)} vai ser conferido pelo garçom.`}</p>
-          <button class="btn-pri" data-fechar>Pronto</button></div>`);
-        carregar().catch(() => {});
+        pagoValor = { valor, automatico };
+        fechar(true);
       };
 
       escolher();
     },
   });
+  await carregar().catch(() => {});
+  if (pagoValor) await avisoValidar(pagoValor.valor, pagoValor.automatico);
+}
+
+/**
+ * Depois de pagar: aviso grande pedindo para chamar o garçom só para validar o pagamento.
+ * O valor já foi descontado da conta na tela.
+ */
+async function avisoValidar(valor, automatico) {
+  navigator.vibrate?.([60, 40, 60]);
+  const c = d?.conta;
+  const falta = Number(c?.falta) || 0;
+  await folha(html`<div class="validar">
+    <div class="validar-ic">${automatico ? "✅" : "🧾"}</div>
+    <h1>${automatico ? "Pagamento confirmado" : "Pagamento informado"}</h1>
+    <p class="validar-valor">${dinheiro(valor)}</p>
+    <p>${automatico ? "Recebemos o seu pagamento e ele já foi descontado da conta." : "O valor já foi descontado da conta e está aguardando o garçom conferir."}
+      ${c ? (falta > 0.009 ? html` Falta pagar <strong>${dinheiro(falta)}</strong>.` : " A conta está toda paga.") : ""}</p>
+    <button class="btn-gigante" id="m-validar">🔔 Chamar o garçom para validar</button>
+    <p class="pequeno muted">É rápido: ele só confere se o pagamento ficou certo${automatico ? "" : " (tenha o comprovante em mãos)"}.</p>
+    <button class="link" data-fechar>Agora não</button>
+  </div>`, {
+    classe: "folha-validar",
+    onPronto: (dlg, fechar) => {
+      dlg.querySelector("#m-validar").onclick = async (ev) => {
+        try {
+          await ocupado(ev.currentTarget, () => chamarRpc("mesa_chamar", { p_token: token, p_tipo: "validar" }));
+          navigator.vibrate?.(40);
+          render(dlg.querySelector(".folha-corpo"), html`<div class="validar">
+            <div class="validar-ic">🔔</div><h1>Garçom chamado</h1>
+            <p>Ele já foi avisado e vem validar o pagamento.</p>
+            <button class="btn-pri" data-fechar>Pronto</button></div>`);
+        } catch (err) { aviso(msgErro(err), "erro"); }
+      };
+    },
+  });
   carregar().catch(() => {});
 }
 
-iniciar();
+/** Volta da página de pagamento (InfinitePay): confere no provedor e mostra o aviso de validação. */
+async function retornoCheckout() {
+  if (!d) return;
+  const q = new URLSearchParams(location.search);
+  const pg = q.get("pg") || q.get("order_nsu");
+  if (!pg || !/^[0-9a-f-]{36}$/i.test(pg)) return;
+  const extra = { transaction_nsu: q.get("transaction_nsu") || undefined, slug: q.get("slug") || undefined };
+  const salvo = ler(`mesa-pg-${token}`, null);
+  history.replaceState(null, "", `${location.pathname}?t=${token}`);
+  const valor = salvo?.id === pg ? salvo.valor : null;
+  let fecharEspera = null;
+  folha(html`<div class="validar"><div class="validar-ic"><span class="girando"></span></div><h1>Confirmando o pagamento…</h1>
+    <p class="muted">Estamos conferindo com a operadora. Leva só alguns segundos.</p></div>`, { onPronto: (_dlg, f) => { fecharEspera = f; } });
+  for (let i = 0; i < 20; i++) {
+    try {
+      const r = await invocar({ acao: "mesa_pix_status", mesa: token, pagamento_id: pg, ...extra });
+      if (r?.pago) {
+        try { localStorage.removeItem(`mesa-pg-${token}`); } catch { /* sem armazenamento */ }
+        fecharEspera?.();
+        await carregar().catch(() => {});
+        return avisoValidar(Number(r.valor) || valor || 0, true);
+      }
+      if (r?.status === "cancelado") break;
+    } catch { /* tenta de novo */ }
+    await new Promise((res) => setTimeout(res, 3000));
+  }
+  fecharEspera?.();
+  aviso("Ainda não recebemos a confirmação do pagamento. Se você pagou, chame o garçom.", "erro");
+}
+
+iniciar().then(retornoCheckout);

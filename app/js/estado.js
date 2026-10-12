@@ -86,7 +86,7 @@ export const RESTAURANTE_PADRAO = {
   aprovacao_cozinha: true, preparo_alvo_min: 20,
   tempo_alerta_min: 60, tempo_critico_min: 120, ocioso_min: 25,
   garcom_fecha_conta: true, caixa_principal_id: null,
-  qr_ativo: true, qr_pedir: true, qr_pagar: true,
+  qr_ativo: true, qr_pedir: true, qr_pagar: true, qr_pagar_chave: true, qr_pagar_auto: true,
   aprovacao_auto_ate: 0, aprovacao_auto_confiavel: true,
 };
 export const cfgRestaurante = () => ({ ...RESTAURANTE_PADRAO, ...(estado.empresa?.config_restaurante || {}) });

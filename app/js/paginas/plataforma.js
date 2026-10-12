@@ -46,9 +46,11 @@ export default async function plataforma(el) {
 
   async function kpis() {
     const [r, fin] = await Promise.all([rpc("plataforma_resumo"), rpc("plataforma_financeiro").catch(() => null)]);
+    const alvo = $("#kpis", el);
+    if (!alvo || !alvo.isConnected) return; // saiu da tela antes de os números chegarem
     const np = $("#n-pedidos", el);
     if (np && fin) { np.hidden = !fin.pacotes_pendentes; np.textContent = fin.pacotes_pendentes; }
-    render($("#kpis", el), html`
+    render(alvo, html`
       <div class="panel kpi"><div class="k-label">Contatos novos</div><div class="k-valor">${r.leads_novos}</div><div class="k-sub">${r.leads_30d} nos últimos 30 dias</div></div>
       <div class="panel kpi"><div class="k-label">Testes em andamento</div><div class="k-valor">${r.testes_ativos}</div><div class="k-sub">${r.testes_vencidos} vencidos sem contratar</div></div>
       <div class="panel kpi"><div class="k-label">Clientes ativos</div><div class="k-valor">${r.clientes_ativos}</div><div class="k-sub">${r.bloqueios_30d} tentativas de repetir o teste (30 dias)</div></div>

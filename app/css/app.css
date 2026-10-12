@@ -1496,3 +1496,15 @@ kbd { display: inline-block; padding: .05rem .4rem; border: 1px solid var(--line
 .cont-sub { font-size: var(--fs-xs); color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
 .cont-total { font-weight: 700; font-variant-numeric: tabular-nums; }
 @media (max-width: 560px) { .cont-grade { grid-template-columns: 1fr; } }
+
+/* Configurações › PIX e pagamentos: escolha da operadora (027) */
+.prov-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .6rem; }
+.prov-op { display: flex; gap: .6rem; align-items: flex-start; padding: .75rem .85rem; border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s; }
+.prov-op input { margin-top: .2rem; accent-color: var(--primary); }
+.prov-op span { display: grid; gap: .2rem; }
+.prov-op small { color: var(--muted); font-size: var(--fs-xs); line-height: 1.35; }
+.prov-op:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); }
+.prov-op .badge.sm { font-size: .68rem; padding: .05rem .4rem; justify-self: start; }
+.prov-campos { padding: .85rem; border: 1px dashed var(--line-strong); border-radius: var(--r-md); }
+#url-aviso { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: var(--fs-xs); }
