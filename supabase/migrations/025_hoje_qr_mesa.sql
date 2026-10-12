@@ -640,6 +640,9 @@ revoke execute on function public.mesa_publica(uuid), public.mesa_cardapio(uuid)
   public.mesa_cliente_pedir(uuid,jsonb), public.mesa_cliente_cancelar(uuid,uuid), public.mesa_chamados_pendentes(),
   public.mesa_chamado_resolver(uuid,text,text), public.mesa_qr_trocar(uuid), public.mesa_pagamentos_conta(uuid),
   public.painel_hoje(), public.salvar_config_restaurante(jsonb) from public;
+-- Funções da equipe: nunca para visitante sem login (o Supabase concede ao anon diretamente)
+revoke execute on function public.mesa_chamados_pendentes(), public.mesa_chamado_resolver(uuid,text,text), public.mesa_qr_trocar(uuid),
+  public.mesa_pagamentos_conta(uuid), public.painel_hoje(), public.salvar_config_restaurante(jsonb) from anon;
 grant execute on function public.mesa_publica(uuid), public.mesa_cardapio(uuid), public.mesa_chamar(uuid,text,numeric),
   public.mesa_cliente_pedir(uuid,jsonb), public.mesa_cliente_cancelar(uuid,uuid) to anon, authenticated;
 grant execute on function public.mesa_chamados_pendentes(), public.mesa_chamado_resolver(uuid,text,text), public.mesa_qr_trocar(uuid),
