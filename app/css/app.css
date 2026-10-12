@@ -1384,3 +1384,69 @@ kbd { display: inline-block; padding: .05rem .4rem; border: 1px solid var(--line
   .modal-voz[open] { display: flex; flex-direction: column; }
   .modal-voz .modal-body { flex: 1; max-height: none; }
 }
+
+/* =====================================================================
+   Tela "Hoje" (dono e gerente): o que pede atenção, com a ação ao lado
+   ===================================================================== */
+.hoje-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .75rem; margin-bottom: 1.4rem; }
+.hoje-kpi { padding: .9rem 1.1rem; display: grid; gap: .15rem; }
+.hoje-kpi .k-label { font-size: var(--fs-sm); color: var(--muted); }
+.hoje-kpi strong { font-size: 1.55rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.hoje-kpi small { font-size: var(--fs-xs); }
+.hoje-grupo { margin-bottom: 1.4rem; }
+.hoje-grupo h2 { display: flex; align-items: baseline; gap: .5rem; font-size: var(--fs-lg); margin-bottom: .6rem; }
+.hoje-grupo h2 small { font-size: var(--fs-sm); font-weight: 500; color: var(--muted); }
+.hoje-grupo.g-urgente .kb-n { background: var(--danger); }
+.hoje-grupo.g-atencao .kb-n { background: var(--amber); color: #3A2800; }
+.hoje-grupo.g-info .kb-n { background: var(--line-strong); color: var(--ink); }
+.hoje-itens { display: grid; gap: .5rem; }
+.hoje-item { display: flex; align-items: center; gap: .85rem; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--line-strong);
+  border-radius: var(--r-md); padding: .75rem .85rem; transition: opacity .18s, transform .18s; }
+.hoje-item.n-urgente { border-left-color: var(--danger); }
+.hoje-item.n-atencao { border-left-color: var(--amber); }
+.hoje-item.n-info { border-left-color: var(--primary); }
+.hoje-item.visto { opacity: .6; }
+.hoje-item.saindo { opacity: 0; transform: translateX(16px); }
+.hoje-ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; flex: none; background: var(--surface-2); color: var(--muted); }
+.n-urgente .hoje-ic { background: var(--danger-soft); color: var(--danger); }
+.n-atencao .hoje-ic { background: var(--amber-soft); color: var(--warn-ink); }
+.n-info .hoje-ic { background: var(--primary-soft); color: var(--primary); }
+.hoje-txt { display: grid; gap: .1rem; line-height: 1.3; }
+.hoje-txt span { font-size: var(--fs-sm); color: var(--muted); }
+.hoje-valor { font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hoje-acoes { display: flex; gap: .3rem; align-items: center; flex: none; }
+.hoje-vazio { padding: 2.5rem 1rem; display: grid; justify-items: center; gap: .5rem; text-align: center; color: var(--ok); }
+.hoje-vazio h2 { color: var(--ink); }
+@media (max-width: 640px) {
+  .hoje-resumo { grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .hoje-kpi { padding: .7rem .8rem; }
+  .hoje-kpi strong { font-size: 1.2rem; }
+  .hoje-item { flex-wrap: wrap; }
+  .hoje-item .hoje-txt { flex-basis: calc(100% - 52px); }
+  .hoje-valor { margin-left: 52px; }
+  .hoje-acoes { margin-left: auto; }
+}
+
+/* =====================================================================
+   QR Code na mesa: avisos de chamado para a equipe
+   ===================================================================== */
+.pilula-chamados { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 71; display: flex; align-items: center; gap: .7rem; padding: .75rem 1rem;
+  border: 0; border-radius: 16px; background: var(--primary); color: var(--on-primary); box-shadow: var(--shadow-pop); cursor: pointer; text-align: left; font: inherit; max-width: min(420px, calc(100vw - 2rem)); }
+.pilula-chamados span { display: grid; line-height: 1.25; }
+.pilula-chamados small { opacity: .85; font-size: var(--fs-xs); }
+.pilula-chamados svg { stroke: currentColor; flex: none; }
+.pilula-chamados.urgente { background: var(--danger); color: #fff; animation: chamar 1.6s ease-in-out infinite; }
+@media (max-width: 900px) { .pilula-chamados { left: 1rem; right: 1rem; bottom: calc(5rem + env(safe-area-inset-bottom)); } }
+.ch-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: .65rem; }
+.ch-card { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--primary); border-radius: var(--r-md); padding: .75rem; display: flex; flex-direction: column; gap: .45rem; }
+.ch-card .kb-acoes { margin-top: auto; display: flex; justify-content: flex-end; align-items: center; gap: .4rem; }
+.ch-card.t-pedido { border-left-color: var(--danger); }
+.ch-card.t-pix { border-left-color: var(--ok); }
+.ch-card.meu { box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 25%, transparent); }
+.ch-topo { display: flex; gap: .5rem; align-items: center; }
+.md-aviso.chamado { background: var(--primary-soft); color: var(--ink); }
+.md-aviso.pago-qr { background: var(--ok-soft); color: var(--ink); }
+.mesa-mapa.chamando, .mesa-card.chamando { animation: chamar 1.4s ease-in-out infinite; outline: 3px solid var(--primary); outline-offset: 2px; }
+.mesa-mapa.chamando::after, .mesa-card.chamando::after { content: "🔔"; position: absolute; top: -10px; right: -8px; font-size: 1rem; }
+
+@media (prefers-reduced-motion: reduce) { .mesa-mapa.chamando, .mesa-card.chamando, .pilula-chamados.urgente { animation: none; } }

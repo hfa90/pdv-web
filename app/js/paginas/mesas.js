@@ -25,6 +25,7 @@ export default async function mesas(el) {
           <button data-v="mapa">Mapa</button><button data-v="lista">Lista</button>
         </div>
         <button class="btn" id="app-garcom">${icone("celular", 'width="18" height="18"')} App do garçom</button>
+        <button class="btn" id="qr-mesas">${icone("qr", 'width="18" height="18"')} QR nas mesas</button>
         ${gestor ? html`<button class="btn" id="editar-mapa">${icone("editar", 'width="18" height="18"')} <span>Editar salão</span></button>` : ""}
       </div>
     </div>
@@ -90,9 +91,17 @@ export default async function mesas(el) {
     const alvo = $("#area-mesas", el);
     if (!lista.length) return desenharVazio(alvo);
     const visiveis = lista.filter((m) => area === "todas" || m.area === area);
-    if (visao === "lista" && !editando) return desenharLista(alvo, visiveis);
-    desenharMapa(alvo, visiveis);
+    if (visao === "lista" && !editando) desenharLista(alvo, visiveis);
+    else desenharMapa(alvo, visiveis);
+    marcarChamando();
   }
+
+  // QR Code na mesa: mesa que chamou pelo celular pisca com um sino
+  let chamando = new Set();
+  function marcarChamando() { $$("[data-m]", el).forEach((b) => b.classList.toggle("chamando", chamando.has(b.dataset.m))); }
+  const aoChamado = (ev) => { chamando = new Set((ev.detail || []).map((c) => c.mesa_id)); marcarChamando(); };
+  window.addEventListener("chamados-mesa", aoChamado);
+  import("../chamados-mesa.js").then((m) => { chamando = new Set(m.chamadosAtuais().map((c) => c.mesa_id)); marcarChamando(); }).catch(() => {});
 
   function cartaoConteudo(m, curto = false) {
     const sit = situacao(m);
@@ -314,6 +323,7 @@ export default async function mesas(el) {
   $$(".seg button", el).forEach((b) => (b.onclick = () => { visao = b.dataset.v; try { localStorage.setItem(CHAVE_VISAO, visao); } catch { /* ignora */ } desenhar(); }));
   $("#editar-mapa", el)?.addEventListener("click", () => { editando = !editando; if (editando) { painel.hidden = true; aberta = null; $("#layout", el).classList.remove("com-painel"); } desenhar(); });
   $("#app-garcom", el).onclick = () => mostrarApp().catch(erro);
+  $("#qr-mesas", el).onclick = () => import("../qr-mesas.js").then((m) => m.mostrarQrMesas()).catch(erro);
 
   // Aviso para o dono decidir sobre taxa de serviço e couvert
   if (gestor && !Object.keys(estado.empresa.config_restaurante || {}).length) {
@@ -343,5 +353,5 @@ export default async function mesas(el) {
   const aoRedimensionar = debounce(() => { if (!editando) desenhar(); }, 200);
   window.addEventListener("resize", aoRedimensionar);
 
-  return () => { sb.removeChannel(canal); clearInterval(relogio); window.removeEventListener("resize", aoRedimensionar); };
+  return () => { sb.removeChannel(canal); clearInterval(relogio); window.removeEventListener("resize", aoRedimensionar); window.removeEventListener("chamados-mesa", aoChamado); };
 }

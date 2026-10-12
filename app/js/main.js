@@ -24,6 +24,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 
 // Carregamento sob demanda: cada tela só baixa quando é aberta.
 const PAGINAS = {
+  hoje: () => import("./paginas/hoje.js"),
   painel: () => import("./paginas/painel.js"),
   pdv: () => import("./paginas/pdv.js"),
   mesas: () => import("./paginas/mesas.js"),
@@ -128,6 +129,10 @@ function montarShell() {
   if (pode("cozinha") && aprovaCozinha()) import("./aprovacoes.js").then((m) => m.iniciarAprovacoes()).catch(() => {});
   // Contas fechadas pelo garçom no app entram no caixa principal: aviso para quem está no caixa
   if (pode("mesas") && aprovaCozinha()) import("./recebimentos.js").then((m) => m.iniciarRecebimentos()).catch(() => {});
+  // QR Code na mesa (025): cliente chamou o garçom, pediu a conta, fez pedido ou pagou
+  if (pode("mesas")) import("./chamados-mesa.js").then((m) => m.iniciarChamados()).catch(() => {});
+  // Tela Hoje: contador no menu do que pede atenção
+  if (pode("hoje")) iniciarContadorHoje();
 }
 
 window.addEventListener("tema", (e) => {
@@ -265,6 +270,17 @@ async function iniciar() {
   }
 }
 
+let relogioHoje = null;
+function iniciarContadorHoje() {
+  clearInterval(relogioHoje);
+  const contar = () => {
+    if (document.hidden || location.hash.startsWith("#/hoje")) return;
+    import("./paginas/hoje.js").then(async (m) => m.marcarMenuHoje(await m.contarHoje())).catch(() => {});
+  };
+  setTimeout(contar, 4000);
+  relogioHoje = setInterval(contar, 3 * 60000);
+}
+
 async function sair() {
   const { fila } = await import("./contingencia.js");
   if (fila().length && !(await confirmar(`Há ${fila().length} venda(s) feita(s) sem internet ainda não enviada(s). Elas ficam guardadas neste aparelho e são enviadas quando você entrar de novo com internet.`, { titulo: "Sair com vendas pendentes?", ok: "Sair mesmo assim" }))) return;
@@ -272,6 +288,8 @@ async function sair() {
   import("./aprovacoes.js").then((m) => m.pararAprovacoes()).catch(() => {});
   import("./recebimentos.js").then((m) => m.pararRecebimentos()).catch(() => {});
   import("./suporte.js").then((m) => m.pararAlertaChamados()).catch(() => {});
+  import("./chamados-mesa.js").then((m) => m.pararChamados()).catch(() => {});
+  clearInterval(relogioHoje);
   await sb.auth.signOut();
   limparContextoLocal();
   limparEstado();

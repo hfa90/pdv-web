@@ -14,6 +14,27 @@ export const situacao = (m) => (!m.venda_id ? "livre" : m.conta_pedida ? "conta"
 export const NOME_SITUACAO = { livre: "Livre", ocupada: "Ocupada", conta: "Conta pedida" };
 const FRACIONADOS = ["KG", "L", "M", "G", "ML"];
 
+/** QR Code na mesa (025): chamados pendentes desta mesa e PIX já pago pelo cliente. Sem a migração, vem vazio. */
+async function buscarQr(mesaId, vendaId) {
+  if (!mesaId) return { chamados: [], pagos: [] };
+  const [chamados, pagos] = await Promise.all([
+    q(sb.from("mesa_chamados").select("id,tipo,itens,valor,automatico,criado_em").eq("mesa_id", mesaId).eq("status", "pendente").order("criado_em")).catch(() => []),
+    vendaId ? rpc("mesa_pagamentos_conta", { p_venda: vendaId }).catch(() => []) : [],
+  ]);
+  return { chamados, pagos };
+}
+
+const TIPO_CHAMADO = { garcom: "chamou o garçom", conta: "pediu a conta", pedido: "fez um pedido", pix: "avisou um PIX" };
+function avisosQr(qr) {
+  const pago = qr.pagos.reduce((a, p) => a + Number(p.valor), 0);
+  return html`${qr.chamados.map((c) => html`<div class="md-aviso chamado">${icone(c.tipo === "pix" ? "pix" : "sino", 'width="18" height="18"')}
+      <span class="grow"><strong>Cliente ${TIPO_CHAMADO[c.tipo]} pelo QR</strong> · ${duracao(minutosDesde(c.criado_em)) || "agora"}
+        ${c.tipo === "pedido" ? html`<br><span class="small">${(c.itens || []).map((i) => `${i.quantidade}× ${i.nome}`).join(", ")}</span>` : ""}
+        ${c.tipo === "pix" ? html` · ${dinheiro(c.valor)} ${c.automatico ? "(confirmado)" : "(confira o comprovante)"}` : ""}</span>
+      <button class="btn sm ${c.tipo === "pedido" ? "primary" : ""}" data-chamado="${c.id}" data-tipo="${c.tipo}">${c.tipo === "pedido" ? "Ver pedido" : "Atendido"}</button></div>`)}
+    ${pago ? html`<div class="md-aviso pago-qr">${icone("pix", 'width="18" height="18"')}<span class="grow"><strong>${dinheiro(pago)} já pago por PIX pelo QR.</strong> Entra sozinho como pagamento ao fechar a conta.</span></div>` : ""}`;
+}
+
 async function buscarPedido(vendaId) {
   const [v, tickets] = await Promise.all([
     q(sb.from("vendas")
@@ -52,11 +73,12 @@ export async function desenharDetalhe(alvo, mesa, op) {
 
   if (sit === "livre") {
     let pessoas = Math.min(2, mesa.lugares);
+    const qrLivre = mesa.comanda ? { chamados: [], pagos: [] } : await buscarQr(mesa.id, null);
     const avisoCobranca = [
       cfg.servico_modo === "cobrar" && `taxa de serviço de ${cfg.servico_percentual}%`,
       cfg.couvert_ativo && Number(cfg.couvert_valor) > 0 && `${(cfg.couvert_nome || "couvert").toLowerCase()} de ${dinheiro(cfg.couvert_valor)} por pessoa`,
     ].filter(Boolean);
-    render(alvo, html`${cab}<div class="md-livre">
+    render(alvo, html`${cab}${avisosQr(qrLivre)}<div class="md-livre">
       ${icone("mesa", 'width="56" height="56"')}
       <p>Quantas pessoas?</p>
       <div class="qtd grande"><button data-a="menos" aria-label="Menos">−</button><span id="md-pessoas">${pessoas}</span><button data-a="mais" aria-label="Mais">+</button></div>
@@ -65,6 +87,11 @@ export async function desenharDetalhe(alvo, mesa, op) {
       ${avisoCobranca.length ? html`<p class="small muted" style="margin:0">Esta mesa terá ${avisoCobranca.join(" e ")}.</p>` : ""}
     </div>`);
     alvo.onclick = async (e) => {
+      const ch = e.target.closest("[data-chamado]");
+      if (ch) {
+        try { const { resolverChamado } = await import("./chamados-mesa.js"); if (await resolverChamado(ch.dataset.chamado, ch.dataset.tipo)) { op.onMudou(); await desenharDetalhe(alvo, mesa, op); } } catch (err) { erro(err); }
+        return;
+      }
       const a = e.target.closest("[data-a]")?.dataset.a;
       if (a === "fechar") return op.onFechar();
       if (a === "menos" || a === "mais") { pessoas = Math.max(1, Math.min(50, pessoas + (a === "mais" ? 1 : -1))); alvo.querySelector("#md-pessoas").textContent = pessoas; }
@@ -92,7 +119,7 @@ export async function desenharDetalhe(alvo, mesa, op) {
     return;
   }
 
-  const v = await buscarPedido(mesa.venda_id);
+  const [v, qr] = await Promise.all([buscarPedido(mesa.venda_id), mesa.comanda ? { chamados: [], pagos: [] } : buscarQr(mesa.id, mesa.venda_id)]);
   if (v.status !== "aberta") { op.onMudou(); toast(`${mesa.nome} já foi fechada`, "ok"); return op.onFechar?.(); }
   const itens = v.itens.filter((i) => !i.removido).sort((a, b) => a.item - b.item);
   const eu = estado.perfil?.id;
@@ -126,6 +153,7 @@ export async function desenharDetalhe(alvo, mesa, op) {
     ${prontos.length ? html`<div class="md-aviso pronto">${icone("sino", 'width="18" height="18"')}
       <span class="grow"><strong>Pronto na cozinha!</strong> ${prontos.flatMap((t) => (t.itens || []).filter((i) => !i.cancelado).map((i) => `${fmtQtd(i.quantidade, i.unidade)}× ${i.descricao}`)).join(", ")}</span>
       <button class="btn sm" data-a="servido">Servido</button></div>` : ""}
+    ${avisosQr(qr)}
     ${recusados.map((t) => html`<div class="md-aviso recusado">${icone("alerta", 'width="18" height="18"')}<span class="grow">Pedido recusado${t.recusado_motivo ? `: ${t.recusado_motivo}` : ""}. Os itens saíram da conta.</span></div>`)}
     <div class="md-itens">${itens.length ? itens.map((i) => {
         const et = etapas.get(i.id);
@@ -158,10 +186,14 @@ export async function desenharDetalhe(alvo, mesa, op) {
     </div>`);
 
   alvo.onclick = async (e) => {
-    const b = e.target.closest("[data-a], [data-tirar]");
+    const b = e.target.closest("[data-a], [data-tirar], [data-chamado]");
     if (!b) return;
     const a = b.dataset.a;
     try {
+      if (b.dataset.chamado) {
+        const { resolverChamado } = await import("./chamados-mesa.js");
+        if (!(await resolverChamado(b.dataset.chamado, b.dataset.tipo))) return;
+      }
       if (b.dataset.tirar) {
         const it = itens.find((i) => i.id === b.dataset.tirar);
         const motivo = await pedirTexto({ titulo: `Tirar ${it.descricao}`, rotulo: "Motivo", minimo: 3, ok: "Tirar item", dica: "Ex.: lançado errado, cliente desistiu. A cozinha é avisada." });

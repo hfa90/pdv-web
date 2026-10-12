@@ -18,6 +18,7 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 - **Níveis de acesso**: Administrador, Gerente, Caixa, Atendente (garçom) e Cozinha — e, acima de todos, o **superusuário** e a equipe de suporte.
 - **Registro de atividades** (auditoria) de cancelamentos, alterações de preço, caixa, usuários e notas.
 - **PIX com QR Code no caixa**: a chave da loja fica em Configurações › PIX e o PDV gera o código "copia e cola" (BR Code com CRC16) com o valor exato. Opcional: token do Mercado Pago para cobrança com confirmação automática.
+- **QR Code na mesa**: o cliente vê a conta, chama o garçom, pede e paga por PIX pelo celular (veja em Restaurante).
 - **Mesas (restaurantes)**: mapa interativo do salão (arrastar para montar, áreas, formatos), situação ao vivo (livre, ocupada, conta pedida), lançar itens, transferir/juntar, conta por pessoa e envio para o caixa.
 - **App do garçom** (`garcom/`): PWA instalável no celular ou tablet, mesmo login e mesmas regras do banco, funciona com internet instável e reenvia pedidos pendentes. Tem **pedido por voz**: o garçom fala, confere o resumo e envia (veja abaixo).
 - **Cozinha**: um computador pode imprimir sozinho os itens lançados pelos garçons e os pedidos do delivery.
@@ -30,6 +31,19 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 
 ## Gestão para o dono
 
+- **Hoje** (primeira tela do administrador e do gerente; migração `025_hoje_qr_mesa.sql`): uma lista só com tudo o que pede atenção, separado em **Agora**, **Hoje** e **Para acompanhar**, cada item com a ação ao lado:
+  - pedidos do garçom aguardando aprovação;
+  - mesas chamando pelo QR (atender ou confirmar o pedido ali mesmo);
+  - delivery esperando aceite;
+  - conta pedida há mais de 10 minutos;
+  - pedidos atrasados na cozinha;
+  - caixa esquecido aberto e caixa fechado com falta ou sobra;
+  - contas a pagar vencidas ou vencendo (**Marcar paga** com um toque);
+  - lotes vencidos ou vencendo;
+  - produtos que acabaram ou estão abaixo do mínimo;
+  - fiado vencido, NFC-e com problema, alertas de operador e mensalidade.
+
+  No topo ficam vendido hoje (comparado com o mesmo dia da semana passada até a mesma hora), vendas, mesas abertas e caixas abertos. **Já vi** esconde o aviso até o fim do dia neste aparelho, e o menu mostra quantos assuntos faltam. A lista se atualiza sozinha. O painel antigo continua em **Painel completo**.
 - **Compras › Entrada de nota (XML)**: lê o XML da NF-e do fornecedor, reconhece os produtos (código de barras ou "de-para" do fornecedor, aprendido na primeira nota), converte caixa/fardo em unidades, atualiza custo (com frete, IPI e ST rateados), mostra a nova margem e sugere preço, cria produtos novos, registra lotes com validade e lança as parcelas em contas a pagar. Nunca lança a mesma nota duas vezes.
 - **Compras › Sugestão de compra / Curva ABC / Parados**: quanto comprar de cada produto (média de venda × dias de cobertura + mínimo − estoque), agrupado por fornecedor com pedido pronto para WhatsApp; produtos classe A/B/C; dinheiro parado na prateleira.
 - **Fiado**: crediário vira dívida do cliente com prazo e limite (o caixa não passa do limite; gerente libera), extrato, recebimento (dinheiro entra no caixa), recibo, cobrança pelo WhatsApp com PIX copia e cola e ajuste de saldo antigo.
@@ -62,6 +76,29 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 - **Login do garçom por matrícula ou CPF + senha numérica** (6 a 12 números, sem sequência ou repetição). O celular é vinculado à loja uma vez pelo QR de Mesas › App do garçom (leva o código da loja); depois o garçom digita só matrícula/CPF e senha. A senha é guardada com bcrypt; 5 erros bloqueiam por 15 minutos (o gerente libera em Usuários). O garçom pode ser criado sem e-mail e troca a própria senha no app. Quem tem e-mail continua podendo entrar por e-mail.
 - **Meu turno** (app do garçom e "Meu desempenho" no sistema): quanto recebeu no app no dia por PIX, débito e crédito (com NSU de cada conta), comissão do dia, taxa de serviço arrecadada nas suas mesas, comissão prevista das mesas abertas e **conferência com a maquininha**: ele digita os totais do relatório, vê na hora o que bateu ou a diferença e registra o fechamento do turno (o gerente vê em Garçons › Desempenho individual).
 - **Garçons › Ao vivo** (administrador/gerente): um boneco por garçom com anel e % da meta (dia, semana ou mês; sem meta, em relação ao líder), expressão do boneco conforme o desempenho, medalhas do 1º ao 3º, quanto está em mesa agora, hoje, na semana e no mês, mesas abertas, contas pedidas, pedidos prontos, último pedido, e o **mapa do salão com a cor do garçom em cada mesa**. Atualiza em tempo real e tem modo tela cheia.
+
+### QR Code na mesa (cliente se atende pelo celular)
+
+Migração `025_hoje_qr_mesa.sql`. Cada mesa tem um QR próprio, que se imprime em **Mesas › QR nas mesas** (6 por folha A4). O cliente aponta a câmera e, **sem app nem cadastro** (`mesa/?t=<código>`):
+- **Vê a conta ao vivo:** itens, a etapa de cada um na cozinha (preparando, pronto, servido), serviço, couvert, total e o valor por pessoa.
+- **Chama o garçom ou pede a conta:** o garçom recebe aviso com som no app, a mesa pisca com um sino e o caixa vê o aviso em qualquer tela do sistema.
+- **Faz pedidos** a partir do cardápio digital (ou de todos os produtos vendidos por unidade, se a loja não usa o cardápio). Nada entra na conta sem um funcionário tocar em **Confirmar e enviar**. Se a mesa estiver livre, ela é aberta nessa hora. Depois o pedido segue as regras de sempre: aprovação do caixa e cozinha. Se recusar, o cliente vê o motivo.
+- **Paga por PIX**, a conta toda, dividida em partes iguais ou um valor livre:
+  - **Com Mercado Pago:** a confirmação é automática. O valor aparece como pago no app do garçom ("Fechar conta") e no PDV, e entra no caixa ao fechar a mesa.
+  - **Sem Mercado Pago:** o cliente paga pela chave da loja e toca em "Já paguei". O garçom confere o comprovante.
+
+O que o cliente pode fazer se escolhe em **Configurações › Restaurante › QR Code na mesa** (ligar o QR, permitir pedidos, permitir PIX).
+
+**Segurança:**
+- O QR só dá acesso à conta daquela mesa, sem nome de cliente, CPF ou telefone.
+- Tudo o que o cliente faz passa por funções do banco com limite: 8 chamados por mesa a cada 10 minutos e até 3 pedidos esperando confirmação.
+- Uma conta com PIX pago pelo QR não pode ser cancelada nem juntada, só fechada, para o dinheiro não sumir.
+- Se alguém estiver usando o QR de fora do restaurante, **Trocar todos os códigos** invalida os QRs impressos.
+
+Ativar:
+1. Rode `supabase/migrations/025_hoje_qr_mesa.sql` no SQL Editor (pode rodar mais de uma vez).
+2. Republique a função de pagamentos: `supabase functions deploy pagamentos --no-verify-jwt` (PIX automático pela mesa).
+3. Em **Mesas › QR nas mesas**, imprima os QRs.
 
 ### Pedido por voz (app do garçom e tela Mesas)
 
@@ -282,6 +319,7 @@ app/js/diagnostico/        caixa-preta (registro.js), catálogo de problemas e s
                            check-up (checagens.js), painel (painel.js), relatório (relatorio.js), envio ao servidor (envio.js)
 garcom/                    app do garçom (PWA: manifest, service worker, ícones)
 cardapio/                  cardápio digital público e acompanhamento do pedido
+mesa/                      página do QR Code na mesa (conta, chamar garçom, pedir, pagar PIX)
 ```
 
 ## Diagnóstico (quando der problema)

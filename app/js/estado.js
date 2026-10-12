@@ -29,6 +29,7 @@ const TODOS = ["admin", "gerente", "caixa", "atendente"]; // "cozinha" só vê a
 // Quais telas cada nível enxerga. A segurança real está no banco (RLS + funções);
 // isto só evita mostrar o que a pessoa não pode usar.
 export const ROTAS = {
+  hoje:          { titulo: "Hoje",          icone: "sino",       papeis: ["admin", "gerente"] },
   painel:        { titulo: "Painel",        icone: "painel",     papeis: ["admin", "gerente"] },
   pdv:           { titulo: "Vender",        icone: "pdv",        papeis: TODOS },
   mesas:         { titulo: "Mesas",         icone: "mesa",       papeis: TODOS, modulo: "garcom" },
@@ -73,7 +74,7 @@ export const eh = (...papeis) => papeis.includes(papel());
 export const ehSuper = () => estado.equipe?.nivel === "super";
 /** Em modo suporte somente leitura o banco recusa qualquer alteração. */
 export const soLeitura = () => estado.suporte?.modo === "leitura";
-export const rotaInicial = () => (eh("admin", "gerente") ? "painel" : eh("cozinha") ? "cozinha" : "pdv");
+export const rotaInicial = () => (eh("admin", "gerente") ? "hoje" : eh("cozinha") ? "cozinha" : "pdv");
 /** Nome da tela no menu (algumas mudam conforme o nível: "Garçons" vira "Meu desempenho" para o garçom). */
 export const tituloRota = (rota) => ROTAS[rota]?.tituloPor?.[papel()] || ROTAS[rota]?.titulo || "";
 
@@ -85,6 +86,7 @@ export const RESTAURANTE_PADRAO = {
   aprovacao_cozinha: true, preparo_alvo_min: 20,
   tempo_alerta_min: 60, tempo_critico_min: 120, ocioso_min: 25,
   garcom_fecha_conta: true, caixa_principal_id: null,
+  qr_ativo: true, qr_pedir: true, qr_pagar: true,
 };
 export const cfgRestaurante = () => ({ ...RESTAURANTE_PADRAO, ...(estado.empresa?.config_restaurante || {}) });
 /** Quem aprova os pedidos que o garçom manda para a cozinha. */

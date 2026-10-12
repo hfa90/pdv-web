@@ -24,7 +24,8 @@ const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : "10000000-1000-4
  * @param {string} nome  nome da mesa/comanda
  */
 export async function fecharConta(vendaId, nome) {
-  const [st, inicial] = await Promise.all([rpc("caixa_principal_status"), q(sb.from("vendas").select(CAMPOS).eq("id", vendaId).single())]);
+  const [st, inicial, pagosQr] = await Promise.all([rpc("caixa_principal_status"), q(sb.from("vendas").select(CAMPOS).eq("id", vendaId).single()),
+    rpc("mesa_pagamentos_conta", { p_venda: vendaId }).catch(() => [])]); // PIX que o cliente já pagou pelo QR da mesa (025)
   if (!st.habilitado && estado.perfil?.papel === "atendente") { toast("O fechamento pelo app está desligado. Leve a conta ao caixa.", "erro"); return false; }
   if (!st.aberto) { toast("Nenhum caixa aberto. Peça para abrirem o caixa principal antes de fechar a conta.", "erro"); return false; }
   if (inicial.status !== "aberta") { toast("Esta conta já foi fechada", "erro"); return false; }
@@ -34,6 +35,11 @@ export async function fecharConta(vendaId, nome) {
   const salvo = lerLocal(vendaId);
   const s = salvo || { id_local: novoId(), pagamentos: [], cpf: v.cpf_cnpj_consumidor || "" };
   let forma = "pix", valorDigitado = null, aviso = salvo?.pagamentos?.length ? "Pagamentos já recebidos nesta conta foram recuperados deste aparelho." : "";
+  for (const p of pagosQr || []) {
+    if (s.pagamentos.some((x) => x.qr === p.id)) continue;
+    s.pagamentos.push({ forma: "pix", valor: r2(p.valor), nsu: p.mp_id ? String(p.mp_id).slice(0, 40) : "QR", qr: p.id, em: p.pago_em });
+  }
+  if (pagosQr?.length) aviso = [aviso, "O cliente já pagou parte da conta por PIX pelo QR da mesa: o valor já está abaixo."].filter(Boolean).join(" ");
   let cobranca = null, timerPix = null, concluida = null;
   const e = estado.empresa;
   const temChave = !!e.pix_chave;
@@ -88,7 +94,7 @@ export async function fecharConta(vendaId, nome) {
 
           ${s.pagamentos.length ? html`<div class="fc-pags">${s.pagamentos.map((p, i) => html`<div class="fc-pag">
               ${icone(p.forma === "pix" ? "pix" : "cartao", 'width="18" height="18"')}<span class="grow"><strong>${NOMES[p.forma]}</strong>${p.nsu ? html` <span class="muted small">· ${p.forma === "pix" ? "cobrança" : "NSU"} ${p.nsu}</span>` : ""}</span>
-              <strong>${dinheiro(p.valor)}</strong><button class="btn sm ghost icon-btn" data-tirar="${i}" aria-label="Remover pagamento">${icone("lixo", 'width="16" height="16"')}</button></div>`)}</div>` : ""}
+              <strong>${dinheiro(p.valor)}</strong>${p.qr ? html`<span class="badge ok" title="Pago pelo cliente no QR da mesa">QR</span>` : html`<button class="btn sm ghost icon-btn" data-tirar="${i}" aria-label="Remover pagamento">${icone("lixo", 'width="16" height="16"')}</button>`}</div>`)}</div>` : ""}
 
           ${f > 0 ? html`
             <div class="seg fc-formas" role="group" aria-label="Forma de pagamento">${Object.entries(NOMES).map(([k, n]) => html`<button type="button" data-forma="${k}" class="${forma === k ? "ativo" : ""}">${icone(k === "pix" ? "pix" : "cartao", 'width="18" height="18"')} ${n}</button>`)}</div>

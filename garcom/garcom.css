@@ -97,3 +97,10 @@ body.com-detalhe .g-voz-fab { display: none; }
   body.garcom dialog.modal.wide.modal-voz { inset: 0; height: 100dvh; max-height: 100dvh; border-radius: 0; }
   body.garcom dialog.modal.wide.modal-voz .modal-body { max-height: none; }
 }
+
+/* QR Code na mesa: mesa chamando e aviso no topo */
+.g-mesa.chamando { outline: 3px solid var(--primary); outline-offset: 2px; animation: chamar 1.4s ease-in-out infinite; }
+.g-mesa.chamando::after { content: "🔔"; position: absolute; top: -9px; right: -7px; font-size: 1.05rem; }
+body.garcom .pilula-chamados { top: calc(4.2rem + env(safe-area-inset-top)); bottom: auto; left: 1rem; right: 1rem; max-width: none; }
+body.garcom.com-detalhe .pilula-chamados { display: none; }
+@media (prefers-reduced-motion: reduce) { .g-mesa.chamando { animation: none; } }

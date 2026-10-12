@@ -15,6 +15,8 @@ const app = document.getElementById("app");
 let canal = null, relogio = null, instalar = null;
 let mesas = [], area = "todas", filtro = "todas", aberta = null, aba = "mesas";
 let pedidosCz = [], estadoCz = new Map(), soMeus = true;
+let chamando = new Set(); // mesas que chamaram pelo QR Code (migração 025)
+window.addEventListener("chamados-mesa", (ev) => { chamando = new Set((ev.detail || []).map((c) => c.mesa_id)); if (aba === "mesas") desenhar(); });
 
 // ---------- Instalação (PWA) ----------
 if ("serviceWorker" in navigator) {
@@ -277,9 +279,9 @@ function desenhar() {
   if (!lista.length) return render(alvo, html`<div class="empty"><p>Nenhuma mesa neste filtro.</p></div>`);
   render(alvo, html`${lista.map((m) => {
     const sit = situacao(m);
-    if (sit === "livre") return html`<button class="g-mesa sit-livre" data-m="${m.id}"><span class="g-num">${m.nome.replace(/^Mesa\s+/i, "")}</span><span class="g-sub">${m.lugares} lugares</span><span class="sr-only">Livre</span></button>`;
+    if (sit === "livre") return html`<button class="g-mesa sit-livre ${chamando.has(m.id) ? "chamando" : ""}" data-m="${m.id}"><span class="g-num">${m.nome.replace(/^Mesa\s+/i, "")}</span><span class="g-sub">${m.lugares} lugares</span><span class="sr-only">Livre</span></button>`;
     const t = tempoMesa(m);
-    return html`<button class="g-mesa sit-${sit} t-${t.nivel} ${t.ociosa ? "ociosa" : ""} ${m.cozinha?.pronto ? "cz-pronto" : ""} ${m.garcom_id === eu ? "minha" : ""}" data-m="${m.id}">
+    return html`<button class="g-mesa sit-${sit} t-${t.nivel} ${t.ociosa ? "ociosa" : ""} ${m.cozinha?.pronto ? "cz-pronto" : ""} ${m.garcom_id === eu ? "minha" : ""} ${chamando.has(m.id) ? "chamando" : ""}" data-m="${m.id}">
       <span class="mm-selos">${selosCozinha(m.cozinha)}</span>
       <span class="g-num">${m.nome.replace(/^Mesa\s+/i, "")}</span>
       <span class="g-total">${dinheiro(m.total)}</span>
@@ -339,6 +341,7 @@ async function iniciar() {
     if (!estado.conta?.garcom) return telaAviso("Exclusivo para restaurantes", "O app do garçom faz parte do plano para restaurantes. Fale com o administrador da loja.");
     montar();
     import("../app/js/diagnostico/envio.js").then((m) => m.iniciarEnvio()).catch(() => {});
+    import("../app/js/chamados-mesa.js").then((m) => m.iniciarChamados()).catch(() => {});
     await recarregar();
     ligarTempoReal();
     reenviarPendente().catch(erro);
@@ -354,6 +357,7 @@ async function sair() {
   if (canal) sb.removeChannel(canal);
   clearInterval(relogio);
   estadoCz = new Map(); pedidosCz = [];
+  import("../app/js/chamados-mesa.js").then((m) => m.pararChamados()).catch(() => {});
   await sb.auth.signOut();
   limparEstado();
   telaLogin();

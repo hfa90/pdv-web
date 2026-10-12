@@ -2,6 +2,7 @@
 // na apresentação do primeiro acesso, no botão "Ajuda desta tela" (F1) e na apostila.
 // O artigo completo de cada tela está em artigos.js (campo `artigo`).
 export const TELAS = {
+  hoje:          { desc: "O que pede sua atenção agora: aprovações, mesas chamando, contas, validade, estoque e caixa, com a ação ao lado.", artigo: "tela-painel" },
   painel:        { desc: "Resumo do dia: quanto vendeu, horários de pico, caixas abertos e estoque baixo.", artigo: "tela-painel" },
   pdv:           { desc: "A frente de caixa: lançar produtos, desconto, mesa/comanda e receber o pagamento.", artigo: "tela-vender" },
   mesas:         { desc: "Mapa do salão: abrir mesa, lançar pedido, pedir conta, transferir e fechar.", artigo: "tela-mesas" },

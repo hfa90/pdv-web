@@ -1,0 +1,67 @@
+/* QR Code na mesa: complementa o estilo do cardápio digital (../cardapio/cardapio.css). */
+.mesa-topo h1 { font-size: 1.6rem; }
+.mesa-loja { font-size: .85rem; opacity: .8; font-weight: 600; }
+.mesa-conteudo { padding-top: 1rem; display: grid; gap: 1rem; padding-bottom: 8rem; }
+
+/* Ações grandes, fáceis de tocar */
+.mesa-acoes { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
+.acao { border: 0; background: var(--surface); border-radius: var(--r); padding: .95rem .8rem; display: grid; gap: .15rem; justify-items: start; text-align: left;
+  cursor: pointer; box-shadow: 0 1px 3px rgba(31,42,39,.08); min-height: 104px; align-content: start; }
+.acao:active { transform: scale(.98); }
+.acao-ic { font-size: 1.6rem; line-height: 1; margin-bottom: .3rem; }
+.acao strong { font-size: 1rem; }
+.acao small { color: var(--muted); font-size: .8rem; }
+.acao.feito { background: var(--ok-soft); }
+.acao.feito strong { color: var(--ok); }
+.acao.destaque-acao { background: var(--accent); color: var(--accent-ink); }
+.acao.destaque-acao small { color: rgba(255,255,255,.85); }
+.mesa-acoes > .acao:only-child, .mesa-acoes > .acao:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+/* O que está acontecendo (chamados e pedidos) */
+.situacoes { display: grid; gap: .5rem; }
+.situacao { display: flex; gap: .7rem; align-items: center; border-radius: 14px; padding: .75rem .85rem; background: var(--surface); box-shadow: 0 1px 3px rgba(31,42,39,.06); }
+.situacao > span:first-child { font-size: 1.25rem; width: 1.6rem; text-align: center; flex: none; }
+.situacao .grow { display: grid; gap: .1rem; }
+.situacao .grow span { color: var(--muted); font-size: .86rem; }
+.s-espera { border-left: 4px solid #F2B33D; }
+.s-ok { border-left: 4px solid var(--ok); }
+.s-ok > span:first-child { color: var(--ok); font-weight: 800; }
+.s-erro { border-left: 4px solid #B42318; }
+.s-erro > span:first-child { color: #B42318; font-weight: 800; }
+.link { border: 0; background: none; color: var(--accent); font-weight: 650; cursor: pointer; padding: .3rem; }
+
+/* Conta */
+.conta h2 { margin-bottom: .2rem; }
+.conta-itens { list-style: none; margin: 0 0 .4rem; padding: 0; display: grid; }
+.conta-itens li { display: flex; gap: .6rem; align-items: flex-start; padding: .6rem 0; border-bottom: 1px solid var(--line); }
+.conta-itens li:last-child { border-bottom: 0; }
+.conta-itens .grow { display: grid; gap: .15rem; }
+.ci-q { font-weight: 700; min-width: 2rem; color: var(--muted); }
+.ci-v { font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.etapa { justify-self: start; font-size: .72rem; font-weight: 700; padding: .12rem .5rem; border-radius: 99px; background: var(--line); color: var(--ink); }
+.e-aguardando { background: var(--warn-soft); color: var(--warn); }
+.e-novo, .e-preparando { background: var(--accent-soft); color: var(--accent); }
+.e-pronto { background: var(--ok-soft); color: var(--ok); }
+.e-entregue { background: #EEF1EF; color: var(--muted); }
+.e-recusado { background: #FDECEA; color: #B42318; }
+.pago-linha { color: var(--ok); font-weight: 650; }
+.mesa-livre { justify-items: center; gap: .5rem; padding: 1.5rem 1rem; }
+.mesa-rodape { margin-top: .5rem; }
+
+/* Cardápio dentro da folha */
+.item-mesa { cursor: default; align-items: center; }
+.item-mesa img { width: 72px; height: 72px; }
+.item-mesa.no-carrinho { box-shadow: 0 0 0 2px var(--accent) inset; }
+.item-add { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--accent); color: #fff; font-size: 1.5rem; font-weight: 700; cursor: pointer; flex: none; box-shadow: 0 3px 8px rgba(228,87,46,.35); }
+.barra-fixa { position: sticky; bottom: 0; box-shadow: var(--sombra); }
+.folha-corpo .cats { padding-left: 0; padding-right: 0; }
+.folha-corpo .busca { width: 100%; margin: 0; }
+.rev-item { align-items: flex-start; }
+.rev-obs { margin-top: .35rem; width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: .55rem .65rem; font-size: .92rem; background: var(--bg); }
+.rev-obs:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* PIX */
+.pix-espera { display: flex; gap: .5rem; align-items: center; justify-content: center; color: var(--muted); font-size: .9rem; }
+.pix-qr img { width: 100%; height: auto; display: block; }
+.folha-corpo .status { box-shadow: none; }
+.folha-corpo > div > .cartao.pix { margin-top: 1.8rem; }

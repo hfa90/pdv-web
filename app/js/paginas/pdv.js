@@ -521,9 +521,15 @@ export default async function pdv(el, params = []) {
       const base = Number(v.subtotal) - Number(v.desconto);
       venda.acrescimo = Math.max(0, r2(Number(v.acrescimo) - taxaServico(base, venda.servico_pct) - couvertTotal(venda.couvert_unit, venda.pessoas)));
     }
+    // QR Code na mesa (025): o que o cliente já pagou por PIX entra como pagamento pré-recebido
+    if (v.canal === "mesa") {
+      const pagosQr = await rpc("mesa_pagamentos_conta", { p_venda: v.id }).catch(() => []);
+      const somaQr = (pagosQr || []).reduce((a, p) => a + Number(p.valor), 0);
+      if (somaQr > 0) venda.pre_pago = r2(venda.pre_pago + somaQr);
+    }
     sel = venda.itens.length - 1;
     atualizarCupom();
-    if (venda.pre_pago) toast("Este pedido já foi pago por PIX no cardápio digital", "ok");
+    if (venda.pre_pago) toast(v.canal === "mesa" ? `O cliente já pagou ${dinheiro(venda.pre_pago)} por PIX pelo QR da mesa` : "Este pedido já foi pago por PIX no cardápio digital", "ok");
   }
 
   // ---------- Pagamento ----------

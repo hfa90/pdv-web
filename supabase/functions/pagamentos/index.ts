@@ -6,6 +6,8 @@
 //   pix_criar  { token }            → cliente do delivery gera a cobrança do pedido (público)
 //   pix_criar  { valor, descricao } → caixa do PDV gera uma cobrança (precisa estar logado)
 //   pix_status { token } | { payment_id } → consulta e, se aprovado, marca o pedido como pago
+//   mesa_pix_criar  { mesa, valor }        → cliente na mesa (QR Code, migração 025) paga parte ou toda a conta (público)
+//   mesa_pix_status { mesa, pagamento_id } → consulta; aprovado vira pagamento PIX da conta ao fechar a mesa
 //   webhook (?acao=webhook&e=<empresa>) → aviso do Mercado Pago
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { sessaoSuporte } from "../_shared/auth.ts";
@@ -53,6 +55,13 @@ Deno.serve(async (req) => {
       .eq("id", vendaId).eq("empresa_id", empresaId).eq("status", "aberta");
   };
 
+  // PIX pago no QR da mesa: confere valor e loja antes de marcar (o gatilho avisa o garçom)
+  const marcarMesaPaga = async (id: string, empresaId: string, valor: number) => {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return;
+    await admin.from("mesa_pagamentos").update({ status: "pago", pago_em: new Date().toISOString() })
+      .eq("id", id).eq("empresa_id", empresaId).eq("status", "pendente").eq("valor", valor);
+  };
+
   try {
     // ---------- Aviso do Mercado Pago ----------
     if (url.searchParams.get("acao") === "webhook") {
@@ -67,12 +76,74 @@ Deno.serve(async (req) => {
       const p = await mp(tk, "GET", `/v1/payments/${encodeURIComponent(String(id))}`);
       const ref = String(p.external_reference || "");
       if (p.status === "approved" && ref.startsWith("v:")) await marcarPago(ref.slice(2), empresa);
+      if (p.status === "approved" && ref.startsWith("mp:")) await marcarMesaPaga(ref.slice(3), empresa, Number(p.transaction_amount));
       return json({ ok: true });
     }
 
     if (req.method !== "POST") throw new Erro(405, "Método não permitido");
     const body = await req.json().catch(() => ({}));
     const urlAviso = (emp: string) => `${Deno.env.get("SUPABASE_URL")}/functions/v1/pagamentos?acao=webhook&e=${emp}`;
+
+    // ---------- Cliente na mesa pelo QR Code (sem login) ----------
+    if (body.mesa) {
+      if (!/^[0-9a-f-]{36}$/i.test(String(body.mesa))) throw new Erro(400, "QR Code inválido");
+      const { data: m } = await admin.from("mesas").select("id, empresa_id, nome, ativo").eq("qr_token", body.mesa).maybeSingle();
+      if (!m || !m.ativo) throw new Erro(404, "QR Code inválido ou desativado");
+      const { data: e } = await admin.from("empresas").select("nome_fantasia, razao_social, config_restaurante").eq("id", m.empresa_id).single();
+      const cfg = (e?.config_restaurante || {}) as Record<string, unknown>;
+      if (cfg.qr_ativo === false || cfg.qr_pagar === false) throw new Erro(403, "Pagamento pelo QR desligado nesta loja. Chame o garçom.");
+      const tk = await tokenDaLoja(m.empresa_id);
+      if (!tk) throw new Erro(400, "Esta loja confere o PIX pelo garçom");
+
+      if (body.acao === "mesa_pix_status") {
+        if (!/^[0-9a-f-]{36}$/i.test(String(body.pagamento_id))) throw new Erro(400, "Pagamento inválido");
+        const { data: pg } = await admin.from("mesa_pagamentos").select("id, status, mp_id, valor, empresa_id")
+          .eq("id", body.pagamento_id).eq("mesa_id", m.id).maybeSingle();
+        if (!pg) throw new Erro(404, "Pagamento não encontrado");
+        if (pg.status === "pago") return json({ status: "approved", pago: true });
+        if (pg.status !== "pendente" || !pg.mp_id) return json({ status: pg.status, pago: false });
+        const p = await mp(tk, "GET", `/v1/payments/${pg.mp_id}`);
+        if (p.status === "approved") { await marcarMesaPaga(pg.id, pg.empresa_id, Number(p.transaction_amount)); return json({ ...resumo(p), pago: true }); }
+        return json({ ...resumo(p), pago: false });
+      }
+
+      if (body.acao === "mesa_pix_criar") {
+        const { data: v } = await admin.from("vendas").select("id, numero, total, status")
+          .eq("mesa_id", m.id).eq("status", "aberta").eq("canal", "mesa").order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if (!v) throw new Erro(400, "A conta desta mesa já foi fechada");
+        const { data: pagos } = await admin.from("mesa_pagamentos").select("id, valor, status, mp_id, criado_em").eq("venda_id", v.id);
+        const pago = (pagos || []).filter((x) => x.status === "pago").reduce((a, x) => a + Number(x.valor), 0);
+        const falta = Math.round((Number(v.total) - pago) * 100) / 100;
+        if (falta < 0.01) throw new Erro(400, "Esta conta já está paga");
+        const valor = Math.round(Number(body.valor) * 100) / 100;
+        if (!(valor >= 0.01) || valor > falta + 0.001) throw new Erro(400, `Valor inválido. Falta pagar R$ ${falta.toFixed(2).replace(".", ",")}`);
+        const pendentes = (pagos || []).filter((x) => x.status === "pendente");
+        // Mesmo valor pedido há pouco: reaproveita a cobrança (não cria várias para o mesmo toque)
+        const igual = pendentes.find((x) => Number(x.valor) === valor && x.mp_id && Date.now() - new Date(x.criado_em).getTime() < 25 * 60e3);
+        if (igual) {
+          const atual = await mp(tk, "GET", `/v1/payments/${igual.mp_id}`);
+          if (atual.status === "approved") { await marcarMesaPaga(igual.id, m.empresa_id, Number(atual.transaction_amount)); return json({ ...resumo(atual), pagamento_id: igual.id, pago: true }); }
+          if (atual.status === "pending") return json({ ...resumo(atual), pagamento_id: igual.id });
+        }
+        if (pendentes.filter((x) => Date.now() - new Date(x.criado_em).getTime() < 10 * 60e3).length >= 6) {
+          throw new Erro(429, "Muitas cobranças abertas nesta mesa. Aguarde alguns minutos ou chame o garçom.");
+        }
+        const { data: novo, error: eIns } = await admin.from("mesa_pagamentos")
+          .insert({ empresa_id: m.empresa_id, mesa_id: m.id, venda_id: v.id, valor }).select("id").single();
+        if (eIns || !novo) throw new Erro(500, "Não foi possível criar a cobrança");
+        const loja = e?.nome_fantasia || e?.razao_social || "";
+        const p = await mp(tk, "POST", "/v1/payments", {
+          transaction_amount: valor, payment_method_id: "pix",
+          description: `${m.nome} · ${loja}`.slice(0, 60), external_reference: `mp:${novo.id}`,
+          payer: { email: "pagador@cliente.com.br" },
+          notification_url: urlAviso(m.empresa_id),
+          date_of_expiration: new Date(Date.now() + 30 * 60e3).toISOString().replace("Z", "-00:00"),
+        }, `mesa-${novo.id}`);
+        await admin.from("mesa_pagamentos").update({ mp_id: String(p.id) }).eq("id", novo.id);
+        return json({ ...resumo(p), pagamento_id: novo.id });
+      }
+      throw new Erro(400, "Ação inválida");
+    }
 
     // ---------- Pedido do delivery (cliente, sem login) ----------
     if (body.token) {

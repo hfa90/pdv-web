@@ -25,7 +25,8 @@ export const ARQUIVOS = {
   "021": "021_licencas_backup.sql",
   "022": "022_excluir_usuarios.sql",
   "023": "023_mudar_segmento.sql",
-  "024": "024_central_ajuda.sql"
+  "024": "024_central_ajuda.sql",
+  "025": "025_hoje_qr_mesa.sql"
 };
 
 const porMigracao = (o) => Object.fromEntries(Object.entries(o).flatMap(([m, nomes]) => nomes.split(" ").map((n) => [n, m])));
@@ -51,6 +52,7 @@ export const FUNCOES = porMigracao({
   "022": "plataforma_excluir_usuario plataforma_usuarios_loja",
   "023": "plataforma_segmento_cancelar plataforma_segmento_pedidos plataforma_segmento_solicitar segmento_confirmar segmento_pendente segmento_registrar_download",
   "024": "ajuda_registrar ajuda_relatorio chamado_anexar",
+  "025": "mesa_cardapio mesa_chamado_resolver mesa_chamados_pendentes mesa_chamar mesa_cliente_cancelar mesa_cliente_pedir mesa_pagamentos_conta mesa_publica mesa_qr_trocar painel_hoje",
 });
 
 /** tabela pública → número da migração */
@@ -70,6 +72,7 @@ export const TABELAS = porMigracao({
   "021": "backup_config backups licencas plataforma_config",
   "023": "segmento_mudancas",
   "024": "ajuda_buscas",
+  "025": "mesa_chamados mesa_pagamentos",
 });
 
 /** Edge Functions que o sistema usa (supabase/functions). */

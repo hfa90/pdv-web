@@ -98,6 +98,13 @@ export default async function configuracoes(el) {
       </section>
 
       <section class="panel panel-pad stack">
+        <div><h2>QR Code na mesa</h2><p class="muted small">O cliente aponta a câmera para o QR da mesa e, sem baixar app, vê a conta ao vivo, chama o garçom e pede a conta. Imprima os QRs em <a href="#/mesas">Mesas</a> › QR nas mesas.</p></div>
+        <label class="check"><input type="checkbox" name="qr_ativo" ${c.qr_ativo !== false ? "checked" : ""}> <strong>Ligar o QR nas mesas</strong></label>
+        <label class="check"><input type="checkbox" name="qr_pedir" ${c.qr_pedir !== false ? "checked" : ""}> <span><strong>Cliente pode fazer pedidos pelo QR</strong> <span class="muted small">(o garçom confirma antes de ir para a conta e a cozinha. Aparecem os produtos marcados para o cardápio digital; se você não usa o cardápio, todos os vendidos por unidade)</span></span></label>
+        <label class="check"><input type="checkbox" name="qr_pagar" ${c.qr_pagar !== false ? "checked" : ""}> <span><strong>Cliente pode pagar por PIX pelo QR</strong> <span class="muted small">(${cxStatus?.pix_automatico ? "com Mercado Pago: confirmação automática e o valor já entra como pago ao fechar a mesa" : "pela chave PIX da loja: o cliente avisa que pagou e o garçom confere o comprovante. Com o Mercado Pago ligado (Configurações › PIX), a confirmação fica automática"})</span></span></label>
+      </section>
+
+      <section class="panel panel-pad stack">
         <div><h2>Cozinha</h2><p class="muted small">Os pedidos do garçom aparecem na tela Cozinha. Com aprovação, o caixa confere antes de a cozinha começar.</p></div>
         <label class="check"><input type="checkbox" name="aprovacao_cozinha" ${c.aprovacao_cozinha ? "checked" : ""}> <span><strong>Pedidos do garçom precisam de aprovação do caixa</strong> <span class="muted small">(admin, gerente ou caixa aprova; garçom e cozinha podem aprovar com a senha de aprovação de um gerente ou caixa, trocada a cada 7 dias; o que eles mesmos lançam já vai aprovado)</span></span></label>
         <label class="field" style="max-width:260px"><span>Tempo ideal de preparo (min)</span><input class="input" name="preparo_alvo_min" value="${c.preparo_alvo_min}" inputmode="numeric"></label>
@@ -127,6 +134,7 @@ export default async function configuracoes(el) {
         comissao_percentual: num("comissao_percentual"), comissao_base: x.comissao_base, meta_mensal_padrao: num("meta_mensal_padrao"),
         aprovacao_cozinha: x.aprovacao_cozinha, preparo_alvo_min: Math.round(num("preparo_alvo_min")),
         tempo_alerta_min: Math.round(num("tempo_alerta_min")), tempo_critico_min: Math.round(num("tempo_critico_min")), ocioso_min: Math.round(num("ocioso_min")),
+        qr_ativo: x.qr_ativo, qr_pedir: x.qr_pedir, qr_pagar: x.qr_pagar,
       };
       if (Object.values(dados).some((n) => typeof n === "number" && !(n >= 0))) return toast("Confira os números digitados", "erro");
       if (dados.couvert_ativo && !(dados.couvert_valor > 0)) return toast("Informe o valor do couvert", "erro");
