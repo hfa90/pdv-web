@@ -185,7 +185,10 @@ export async function pedidoPorVoz(op) {
         if (iaAtiva !== false && navigator.onLine) {
           try {
             const x = await comTempo(fn("pedido-voz", { texto, alternativas: alternativasFala.filter(Boolean), aprendido, mesa_atual: mesaFixa?.numero || null }), 12000);
-            if (x?.configurado === false) iaAtiva = false;
+            if (x?.configurado === false) {
+              iaAtiva = false; // não tenta de novo nesta sessão: segue no aparelho
+              if (["sem_creditos", "limite", "chave_invalida", "sem_saldo_anthropic"].includes(x.motivo)) aviso = `${x.mensagem || "A IA não está disponível."} O pedido foi entendido pelo próprio aparelho.`;
+            }
             else if (x?.itens) { r = cruzar(x, local); origem = "ia"; iaAtiva = true; }
           } catch (e) {
             if (/não está publicada|not found|404|Failed to send/i.test(e.message || "")) iaAtiva = false; // função não publicada: segue só no aparelho

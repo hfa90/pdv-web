@@ -7,7 +7,7 @@ import { parearUSB, parearSerial, suportaUSB, suportaSerial } from "../impressao
 import { TIPOS_CHAVE, normalizarChave, payloadPix, qrSvg, qrPronto } from "../../../assets/pix.js";
 import { raw } from "../ui.js";
 import { linkCardapio } from "../links.js";
-import { PROTOCOLOS, configBalanca, salvarConfigBalanca, parearBalanca, lerPeso, suportaBalanca, fechar as fecharBalanca } from "../balanca.js";
+import { PROTOCOLOS, configBalanca, salvarConfigBalanca, parearBalanca, lerPeso, suportaBalanca, fechar as fecharBalanca, balancaAtiva } from "../balanca.js";
 import { icone } from "../icons.js";
 
 const ACOES = {
@@ -22,8 +22,14 @@ const ACOES = {
   "suporte.entrou": "Suporte entrou na loja", "suporte.saiu": "Suporte saiu da loja", "suporte.modo": "Suporte trocou o modo de acesso",
 };
 
+// Modo simples: mostra o essencial; "Tudo" mostra as opções avançadas (lembrado neste aparelho)
+const CHAVE_MODO = "cfg-modo";
+const lerModo = () => { try { return localStorage.getItem(CHAVE_MODO) || "essencial"; } catch { return "essencial"; } };
+
 export default async function configuracoes(el) {
-  const abas = [
+  let modo = lerModo();
+  const avancada = (k) => k === "atividades" || (k === "balanca" && !balancaAtiva());
+  const todasAbas = [
     eh("admin", "gerente") && ["loja", "Loja"],
     eh("admin", "gerente") && ["pix", "PIX"],
     eh("admin", "gerente") && estado.conta?.delivery_contratado && ["delivery", "Delivery e cardápio"],
@@ -31,17 +37,35 @@ export default async function configuracoes(el) {
     ["impressora", "Impressora"],
     !eh("cozinha") && ["balanca", "Balança"],
     eh("admin") && ["fiscal", "Nota fiscal"],
+    eh("admin", "gerente") && ["ia", "Inteligência artificial"],
     eh("admin", "gerente") && ["atividades", "Registro de atividades"],
   ].filter(Boolean);
-  let aba = abas.some(([k]) => k === location.hash.split("/")[2]) ? location.hash.split("/")[2] : abas[0][0];
+  const pedida = location.hash.split("/")[2];
+  // Aba pedida pelo link (ex.: #/configuracoes/balanca) abre mesmo no modo simples
+  if (modo === "essencial" && pedida && avancada(pedida) && todasAbas.some(([k]) => k === pedida)) modo = "tudo";
+  const abas = () => todasAbas.filter(([k]) => modo === "tudo" || !avancada(k));
+  let aba = abas().some(([k]) => k === pedida) ? pedida : abas()[0][0];
 
-  render(el, html`<div class="page" style="max-width:900px">
-    <div class="page-head"><div><h1>Configurações</h1></div></div>
-    <div class="tabs">${abas.map(([k, n]) => html`<button data-aba="${k}" class="${k === aba ? "ativo" : ""}">${n}</button>`)}</div>
-    <div id="corpo"></div></div>`);
-  $$(".tabs button", el).forEach((b) => (b.onclick = () => { aba = b.dataset.aba; $$(".tabs button", el).forEach((x) => x.classList.toggle("ativo", x === b)); desenhar(); }));
+  const montar = () => {
+    render(el, html`<div class="page cfg-${modo}" style="max-width:900px">
+      <div class="page-head"><div><h1>Configurações</h1><p>${modo === "essencial" ? "Mostrando só o essencial." : "Mostrando todas as opções."}</p></div>
+        <div class="seg cfg-modo" role="group" aria-label="Quantas opções mostrar"><button data-modo="essencial" class="${modo === "essencial" ? "ativo" : ""}">Essencial</button><button data-modo="tudo" class="${modo === "tudo" ? "ativo" : ""}">Todas as opções</button></div></div>
+      <div class="tabs">${abas().map(([k, n]) => html`<button data-aba="${k}" class="${k === aba ? "ativo" : ""}">${n}</button>`)}</div>
+      <div id="corpo"></div></div>`);
+    $$(".tabs button", el).forEach((b) => (b.onclick = () => { aba = b.dataset.aba; $$(".tabs button", el).forEach((x) => x.classList.toggle("ativo", x === b)); desenhar(); }));
+    $$("[data-modo]", el).forEach((b) => (b.onclick = () => {
+      modo = b.dataset.modo;
+      try { localStorage.setItem(CHAVE_MODO, modo); } catch { /* sem armazenamento */ }
+      if (!abas().some(([k]) => k === aba)) aba = abas()[0][0];
+      montar(); desenhar();
+    }));
+  };
+  montar();
 
-  function desenhar() { ({ loja, pix, delivery, restaurante, impressora, balanca, fiscal, atividades })[aba]().catch(erro); }
+  function desenhar() { ({ loja, pix, delivery, restaurante, impressora, balanca, fiscal, ia, atividades })[aba]().catch(erro); }
+
+  // ---------- Inteligência artificial (026) ----------
+  async function ia() { const m = await import("../ia-config.js"); await m.default($("#corpo", el)); }
 
   // ---------- Restaurante: taxa de serviço, couvert, comissão, cozinha e tempos ----------
   async function restaurante() {
@@ -73,7 +97,7 @@ export default async function configuracoes(el) {
         </div>
       </section>
 
-      <section class="panel panel-pad stack">
+      <section class="panel panel-pad stack cfg-av">
         <div><h2>Comissão e metas dos garçons</h2><p class="muted small">Cada garçom vê em “Meu desempenho” quanto já ganhou e quanto vai receber se mantiver o ritmo. Metas individuais ficam em Garçons.</p></div>
         <div class="grid-3">
           <label class="field"><span>Comissão (%)</span><input class="input" name="comissao_percentual" value="${v(c.comissao_percentual)}" inputmode="decimal"></label>
@@ -85,7 +109,7 @@ export default async function configuracoes(el) {
         <p class="hint">Ex.: 10% sobre o consumo, ou 100% da taxa de serviço para repassar toda a taxa à equipe.</p>
       </section>
 
-      <section class="panel panel-pad stack">
+      <section class="panel panel-pad stack cfg-av">
         <div><h2>Fechar conta pelo app do garçom</h2><p class="muted small">O garçom cobra na mesa com PIX (QR com o valor) ou cartão na maquininha, sem TEF. O pagamento entra no caixa principal: aparece no resumo e no fechamento desse caixa, baixa o estoque e libera a mesa.</p></div>
         <label class="check"><input type="checkbox" name="garcom_fecha_conta" ${c.garcom_fecha_conta !== false ? "checked" : ""}> <strong>Garçom pode fechar a conta no app</strong></label>
         <label class="field" style="max-width:420px"><span>Caixa principal (recebe os pagamentos)</span><select class="input" name="caixa_principal_id">
@@ -107,13 +131,19 @@ export default async function configuracoes(el) {
       <section class="panel panel-pad stack">
         <div><h2>Cozinha</h2><p class="muted small">Os pedidos do garçom aparecem na tela Cozinha. Com aprovação, o caixa confere antes de a cozinha começar.</p></div>
         <label class="check"><input type="checkbox" name="aprovacao_cozinha" ${c.aprovacao_cozinha ? "checked" : ""}> <span><strong>Pedidos do garçom precisam de aprovação do caixa</strong> <span class="muted small">(admin, gerente ou caixa aprova; garçom e cozinha podem aprovar com a senha de aprovação de um gerente ou caixa, trocada a cada 7 dias; o que eles mesmos lançam já vai aprovado)</span></span></label>
-        <label class="field" style="max-width:260px"><span>Tempo ideal de preparo (min)</span><input class="input" name="preparo_alvo_min" value="${c.preparo_alvo_min}" inputmode="numeric"></label>
-        ${cats.length ? html`<div class="field"><span>Categorias que vão para a cozinha</span>
+        <div class="aprov-auto">
+          <label class="field" style="max-width:340px"><span>Aprovar sozinho pedidos do garçom de até (R$)</span>
+            <input class="input" name="aprovacao_auto_ate" inputmode="decimal" placeholder="0 = o caixa aprova todos" value="${Number(c.aprovacao_auto_ate) ? String(c.aprovacao_auto_ate).replace(".", ",") : ""}"></label>
+          <label class="check"><input type="checkbox" name="aprovacao_auto_confiavel" ${c.aprovacao_auto_confiavel !== false ? "checked" : ""}> <span>Só para garçons sem pedido recusado nos últimos 30 dias</span></label>
+          <p class="hint" style="margin:0">Pedidos pequenos vão direto para a cozinha e o caixa só confere os maiores. Fica registrado que foi aprovado automaticamente.</p>
+        </div>
+        <label class="field cfg-av" style="max-width:260px"><span>Tempo ideal de preparo (min)</span><input class="input" name="preparo_alvo_min" value="${c.preparo_alvo_min}" inputmode="numeric"></label>
+        ${cats.length ? html`<div class="field cfg-av"><span>Categorias que vão para a cozinha</span>
           <div class="chips wrap">${cats.map((k) => html`<label class="chip"><input type="checkbox" data-cat="${k.id}" ${k.envia_cozinha !== false ? "checked" : ""}> ${k.nome}</label>`)}</div>
           <small class="hint">Desmarque o que não precisa de preparo (ex.: bebidas em lata). Esses itens entram na conta mas não aparecem para a cozinha.</small></div>` : ""}
       </section>
 
-      <section class="panel panel-pad stack">
+      <section class="panel panel-pad stack cfg-av">
         <div><h2>Tempo das mesas</h2><p class="muted small">Cores no mapa do salão e no app do garçom.</p></div>
         <div class="grid-3">
           <label class="field"><span>Amarelo a partir de (min)</span><input class="input" name="tempo_alerta_min" value="${c.tempo_alerta_min}" inputmode="numeric"></label>
@@ -135,6 +165,7 @@ export default async function configuracoes(el) {
         aprovacao_cozinha: x.aprovacao_cozinha, preparo_alvo_min: Math.round(num("preparo_alvo_min")),
         tempo_alerta_min: Math.round(num("tempo_alerta_min")), tempo_critico_min: Math.round(num("tempo_critico_min")), ocioso_min: Math.round(num("ocioso_min")),
         qr_ativo: x.qr_ativo, qr_pedir: x.qr_pedir, qr_pagar: x.qr_pagar,
+        aprovacao_auto_ate: x.aprovacao_auto_ate ? num("aprovacao_auto_ate") : 0, aprovacao_auto_confiavel: x.aprovacao_auto_confiavel,
       };
       if (Object.values(dados).some((n) => typeof n === "number" && !(n >= 0))) return toast("Confira os números digitados", "erro");
       if (dados.couvert_ativo && !(dados.couvert_valor > 0)) return toast("Informe o valor do couvert", "erro");
@@ -160,7 +191,7 @@ export default async function configuracoes(el) {
         <label class="field"><span>Razão social</span><input class="input" name="razao_social" value="${e.razao_social}" required></label>
         <label class="field"><span>Nome fantasia (aparece no cupom)</span><input class="input" name="nome_fantasia" value="${e.nome_fantasia || ""}"></label>
         <label class="field"><span>CNPJ</span><input class="input" name="cnpj" value="${formatarDoc(e.cnpj)}" inputmode="numeric"></label>
-        <label class="field"><span>Inscrição estadual</span><input class="input" name="inscricao_estadual" value="${e.inscricao_estadual || ""}"></label>
+        <label class="field cfg-av"><span>Inscrição estadual</span><input class="input" name="inscricao_estadual" value="${e.inscricao_estadual || ""}"></label>
         <label class="field"><span>Telefone</span><input class="input" name="telefone" value="${e.telefone || ""}"></label>
         <label class="field"><span>E-mail</span><input class="input" name="email" type="email" value="${e.email || ""}"></label>
       </div>
@@ -172,10 +203,10 @@ export default async function configuracoes(el) {
         <label class="field"><span>Complemento</span><input class="input" name="complemento" value="${e.complemento || ""}"></label>
         <label class="field"><span>Cidade</span><input class="input" name="municipio" value="${e.municipio || ""}"></label>
         <label class="field"><span>UF</span><input class="input" name="uf" value="${e.uf || ""}" maxlength="2"></label>
-        <label class="field"><span>Código IBGE da cidade</span><input class="input" name="codigo_municipio" value="${e.codigo_municipio || ""}"></label>
+        <label class="field cfg-av"><span>Código IBGE da cidade</span><input class="input" name="codigo_municipio" value="${e.codigo_municipio || ""}"></label>
       </div>
       <div class="grid-2">
-        <label class="field"><span>Regime tributário</span><select class="input" name="regime_tributario">
+        <label class="field cfg-av"><span>Regime tributário</span><select class="input" name="regime_tributario">
           ${[[1, "Simples Nacional"], [2, "Simples Nacional – excesso de sublimite"], [3, "Regime normal"], [4, "MEI"]].map(([v, n]) => html`<option value="${v}" ${Number(e.regime_tributario) === v ? "selected" : ""}>${n}</option>`)}</select></label>
         <label class="field"><span>Desconto máximo para caixa e atendente (%)</span><input class="input" name="desconto_maximo_caixa" value="${String(e.desconto_maximo_caixa).replace(".", ",")}" inputmode="decimal"></label>
       </div>
@@ -223,7 +254,7 @@ export default async function configuracoes(el) {
           <label class="check"><input type="checkbox" name="autoImprimir" ${c.autoImprimir ? "checked" : ""}> Imprimir cupom ao concluir a venda</label>
           <label class="check"><input type="checkbox" name="viaPedido" ${c.viaPedido ? "checked" : ""}> Imprimir via do pedido ao salvar (cozinha)</label>
           <label class="check"><input type="checkbox" name="abrirGaveta" ${c.abrirGaveta ? "checked" : ""}> Abrir gaveta ao imprimir (USB/serial)</label>
-          <label class="check"><input type="checkbox" name="acentos" ${c.acentos ? "checked" : ""}> Imprimir acentos (página 860)</label>
+          <label class="check cfg-av"><input type="checkbox" name="acentos" ${c.acentos ? "checked" : ""}> Imprimir acentos (página 860)</label>
           ${estado.conta?.garcom ? html`<label class="check"><input type="checkbox" name="imprimirApp" ${c.imprimirApp ? "checked" : ""}> <span>Imprimir aqui o cupom das contas que o garçom fechar no app <span class="muted small">(no computador do caixa principal)</span></span></label>` : ""}
           ${estado.conta?.garcom || estado.conta?.delivery_contratado ? html`<label class="check"><input type="checkbox" name="cozinha" ${c.cozinha ? "checked" : ""}> <span>Imprimir sozinho os pedidos do garçom e do delivery <span class="muted small">(os do garçom saem assim que o caixa aprova; deixe ligado em um só computador, o da cozinha ou do caixa)</span></span></label>` : ""}
         </div>
@@ -234,7 +265,7 @@ export default async function configuracoes(el) {
           <button type="button" class="btn" id="gaveta">Abrir gaveta</button>
         </div>
       </form>
-      <div class="panel panel-pad stack small">
+      <div class="panel panel-pad stack small cfg-av">
         <h3>Dicas</h3>
         <p>Impressão sem janela no modo navegador: crie um atalho do Chrome com <code>--kiosk-printing</code> e defina a térmica como impressora padrão.</p>
         <p>Se aparecerem símbolos no lugar de letras acentuadas, desmarque “Imprimir acentos”. O texto sai sem acento, mas legível em qualquer modelo.</p>

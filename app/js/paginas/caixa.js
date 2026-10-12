@@ -5,6 +5,7 @@ import { html, render, $, $$, dinheiro, dataHora, hora, lerNumero, toast, erro, 
 import { icone } from "../icons.js";
 import { imprimir, layoutFechamento, nomeForma } from "../impressao/cupom.js";
 import { fila, sincronizarFila, abrirPainelFila } from "../contingencia.js";
+import { contagemHtml, ligarContagem } from "../contagem-caixa.js";
 
 const NSU_FORMAS = { pix: "PIX", debito: "Débito", credito: "Crédito" };
 
@@ -126,12 +127,21 @@ export default async function caixa(el) {
       titulo: "Fechar caixa",
       corpo: html`<form class="stack" id="f-fc">
         ${count ? html`<div class="alerta warn">Há ${count} pedido(s) aberto(s). Eles continuam disponíveis para o próximo caixa.</div>` : ""}
-        <p class="muted">Conte o dinheiro da gaveta e informe o valor. O sistema compara com o esperado.</p>
-        <label class="field"><span>Dinheiro contado (R$)</span><input class="input lg" name="valor" inputmode="decimal" autofocus></label>
+        <p class="muted" style="margin:0">Conte o dinheiro da gaveta: digite quantas notas e moedas de cada valor e o sistema soma. Depois ele compara com o esperado.</p>
+        ${contagemHtml("valor")}
         <label class="field"><span>Observação</span><input class="input" name="obs"></label>
         <label class="check"><input type="checkbox" name="imp" checked> Imprimir fechamento</label></form>`,
       rodape: html`<button class="btn" data-fechar>Voltar</button><button class="btn primary" form="f-fc">Fechar caixa</button>`,
-      onPronto: (d, fecharM) => { d.querySelector("form").onsubmit = (e) => { e.preventDefault(); const v = lerNumero(e.target.valor.value); if (!(v >= 0) || e.target.valor.value === "") return toast("Informe o valor contado", "erro"); fecharM({ valor: v, obs: e.target.obs.value.trim(), imp: e.target.imp.checked }); }; },
+      onPronto: (d, fecharM) => {
+        const cont = ligarContagem(d.querySelector("form"), "valor");
+        d.querySelector("form").onsubmit = (e) => {
+          e.preventDefault();
+          const v = lerNumero(e.target.valor.value);
+          if (!(v >= 0) || e.target.valor.value === "") return toast("Informe o valor contado", "erro");
+          const obs = [e.target.obs.value.trim(), cont.resumo() && `Contagem: ${cont.resumo()}`].filter(Boolean).join(" · ");
+          fecharM({ valor: v, obs, imp: e.target.imp.checked });
+        };
+      },
     });
     if (!r) return;
     try {
@@ -163,12 +173,15 @@ export default async function caixa(el) {
       if (acao === "fechar") {
         const v = await modal({
           titulo: "Fechar caixa de outro operador",
-          corpo: html`<form id="f-fo" class="stack"><label class="field"><span>Dinheiro contado (R$)</span><input class="input lg" name="v" inputmode="decimal" autofocus></label></form>`,
+          corpo: html`<form id="f-fo" class="stack">${contagemHtml("v")}</form>`,
           rodape: html`<button class="btn" data-fechar>Voltar</button><button class="btn primary" form="f-fo">Fechar</button>`,
-          onPronto: (d, f) => { d.querySelector("form").onsubmit = (e) => { e.preventDefault(); f(lerNumero(e.target.v.value)); }; },
+          onPronto: (d, f) => {
+            const cont = ligarContagem(d.querySelector("form"), "v");
+            d.querySelector("form").onsubmit = (e) => { e.preventDefault(); if (e.target.v.value === "") return toast("Informe o valor contado", "erro"); f({ v: lerNumero(e.target.v.value), c: cont.resumo() }); };
+          },
         });
-        if (v >= 0 && await confirmar(`Fechar o caixa de ${operador} com ${dinheiro(v)} contados?`)) {
-          await rpc("fechar_caixa", { p_valor_informado: v, p_observacao: `Fechado por ${estado.perfil.nome}`, p_sessao_id: id });
+        if (v && v.v >= 0 && await confirmar(`Fechar o caixa de ${operador} com ${dinheiro(v.v)} contados?`)) {
+          await rpc("fechar_caixa", { p_valor_informado: v.v, p_observacao: [`Fechado por ${estado.perfil.nome}`, v.c && `Contagem: ${v.c}`].filter(Boolean).join(" · "), p_sessao_id: id });
           toast("Caixa fechado", "ok"); desenhar();
         }
       }

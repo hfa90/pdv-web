@@ -10,12 +10,13 @@
 // aqui: a IA não consegue inventar produto nem preço. Nada é gravado: o app mostra o resumo, o garçom
 // confere e só então o pedido é lançado pelas funções de sempre (adicionar_itens).
 //
-// Segredos da função (Supabase › Edge Functions › Secrets):
-//   ANTHROPIC_API_KEY = chave da API da Anthropic (https://console.anthropic.com)
-//   VOZ_MODELO        = opcional; padrão "claude-haiku-5-5" (rápido e barato). Para mais precisão: "claude-sonnet-5-5".
+// A IA é a do sistema (migração 026): chave, créditos, pausa e modelo ficam em Configurações ›
+// Inteligência artificial (loja) e Plataforma › IA (superusuário). Ver _shared/ia.ts.
+// Sem IA disponível (pausada, sem créditos…) a função responde { configurado: false, motivo }
+// e o aparelho interpreta sozinho.
 import { autenticar, cors, HttpError, json } from "../_shared/auth.ts";
+import { chamarIA, IaIndisponivel, MOTIVOS } from "../_shared/ia.ts";
 
-const MODELO = Deno.env.get("VOZ_MODELO") || "claude-haiku-5-5";
 const LIMITE_PRODUTOS = 3000;
 
 const FERRAMENTA = {
@@ -70,9 +71,6 @@ Deno.serve(async (req) => {
     if (perfil.papel === "cozinha") throw new HttpError(403, "Sem permissão");
     const corpo = await req.json().catch(() => ({}));
     const texto = String(corpo.texto ?? "").trim().slice(0, 1200);
-    if (corpo.acao === "status") return json({ configurado: !!Deno.env.get("ANTHROPIC_API_KEY"), modelo: MODELO });
-    const chave = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!chave) return json({ configurado: false });
     if (!texto) throw new HttpError(400, "Fale o pedido");
     const alternativasFala = (Array.isArray(corpo.alternativas) ? corpo.alternativas : []).map((s: unknown) => String(s).slice(0, 600)).filter((s: string) => s && s !== texto).slice(0, 3);
 
@@ -102,33 +100,33 @@ Deno.serve(async (req) => {
       dicas.length ? `Nesta loja, o garçom já confirmou que:\n${dicas.join("\n")}` : "",
     ].filter(Boolean).join("\n\n");
 
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 15000);
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      signal: ctl.signal,
-      headers: { "x-api-key": chave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-      body: JSON.stringify({
-        model: MODELO,
-        max_tokens: 2000,
-        temperature: 0,
-        system: [
-          { type: "text", text: REGRAS },
-          // O cardápio muda pouco: fica em cache na Anthropic (mais rápido e mais barato nas próximas falas)
-          { type: "text", text: `Cardápio (código | nome | unidade | categoria):\n${linhas.join("\n")}`, cache_control: { type: "ephemeral" } },
-        ],
-        tools: [FERRAMENTA],
-        tool_choice: { type: "tool", name: "registrar_pedido" },
-        messages: [{ role: "user", content: usuario }],
-      }),
-    }).finally(() => clearTimeout(timer));
-    if (!resp.ok) {
-      const det = await resp.text().catch(() => "");
-      console.error("anthropic", resp.status, det.slice(0, 500));
-      throw new HttpError(502, resp.status === 401 ? "Chave da IA inválida (ANTHROPIC_API_KEY)" : "A IA não respondeu agora");
+    let r: Record<string, unknown>, modelo: string;
+    try {
+      const ia = await chamarIA(admin, {
+        empresaId: perfil.empresa_id, usuarioId: perfil.id, recurso: "pedido_voz", tempoMs: 15000,
+        pedido: {
+          max_tokens: 2000,
+          temperature: 0,
+          system: [
+            { type: "text", text: REGRAS },
+            // O cardápio muda pouco: fica em cache na Anthropic (mais rápido e mais barato nas próximas falas)
+            { type: "text", text: `Cardápio (código | nome | unidade | categoria):\n${linhas.join("\n")}`, cache_control: { type: "ephemeral" } },
+          ],
+          tools: [FERRAMENTA],
+          tool_choice: { type: "tool", name: "registrar_pedido" },
+          messages: [{ role: "user", content: usuario }],
+        },
+      });
+      r = ia.resposta; modelo = ia.modelo;
+    } catch (e) {
+      if (e instanceof IaIndisponivel) {
+        // Pausada, sem créditos, falha da Anthropic…: o aparelho entende sozinho
+        if (["falha", "chave_invalida", "sem_saldo_anthropic"].includes(e.motivo)) console.error("pedido-voz", e.motivo);
+        return json({ configurado: false, motivo: e.motivo, mensagem: MOTIVOS[e.motivo] || null });
+      }
+      throw e;
     }
-    const r = await resp.json();
-    const uso = r.content?.find((c: Dados) => c.type === "tool_use")?.input as Dados | undefined;
+    const uso = (r.content as Dados[] | undefined)?.find((c: Dados) => c.type === "tool_use")?.input as Dados | undefined;
     if (!uso) throw new HttpError(502, "A IA não devolveu o pedido");
 
     // Confere tudo: só produtos reais da loja, quantidades válidas
@@ -154,10 +152,9 @@ Deno.serve(async (req) => {
     }
     const mesa = Number.isInteger(uso.mesa) ? uso.mesa : null;
     const pessoas = Number.isInteger(uso.pessoas) && uso.pessoas > 0 && uso.pessoas <= 50 ? uso.pessoas : null;
-    return json({ configurado: true, origem: "ia", modelo: MODELO, mesa, pessoas, itens, nao_entendidos: nao });
+    return json({ configurado: true, origem: "ia", modelo, mesa, pessoas, itens, nao_entendidos: nao });
   } catch (e) {
     if (e instanceof HttpError) return json({ error: e.message }, e.status);
-    if (e instanceof DOMException && e.name === "AbortError") return json({ error: "A IA demorou para responder" }, 504);
     console.error(e);
     return json({ error: (e as Error).message || "Erro ao interpretar o pedido" }, 500);
   }

@@ -1450,3 +1450,49 @@ kbd { display: inline-block; padding: .05rem .4rem; border: 1px solid var(--line
 .mesa-mapa.chamando::after, .mesa-card.chamando::after { content: "🔔"; position: absolute; top: -10px; right: -8px; font-size: 1rem; }
 
 @media (prefers-reduced-motion: reduce) { .mesa-mapa.chamando, .mesa-card.chamando, .pilula-chamados.urgente { animation: none; } }
+
+/* =====================================================================
+   Inteligência artificial (Configurações e Plataforma)
+   ===================================================================== */
+.ia-estado { display: grid; gap: .6rem; }
+.ia-estado-topo { display: flex; gap: .85rem; align-items: center; flex-wrap: wrap; }
+.ia-ic { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--primary-soft); color: var(--primary); flex: none; }
+.ia-fontes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: .75rem; }
+.ia-fonte { display: flex; gap: .7rem; align-items: flex-start; border: 1.5px solid var(--line); border-radius: var(--r-md); padding: .9rem; cursor: pointer; background: var(--surface); }
+.ia-fonte.on { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent); }
+.ia-fonte input { margin-top: .25rem; }
+.ia-fonte > .grow { display: grid; gap: .45rem; }
+.ia-fonte small { color: var(--muted); }
+.ia-saldo { display: grid; gap: .15rem; background: var(--surface-2); border-radius: var(--r-sm); padding: .55rem .7rem; }
+.ia-saldo b { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.ia-chave { display: flex; gap: .45rem; align-items: center; flex-wrap: wrap; }
+.ia-chave code { background: var(--surface-2); padding: .15rem .45rem; border-radius: 6px; }
+.ia-compras { display: grid; gap: .35rem; }
+.ia-compra { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; padding: .5rem 0; border-bottom: 1px solid var(--line); }
+.ia-compra:last-child { border-bottom: 0; }
+.ia-pacotes { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .6rem; }
+.ia-pacote { border: 1.5px solid var(--line-strong); background: var(--surface); border-radius: var(--r-md); padding: 1rem .6rem; cursor: pointer; display: grid; gap: .2rem; font: inherit; color: var(--ink); }
+.ia-pacote strong { font-size: 1.25rem; }
+.ia-pacote small { color: var(--muted); }
+.ia-pacote:hover { border-color: var(--primary); background: var(--primary-soft); }
+
+/* Configurações: modo Essencial esconde as opções avançadas */
+.cfg-essencial .cfg-av { display: none !important; }
+.cfg-modo button { padding: .45rem .8rem; font-size: var(--fs-sm); }
+.aprov-auto { display: grid; gap: .45rem; padding: .75rem; border-radius: var(--r-md); background: var(--surface-2); }
+
+/* Fechamento de caixa: contar notas e moedas */
+.contagem { display: grid; gap: .7rem; }
+.cont-modo { width: 100%; display: grid; grid-template-columns: 1fr 1fr; }
+.cont-grade { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; }
+.cont-grade[hidden] { display: none; }
+.cont-col { display: grid; gap: .35rem; align-content: start; }
+.cont-col h4 { margin: 0 0 .1rem; font-size: var(--fs-sm); color: var(--muted); }
+.cont-linha { display: grid; grid-template-columns: 4.2rem auto 1fr; align-items: center; gap: .5rem; }
+.cont-v { font-weight: 650; font-variant-numeric: tabular-nums; padding: .2rem .45rem; border-radius: 6px; text-align: center; font-size: var(--fs-sm); }
+.cont-v.nota { background: var(--ok-soft); color: var(--ok); }
+.cont-v.moeda { background: var(--amber-soft); color: var(--warn-ink); }
+.cont-qtd input { width: 52px; height: 32px; border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line); text-align: center; font-variant-numeric: tabular-nums; background: var(--surface); color: var(--ink); }
+.cont-sub { font-size: var(--fs-xs); color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.cont-total { font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .cont-grade { grid-template-columns: 1fr; } }

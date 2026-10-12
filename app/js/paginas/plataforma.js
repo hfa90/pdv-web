@@ -39,7 +39,8 @@ export default async function plataforma(el) {
       <button data-aba="lojas">Lojas</button><button data-aba="leads">Contatos (leads)</button>
       <button data-aba="cobrancas">Cobranças</button><button data-aba="pedidos">Pedidos de pacotes <span class="badge warn" id="n-pedidos" hidden></span></button>
       <button data-aba="licencas">${icone("calendario", 'width="16" height="16" style="vertical-align:-3px"')} Licenças</button>
-      <button data-aba="dados">${icone("pacote", 'width="16" height="16" style="vertical-align:-3px"')} Dados e backup</button></div>
+      <button data-aba="dados">${icone("pacote", 'width="16" height="16" style="vertical-align:-3px"')} Dados e backup</button>
+      <button data-aba="ia">${icone("lampada", 'width="16" height="16" style="vertical-align:-3px"')} Inteligência artificial</button></div>
     <div id="corpo"></div></div>`);
   $$(".tabs button", el).forEach((b) => (b.onclick = () => { aba = b.dataset.aba; $$(".tabs button", el).forEach((x) => x.classList.toggle("ativo", x === b)); desenhar(); }));
 
@@ -57,8 +58,11 @@ export default async function plataforma(el) {
   }
 
   async function desenhar() {
-    try { await ({ faturamento, leads, lojas, cobrancas, pedidos, licencas, dados })[aba](); } catch (e) { erro(e); }
+    try { await ({ faturamento, leads, lojas, cobrancas, pedidos, licencas, dados, ia })[aba](); } catch (e) { erro(e); }
   }
+
+  // ================= Inteligência artificial (026) =================
+  async function ia() { const m = await import("../ia-plataforma.js"); await m.default($("#corpo", el)); }
 
   // ================= Faturamento consolidado de todos os clientes =================
   const SEGMENTOS = [["", "Todos os setores"], ["padaria", "Padaria"], ["mercado", "Mercadinho e supermercado"], ["lanchonete", "Lanchonete"], ["cafe", "Café / cafeteria"], ["restaurante", "Restaurante"]];

@@ -8,7 +8,8 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 - **Central de Ajuda sem IA** (menu Ajuda, tecla F1): busca do jeito leigo, cola a mensagem de erro ou anexa um print (lido por OCR no navegador), passo a passo por nível e chamado ao suporte com os anexos. A apostila em PDF é gerada do mesmo conteúdo.
 - **PDV** rápido para teclado, leitor de código de barras e tela touch: favoritos, categorias, busca, `3*789…` para multiplicar, etiquetas de balança (EAN-13 iniciado em 2), produtos por peso, observações por item, desconto/acréscimo/taxa de serviço, vários pagamentos com troco.
 - **Pedidos e comandas** (mesa, comanda, senha) que podem ser lançados por atendentes e fechados no caixa.
-- **Caixa**: abertura com fundo de troco, sangria, suprimento, resumo parcial e fechamento com conferência (esperado × contado).
+- **Caixa**: abertura com fundo de troco, sangria, suprimento, resumo parcial e fechamento com conferência (esperado × contado). No fechamento o operador **conta as notas e moedas** (R$ 200 a 5 centavos, com botões + e −) e o sistema soma; a contagem vai junto na observação do fechamento. Quem preferir toca em *Digitar o total*.
+- **Configurações simples**: abre no modo **Essencial** (só o que a loja usa no dia a dia); **Todas as opções** mostra comissão, tempos das mesas, campos fiscais avançados, balança e registro de atividades. A escolha fica guardada no aparelho.
 - **Produtos e categorias**, importação por CSV, margem, dados fiscais (NCM, CEST, CFOP, CSOSN, origem).
 - **Estoque** com baixa automática nas vendas, entradas, saídas, contagem de inventário e histórico.
 - **Clientes** com preenchimento de endereço pelo CEP (para NF-e).
@@ -62,6 +63,7 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 
 - **Cozinha com aprovação** (menu **Cozinha**): o garçom lança pelo app → o pedido fica *aguardando aprovação* → quem está no caixa (admin, gerente ou caixa) aprova ou recusa → a tela da cozinha mostra **Na fila → Preparando → Pronto** com tempo de preparo (cores pela meta em minutos), som, tela cheia e tela sempre acesa → o garçom é avisado no celular (som, vibração e notificação) e marca **Servido**. Recusar tira os itens da conta. O que o caixa/gerente lança já vai aprovado. Pagar a conta no caixa aprova o que ainda estava aguardando. Pedidos do delivery aceitos também entram na cozinha (marcar *pronto* na cozinha atualiza o acompanhamento do cliente).
 - **Senha de aprovação** (migração `019_senha_aprovacao.sql`): cada **gerente e caixa** tem uma senha de 6 números, sorteada pelo servidor e trocada sozinha a cada **7 dias corridos**. Garçom, cozinha e quem não pode aprovar tocam em **Aprovar com senha** (app do garçom › Cozinha, detalhe da mesa, tela Cozinha) e o caixa/gerente digita a senha dele no aparelho do garçom. O pedido fica registrado como aprovado pelo dono da senha, a pedido de quem digitou (registro de atividades). 5 senhas erradas em 15 minutos bloqueiam novas tentativas. O gerente/caixa vê a própria senha no botão **Senha de aprovação** do menu lateral (escondida até tocar em Mostrar) e pode gerar outra na hora se alguém viu; o administrador vê e troca todas em **Usuários › Senhas de aprovação** (o gerente vê a sua e as dos caixas).
+- **Aprovação automática** (migração `026_ia_simplificar.sql`, Configurações › Restaurante › Cozinha): pedidos do garçom de até R$ X vão direto para a cozinha; opcionalmente só para garçons sem pedido recusado nos últimos 30 dias. O caixa só confere os maiores. O pedido fica marcado como aprovado automaticamente. 0 = o caixa aprova todos.
 - **Ligar/desligar a aprovação:** administrador e gerente usam o interruptor "Exigir aprovação dos pedidos do garçom" na janela de aprovação, na tela Cozinha ou em Configurações › Restaurante. Ao desligar, o sistema oferece mandar para a cozinha o que estava aguardando.
 - **Aviso de aprovação em qualquer tela** para quem aprova (contador no menu e botão flutuante). A aprovação pode ser desligada em Configurações › Restaurante.
 - **Nível de acesso “Cozinha”**: usuário que só vê a tela da cozinha (para a TV/tablet da cozinha). Categorias que não precisam de preparo (ex.: bebidas em lata) podem ficar fora da cozinha.
@@ -113,12 +115,8 @@ Botão **Falar pedido** (flutuante no app do garçom) e **Pedir por voz** / **Ab
 
 **Dois motores**: o próprio aparelho entende sem internet e sem custo (`app/js/voz-interpretar.js`). Com a Edge Function `pedido-voz` publicada e a chave configurada, a IA (Claude) interpreta frases mais livres; o aparelho confere a resposta da IA e, se os dois discordarem, o item vira dúvida. Se a IA cair ou demorar, o app segue sozinho com o motor local.
 
-Ativar a IA (opcional):
-```
-supabase functions deploy pedido-voz
-supabase secrets set ANTHROPIC_API_KEY=sk-ant-...        # console.anthropic.com
-supabase secrets set VOZ_MODELO=claude-haiku-5-5          # opcional (padrão). Mais precisão: claude-sonnet-5-5
-```
+A IA se liga e se paga pelo próprio sistema (veja **Inteligência artificial** abaixo); não precisa mais de `supabase secrets`. A chave antiga `ANTHROPIC_API_KEY` ainda funciona como reserva enquanto o superusuário não cadastra a do sistema.
+
 A função lê o cardápio no banco (só produtos ativos da loja de quem chamou), devolve só produtos que existem e não grava nada. O cardápio vai em cache na Anthropic, então as falas seguintes ficam mais rápidas e baratas.
 
 Requisitos: HTTPS (o microfone não funciona em http), permissão de microfone no navegador. O reconhecimento de voz do Chrome/Android e do Safari/iPhone usa internet; sem internet, digite ou use o teclado.
@@ -129,6 +127,28 @@ Requisitos: HTTPS (o microfone não funciona em http), permissão de microfone n
 2. Republique as funções: `supabase functions deploy usuarios` (nível Cozinha e garçom sem e-mail), `fiscal` (NFC-e emitida pelo garçom), `pagamentos` (PIX automático no app do garçom) e a nova `supabase functions deploy garcom-login --no-verify-jwt` (login por matrícula/CPF).
 3. Em **Configurações › Restaurante** escolha serviço, couvert, comissão, meta padrão, aprovação da cozinha e tempos.
 4. Crie os garçons com o nível **Atendente / garçom** e, se quiser, um usuário **Cozinha** para a tela da cozinha.
+
+## Inteligência artificial (chave, créditos, pausar e ativar)
+
+Migração `026_ia_simplificar.sql` + Edge Functions `ia` e `pedido-voz`. Toda função do sistema que usa IA passa por `supabase/functions/_shared/ia.ts`, que confere se a loja pode usar, chama a Anthropic e registra o uso e o custo. A chave **nunca vai para o navegador**: é testada e gravada pelo servidor; a tela mostra só os 4 últimos dígitos.
+
+**Superusuário** (Plataforma › Inteligência artificial):
+- cadastra, testa, troca e remove a **chave da Anthropic do sistema** e liga/desliga a IA para todas as lojas;
+- define o **modelo padrão**, o **preço cobrado das lojas** (R$ por 1 milhão de tokens de entrada e de saída), a **franquia mensal** inclusa por loja e os **pacotes de créditos**; escolhe se o crédito entra na hora da compra ou só com a fatura paga;
+- vê o uso do mês, as compras aguardando pagamento (**Recebi · liberar créditos**) e cada loja, onde pode **dar créditos** (cortesia) e **bloquear/desbloquear**.
+
+**Administrador da loja** (Configurações › Inteligência artificial; o gerente só vê):
+- **Pausar / Ativar** a IA da loja;
+- escolher de onde vem a IA: **Créditos do sistema** (compra pacotes; a fatura aparece em Minha assinatura e o crédito entra quando ela é paga) ou **Minha chave da Anthropic** (a loja paga a Anthropic direto, sem créditos);
+- modelo (padrão, rápido ou mais preciso), **teto de gasto por mês** e em quais recursos usar a IA;
+- uso e custo do mês por recurso e histórico de compras (pagar, ver fatura, cancelar pendente).
+
+Ordem do consumo: primeiro a franquia do mês, depois os créditos. Sem crédito, pausada, no teto ou bloqueada, a IA para e o recurso continua funcionando sem ela (no pedido por voz, o motor do próprio aparelho). Novos recursos com IA só precisam chamar `chamarIA()` com o nome do recurso e entrar na lista `RECURSOS_IA`.
+
+Ativar:
+1. Rode `supabase/migrations/026_ia_simplificar.sql` no SQL Editor (pode rodar mais de uma vez).
+2. Publique `supabase functions deploy ia` e `supabase functions deploy pedido-voz`.
+3. Superusuário: Plataforma › Inteligência artificial › cadastre a chave (console.anthropic.com), confira os preços e marque **Liberar a IA para as lojas**.
 
 ## Sem internet, queda de energia e troca de aparelho
 

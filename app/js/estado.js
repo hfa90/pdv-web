@@ -87,6 +87,7 @@ export const RESTAURANTE_PADRAO = {
   tempo_alerta_min: 60, tempo_critico_min: 120, ocioso_min: 25,
   garcom_fecha_conta: true, caixa_principal_id: null,
   qr_ativo: true, qr_pedir: true, qr_pagar: true,
+  aprovacao_auto_ate: 0, aprovacao_auto_confiavel: true,
 };
 export const cfgRestaurante = () => ({ ...RESTAURANTE_PADRAO, ...(estado.empresa?.config_restaurante || {}) });
 /** Quem aprova os pedidos que o garçom manda para a cozinha. */
