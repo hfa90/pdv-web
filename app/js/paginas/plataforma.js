@@ -1,7 +1,7 @@
 // Painel do fornecedor: leads captados pelo site, lojas em teste e clientes ativos.
 // Visível só para e-mails cadastrados em public.plataforma_admins.
-import { rpc } from "../api.js";
-import { PRECOS } from "../config.js";
+import { rpc, fn } from "../api.js";
+import { PRECOS, SUPABASE_URL } from "../config.js";
 import { html, render, $, $$, dinheiro, dataHora, data, toast, erro, modal, lerNumero, formatarDoc, confirmar, numero, debounce } from "../ui.js";
 import { icone } from "../icons.js";
 import { colunas, barras, preencherHoras } from "./relatorios.js";
@@ -216,10 +216,95 @@ export default async function plataforma(el) {
 
   // ================= Cobranças (faturas) =================
   let filtroFat = "pendente";
+  // ================= Cobrança automática (028): Asaas =================
+  async function painelAsaas() {
+    const alvo = $("#asaas", el);
+    if (!alvo) return;
+    let st, lojas;
+    try { [st, lojas] = await Promise.all([rpc("plataforma_cobranca_status"), rpc("plataforma_assinaturas")]); }
+    catch (e) {
+      if (/plataforma_cobranca|does not exist|function/i.test(e.message)) return render(alvo, html`<div class="alerta warn">Falta aplicar a migração <code>028_cobranca_recorrente.sql</code> para a cobrança automática.</div>`);
+      throw e;
+    }
+    if (!alvo.isConnected) return;
+    const urlAviso = `${SUPABASE_URL}/functions/v1/cobranca?acao=webhook`;
+    const SIT = { ativa: ["ok", "Assinatura ativa"], pendente: ["", "Sem assinatura"], cancelada: ["", "Cancelada"], erro: ["danger", "Erro"] };
+    render(alvo, html`<details class="panel asaas" ${st.ativo ? "" : "open"}>
+      <summary class="panel-head"><h2>${icone("assinatura", 'width="18" height="18" style="vertical-align:-3px"')} Cobrança automática das mensalidades</h2>
+        <span class="grow"></span>${st.ativo ? html`<span class="badge ok">Asaas ${st.ambiente === "teste" ? "(teste)" : ""} ligado · ${st.assinaturas.ativas} assinatura(s)</span>` : html`<span class="badge">Desligada</span>`}
+        ${st.assinaturas.erro ? html`<span class="badge danger">${st.assinaturas.erro} com erro</span>` : ""}</summary>
+      <div class="panel-pad stack-lg">
+        <p class="muted small" style="margin:0">Cada loja ativa vira uma assinatura mensal no Asaas. O cliente paga por PIX, boleto ou cartão em “Minha assinatura”; o pagamento é confirmado pelo Asaas e libera a loja na hora. Fatura vencida além da tolerância pausa as vendas sozinha.</p>
+        <form id="f-asaas" class="stack" autocomplete="off">
+          <div class="grid-3">
+            <label class="field"><span>Chave de API do Asaas</span><input class="input" name="api_key" type="password" placeholder="${st.configurado ? "•••••••• (vazio mantém)" : "$aact_..."}"></label>
+            <label class="field"><span>Ambiente</span><select class="input" name="ambiente">
+              <option value="producao" ${st.ambiente === "producao" ? "selected" : ""}>Produção (dinheiro real)</option>
+              <option value="teste" ${st.ambiente === "teste" ? "selected" : ""}>Sandbox (teste)</option></select></label>
+            <label class="field"><span>Forma de pagamento</span><select class="input" name="forma_padrao">
+              ${[["UNDEFINED", "Cliente escolhe (PIX, boleto ou cartão)"], ["PIX", "Só PIX"], ["BOLETO", "Só boleto"], ["CREDIT_CARD", "Só cartão (recorrente)"]].map(([v, n]) => html`<option value="${v}" ${st.forma_padrao === v ? "selected" : ""}>${n}</option>`)}</select></label>
+            <label class="field"><span>Pausar vendas após (dias de atraso)</span><input class="input" name="dias_tolerancia" inputmode="numeric" value="${st.dias_tolerancia}"></label>
+            <label class="field"><span>Multa por atraso (%)</span><input class="input" name="multa_pct" inputmode="decimal" value="${String(st.multa_pct).replace(".", ",")}"></label>
+            <label class="field"><span>Juros ao mês (%)</span><input class="input" name="juros_mes_pct" inputmode="decimal" value="${String(st.juros_mes_pct).replace(".", ",")}"></label>
+          </div>
+          <label class="check"><input type="checkbox" name="ativo" ${st.ativo ? "checked" : ""}> <strong>Ligar a cobrança automática</strong></label>
+          <div class="field"><span>Aviso de pagamento (webhook) — cadastre no Asaas › Integrações › Webhooks</span>
+            <div class="row wrap" style="gap:.5rem"><input class="input mono-pq grow" readonly value="${urlAviso}" id="as-url"><button type="button" class="btn sm" data-copiar-as="as-url">Copiar URL</button></div>
+            <div class="row wrap" style="gap:.5rem;margin-top:.4rem"><input class="input mono-pq grow" readonly value="${st.webhook_token}" id="as-tok"><button type="button" class="btn sm" data-copiar-as="as-tok">Copiar token</button>
+              <button type="button" class="btn sm ghost" id="as-novo-tok">Gerar novo token</button></div>
+            <small class="hint">No Asaas: versão da API v3, eventos de <strong>Cobranças</strong>, e cole o token no campo “Token de autenticação”.</small></div>
+          <div class="row wrap"><button class="btn primary">Salvar</button>
+            <button type="button" class="btn" id="as-testar" ${st.configurado ? "" : "disabled"}>Testar conexão</button>
+            <button type="button" class="btn" id="as-todas" ${st.ativo ? "" : "disabled"}>Sincronizar todas as lojas</button></div>
+        </form>
+        ${lojas.length ? html`<div class="table-wrap"><table class="table"><thead><tr><th>Loja</th><th>Plano</th><th class="r">Mensalidade</th><th>Assinatura</th><th>Atraso</th><th></th></tr></thead>
+          <tbody>${lojas.map((l) => { const s = l.assinatura ? SIT[l.assinatura.status] : SIT.pendente; return html`<tr>
+            <td><strong>${l.loja}</strong>${l.status_conta === "suspenso" ? html` <span class="badge danger">suspensa</span>` : ""}${!l.tem_documento ? html`<div class="small txt-alerta">Sem CPF/CNPJ cadastrado</div>` : ""}</td>
+            <td class="small">${nomePlano(l.plano)} · dia ${l.dia_vencimento}</td><td class="r">${dinheiro(l.valor_mensal)}</td>
+            <td><span class="badge ${s[0]}">${s[1]}</span>${l.assinatura?.erro ? html`<div class="small txt-alerta">${l.assinatura.erro}</div>` : l.assinatura?.sincronizado_em ? html`<div class="small muted">${dataHora(l.assinatura.sincronizado_em)}</div>` : ""}</td>
+            <td>${l.atraso ? html`<span class="badge ${l.atraso.pausado ? "danger" : "warn"}">${l.atraso.dias_atraso} dia(s)${l.atraso.pausado ? " · vendas pausadas" : ""}</span>` : html`<span class="muted small">em dia</span>`}</td>
+            <td class="r"><button class="btn sm" data-sinc="${l.empresa_id}" ${st.ativo ? "" : "disabled"}>${l.assinatura?.status === "ativa" ? "Atualizar" : "Criar assinatura"}</button></td></tr>`; })}</tbody></table></div>` : ""}
+        ${st.ultimos_eventos.length ? html`<details><summary class="small muted">Últimos avisos do Asaas</summary><ul class="small" style="margin:.5rem 0 0">${st.ultimos_eventos.map((v) => html`<li>${dataHora(v.em)} · ${v.evento} · ${v.resultado}</li>`)}</ul></details>` : ""}
+      </div></details>`);
+
+    const f = $("#f-asaas", el);
+    $$("[data-copiar-as]", el).forEach((b) => (b.onclick = () => navigator.clipboard?.writeText($("#" + b.dataset.copiarAs, el).value).then(() => toast("Copiado", "ok"))));
+    const salvar = async (extra = {}) => {
+      const x = Object.fromEntries(new FormData(f));
+      const p = { ambiente: x.ambiente, forma_padrao: x.forma_padrao, ativo: f.ativo.checked, dias_tolerancia: Math.round(lerNumero(x.dias_tolerancia)),
+        multa_pct: lerNumero(x.multa_pct), juros_mes_pct: lerNumero(x.juros_mes_pct), ...extra };
+      if (x.api_key?.trim()) p.api_key = x.api_key.trim();
+      if (![p.dias_tolerancia, p.multa_pct, p.juros_mes_pct].every((n) => n >= 0)) return toast("Confira os números", "erro");
+      await rpc("plataforma_cobranca_salvar", { p });
+    };
+    f.onsubmit = async (ev) => { ev.preventDefault(); try { await salvar(); toast("Cobrança automática salva", "ok"); painelAsaas().catch(erro); } catch (e) { erro(e); } };
+    $("#as-novo-tok", el).onclick = async () => {
+      if (!(await confirmar("Gerar um novo token? Você vai precisar colar o novo token no webhook do Asaas, senão os avisos de pagamento param."))) return;
+      try { await salvar({ novo_token: true }); toast("Novo token gerado. Atualize no Asaas.", "ok"); painelAsaas().catch(erro); } catch (e) { erro(e); }
+    };
+    $("#as-testar", el).onclick = async (ev) => {
+      const b = ev.currentTarget; b.disabled = true;
+      try { const r = await fn("cobranca", { acao: "testar" }); toast(`Conexão com o Asaas (${r.ambiente === "teste" ? "sandbox" : "produção"}) funcionando ✓`, "ok"); }
+      catch (e) { erro(e); } finally { b.disabled = false; }
+    };
+    $("#as-todas", el).onclick = async (ev) => {
+      const b = ev.currentTarget; b.disabled = true; b.textContent = "Sincronizando…";
+      try { const r = await fn("cobranca", { acao: "sincronizar_todas" }); const erros = r.lojas.filter((x) => x.erro).length;
+        toast(erros ? `${r.lojas.length - erros} loja(s) ok, ${erros} com erro (veja a tabela)` : `${r.lojas.length} loja(s) sincronizada(s)`, erros ? "erro" : "ok"); }
+      catch (e) { erro(e); } finally { painelAsaas().catch(erro); cobrancas().catch(erro); }
+    };
+    $$("[data-sinc]", el).forEach((b) => (b.onclick = async () => {
+      b.disabled = true; b.textContent = "Aguarde…";
+      try { const r = await fn("cobranca", { acao: "sincronizar", empresa_id: b.dataset.sinc }); toast(r.erro ? r.erro : "Assinatura sincronizada com o Asaas", r.erro ? "erro" : "ok"); }
+      catch (e) { erro(e); } finally { painelAsaas().catch(erro); }
+    }));
+  }
+
   async function cobrancas() {
     const [lista, lojasLista] = await Promise.all([rpc("plataforma_faturas", { p_status: filtroFat || null }), rpc("plataforma_lojas")]);
     const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
     render($("#corpo", el), html`
+      <div id="asaas" style="margin-bottom:1rem"></div>
       <div class="toolbar">
         <div class="periodos" id="f-fat">${[["pendente", "Em aberto"], ["vencido", "Vencidas"], ["pago", "Pagas"], ["", "Todas"]].map(([k, n]) => html`<button data-f="${k}" class="${filtroFat === k ? "ativo" : ""}">${n}</button>`)}</div>
         <span class="grow"></span>
@@ -236,6 +321,7 @@ export default async function plataforma(el) {
               <button class="btn sm" data-fa="cobranca" data-id="${f.id}">Link</button><button class="btn sm ghost" data-fa="cancelar" data-id="${f.id}">Cancelar</button>`
             : f.status === "pago" ? html`<button class="btn sm ghost" data-fa="reabrir" data-id="${f.id}">Reabrir</button>` : ""}</td></tr>`; })}</tbody></table></div>`
       : html`<div class="empty"><p>Nenhuma fatura ${filtroFat === "pendente" ? "em aberto" : "aqui"}. Use “Gerar mensalidades do mês” para criar as cobranças dos clientes ativos.</p></div>`}</div>`);
+    painelAsaas().catch(erro);
     $$("#f-fat button", el).forEach((b) => (b.onclick = () => { filtroFat = b.dataset.f; cobrancas().catch(erro); }));
     $("#b-gerar-fat", el).onclick = async () => {
       try { const n = await rpc("plataforma_gerar_faturas", { p_competencia: null }); toast(n ? `${n} mensalidade(s) gerada(s)` : "Todas as mensalidades do mês já existem", "ok"); kpis(); cobrancas(); } catch (e) { erro(e); }
@@ -459,6 +545,12 @@ export default async function plataforma(el) {
     try {
       await rpc("plataforma_atualizar_loja", { p_id: l.id, p_acao: acao.a, p_plano: acao.plano, p_valor: acao.valor, p_dias: acao.dias });
       toast("Loja atualizada", "ok"); kpis(); desenhar();
+      // Cobrança automática (028): ativar, mudar plano ou cancelar já ajusta a assinatura no Asaas
+      if (["ativar", "cancelar"].includes(acao.a)) {
+        rpc("plataforma_cobranca_status").then((st) => st.ativo && fn("cobranca", { acao: "sincronizar", empresa_id: l.id }))
+          .then((r) => { if (r) toast(r.erro ? `Asaas: ${r.erro}` : "Assinatura no Asaas atualizada", r.erro ? "erro" : "ok"); })
+          .catch((e) => toast(`Loja salva, mas o Asaas não respondeu: ${e.message}`, "erro"));
+      }
     } catch (e) { erro(e); }
   }
 

@@ -1,6 +1,7 @@
 // Minha assinatura: área do cliente (dono da loja) com plano, próximo pagamento,
 // faturas, pendências da loja e pacotes adicionais.
-import { rpc } from "../api.js";
+import { rpc, fn } from "../api.js";
+import { qrSvg, qrPronto } from "../../../assets/pix.js";
 import { estado, eh, diasDeTeste } from "../estado.js";
 import { html, raw, render, $, $$, dinheiro, data, dataHora, toast, erro, modal, confirmar, numero, urlSegura } from "../ui.js";
 import { icone } from "../icons.js";
@@ -99,8 +100,10 @@ export default async function conta(el) {
             <div class="pp-dias ${diasAte(prox.vencimento) < 0 ? "atrasado" : diasAte(prox.vencimento) <= 5 ? "perto" : "ok"}">
               ${diasAte(prox.vencimento) < 0 ? `Venceu há ${-diasAte(prox.vencimento)} dia(s) · ${dataBr(prox.vencimento)}` : diasAte(prox.vencimento) === 0 ? `Vence hoje · ${dataBr(prox.vencimento)}` : `Vence em ${diasAte(prox.vencimento)} dia(s) · ${dataBr(prox.vencimento)}`}</div>
             <div class="row wrap">
+              ${prox.provedor === "asaas" ? html`<button class="btn primary" data-pagar="${prox.id}">${icone("pix", 'width="18" height="18"')} Pagar agora</button>
+                <button class="btn ghost" data-conferir="${prox.id}">Já paguei</button>` : html`
               ${prox.link_pagamento ? html`<a class="btn primary" href="${urlSegura(prox.link_pagamento)}" target="_blank" rel="noopener">Pagar agora</a>` : ""}
-              ${prox.linha_digitavel ? html`<button class="btn" data-copiar="${prox.linha_digitavel}">Copiar código</button>` : ""}
+              ${prox.linha_digitavel ? html`<button class="btn" data-copiar="${prox.linha_digitavel}">Copiar código</button>` : ""}`}
               ${!prox.link_pagamento && !prox.linha_digitavel && zap ? html`<a class="btn primary" href="${linkWhatsApp(`Olá! Quero pagar a fatura "${prox.descricao}" de ${dinheiro(prox.valor)} da loja ${estado.empresa.nome_fantasia || estado.empresa.razao_social}.`)}" target="_blank" rel="noopener">Pedir link de pagamento</a>` : ""}
             </div>
             ${a.em_aberto.qtd > 1 ? html`<p class="hint">${a.em_aberto.qtd} faturas em aberto · ${dinheiro(a.em_aberto.valor)}</p>` : ""}`
@@ -150,8 +153,10 @@ export default async function conta(el) {
             const venc = f.status === "pendente" && diasAte(f.vencimento) < 0;
             return html`<tr><td>${f.descricao}</td><td>${dataBr(f.vencimento)}</td><td class="r"><strong>${dinheiro(f.valor)}</strong></td>
               <td><span class="badge ${f.status === "pago" ? "ok" : venc ? "danger" : "warn"}">${f.status === "pago" ? `Paga em ${data(f.pago_em)}` : venc ? "Vencida" : "Em aberto"}</span></td>
-              <td class="r">${f.status === "pendente" && f.link_pagamento ? html`<a class="btn sm" href="${urlSegura(f.link_pagamento)}" target="_blank" rel="noopener">Pagar</a>` : ""}
-                ${f.status === "pendente" && f.linha_digitavel ? html`<button class="btn sm" data-copiar="${f.linha_digitavel}">Copiar código</button>` : ""}</td></tr>`; })}</tbody></table></div>`
+              <td class="r">${f.status === "pendente" && f.provedor === "asaas" ? html`<button class="btn sm primary" data-pagar="${f.id}">Pagar</button>`
+                : html`${f.status === "pendente" && f.link_pagamento ? html`<a class="btn sm" href="${urlSegura(f.link_pagamento)}" target="_blank" rel="noopener">Pagar</a>` : ""}
+                ${f.status === "pendente" && f.linha_digitavel ? html`<button class="btn sm" data-copiar="${f.linha_digitavel}">Copiar código</button>` : ""}`}
+                ${f.status === "pago" && f.link_pagamento && f.provedor === "asaas" ? html`<a class="btn sm ghost" href="${urlSegura(f.link_pagamento)}" target="_blank" rel="noopener">Comprovante</a>` : ""}</td></tr>`; })}</tbody></table></div>`
         : html`<div class="empty"><p>${teste ? "As faturas aparecem aqui depois que você contratar um plano." : "Nenhuma fatura ainda."}</p></div>`}
       </div>
 
@@ -164,6 +169,8 @@ export default async function conta(el) {
     </div>`);
 
     $$("[data-copiar]", el).forEach((b) => (b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copiar); toast("Código copiado", "ok"); } catch { toast("Não foi possível copiar", "erro"); } }));
+    $$("[data-pagar]", el).forEach((b) => (b.onclick = () => pagarFatura(a.faturas.find((f) => f.id === b.dataset.pagar) || a.proxima_fatura)));
+    $$("[data-conferir]", el).forEach((b) => (b.onclick = () => conferir(b.dataset.conferir, b)));
     $$("[data-pacote]", el).forEach((b) => (b.onclick = () => pedirPacote(PACOTES.find((p) => p.id === b.dataset.pacote), a)));
     $$("[data-cancelar]", el).forEach((b) => (b.onclick = async () => {
       if (!(await confirmar("Cancelar este pedido?", { ok: "Cancelar pedido", perigo: true }))) return;
@@ -175,6 +182,66 @@ export default async function conta(el) {
       el.querySelector(l.getAttribute("href"))?.scrollIntoView({ behavior: "smooth", block: "start" });
     }));
     $("#b-plano", el)?.addEventListener("click", () => escolherPlano(a));
+  }
+
+  // ---------- Pagar a mensalidade (cobrança automática pelo Asaas, migração 028) ----------
+  async function conferir(id, botao) {
+    if (botao) { botao.disabled = true; botao.textContent = "Conferindo…"; }
+    try {
+      const r = await fn("cobranca", { acao: "conferir", fatura_id: id });
+      if (r.status === "pago") {
+        toast("Pagamento confirmado. Obrigado!", "ok");
+        import("../estado.js").then((m) => m.atualizarConta()).then(() => window.dispatchEvent(new Event("conta-atualizada"))).catch(() => {});
+        carregar();
+        return true;
+      }
+      toast("Ainda não recebemos a confirmação. PIX e cartão confirmam em instantes; boleto leva até 2 dias úteis.", "erro");
+    } catch (e) { erro(e); }
+    finally { if (botao) { botao.disabled = false; botao.textContent = "Já paguei"; } }
+    return false;
+  }
+
+  async function pagarFatura(f) {
+    if (!f) return;
+    await qrPronto().catch(() => {});
+    let timer = null;
+    await modal({
+      titulo: `Pagar ${dinheiro(f.valor)}`,
+      corpo: html`<div class="pagar-fatura stack">
+        <p class="muted small" style="margin:0">${f.descricao} · vence ${dataBr(f.vencimento)}</p>
+        ${f.pix_copia_cola ? html`<div class="pf-pix">
+          <div class="qr-box">${raw(qrSvg(f.pix_copia_cola, 200))}</div>
+          <div class="stack" style="gap:.5rem">
+            <strong>PIX · confirma na hora</strong>
+            <span class="small muted">Abra o app do banco, escolha PIX › Ler QR Code, ou copie o código.</span>
+            <button class="btn" data-cp="${f.pix_copia_cola}">Copiar código PIX</button>
+            <span class="small muted pf-espera"><span class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:-2px"></span> Esperando o pagamento…</span>
+          </div></div>` : ""}
+        <div class="pf-outras">
+          ${f.link_pagamento ? html`<a class="btn" href="${urlSegura(f.link_pagamento)}" target="_blank" rel="noopener">${icone("cartao", 'width="16" height="16"')} Pagar com cartão ou ver a fatura</a>` : ""}
+          ${f.linha_digitavel ? html`<button class="btn ghost" data-cp="${f.linha_digitavel}">Copiar linha do boleto</button>` : ""}
+          ${f.boleto_url ? html`<a class="btn ghost" href="${urlSegura(f.boleto_url)}" target="_blank" rel="noopener">Abrir boleto (PDF)</a>` : ""}
+        </div>
+        <p class="hint" style="margin:0">Pagamento processado pelo Asaas. Assim que ele confirmar, sua loja fica em dia sozinha${f.vencimento < hojeISO() ? " e as vendas voltam na hora" : ""}.</p>
+      </div>`,
+      rodape: html`<button class="btn" data-fechar>Fechar</button><button class="btn primary" id="pf-conferir">Já paguei · conferir</button>`,
+      largo: !!f.pix_copia_cola,
+      onPronto: (d, fechar) => {
+        d.querySelectorAll("[data-cp]").forEach((b) => (b.onclick = () => navigator.clipboard?.writeText(b.dataset.cp).then(() => toast("Código copiado", "ok")).catch(() => toast("Não foi possível copiar", "erro"))));
+        d.querySelector("#pf-conferir").onclick = async (ev) => { if (await conferir(f.id, null)) fechar(true); else ev.currentTarget.blur(); };
+        // PIX: confere sozinho a cada 6 s enquanto a janela está aberta (até 5 min)
+        if (f.pix_copia_cola) {
+          let n = 0;
+          const tick = async () => {
+            if (!d.open || n++ > 50) return;
+            try { const r = await fn("cobranca", { acao: "conferir", fatura_id: f.id }); if (r.status === "pago") { toast("Pagamento confirmado. Obrigado!", "ok"); fechar(true); carregar(); import("../estado.js").then((m) => m.atualizarConta()).then(() => window.dispatchEvent(new Event("conta-atualizada"))).catch(() => {}); return; } } catch { /* tenta de novo */ }
+            timer = setTimeout(tick, 6000);
+          };
+          timer = setTimeout(tick, 8000);
+        }
+      },
+    });
+    clearTimeout(timer);
   }
 
   async function pedirPacote(p, a) {

@@ -169,6 +169,9 @@ function ligarMenuRecolhivel() {
   };
 }
 
+// Pagamento confirmado em Minha assinatura: atualiza o aviso do menu na hora
+window.addEventListener("conta-atualizada", () => desenharAvisoConta());
+
 /** Cartão no menu lateral com a situação do teste grátis ou do bloqueio. */
 function desenharAvisoConta() {
   const c = estado.conta;
@@ -177,7 +180,8 @@ function desenharAvisoConta() {
   // Licença do sistema (021): vencida vira bloqueio (c.bloqueio); vencendo em até 7 dias, aviso
   const lic = licenca("pdv");
   const licVencendo = lic.ok && lic.dias != null && lic.dias <= 7;
-  if (!c || (c.status === "ativo" && !c.bloqueio && !licVencendo)) { render(alvo, ""); if (mob) render(mob, ""); return; }
+  const atraso = c?.fatura_atrasada; // mensalidade vencida, ainda dentro da tolerância (028)
+  if (!c || (c.status === "ativo" && !c.bloqueio && !licVencendo && !atraso)) { render(alvo, ""); if (mob) render(mob, ""); return; }
   const ponto = html`<div class="aviso-mini ${c.bloqueio ? "bloq" : ""}" title="${c.bloqueio || (c.status === "ativo" ? "Licença perto de vencer" : "Teste grátis em andamento")}"></div>`;
   const dias = diasDeTeste();
   const teste = c.status === "teste";
@@ -189,6 +193,14 @@ function desenharAvisoConta() {
       ${gestor ? html`<a class="btn sm primary block" href="#/conta">${teste ? "Ver planos" : "Minha assinatura"}</a>` : ""}
       ${gestor && zap ? html`<a class="btn sm block" href="${zap}" target="_blank" rel="noopener">${icone("whatsapp", 'width="16" height="16"')} ${teste ? "Contratar" : "Falar com o suporte"}</a>` : ""}</div>`);
     if (mob) render(mob, html`<span class="badge danger">${teste ? "Teste encerrado" : "Vendas pausadas"}</span>`);
+    return;
+  }
+  if (!teste && atraso && !atraso.pausado) {
+    const faltam = Math.max(0, atraso.tolerancia - atraso.dias_atraso);
+    render(alvo, html`${ponto}<div class="aviso-conta"><strong>Mensalidade vencida</strong>
+      <span>${atraso.dias_atraso === 1 ? "Venceu ontem" : `Venceu há ${atraso.dias_atraso} dias`}. ${faltam === 0 ? "As vendas pausam amanhã" : `As vendas pausam em ${faltam + 1} dias`} se não for paga.</span>
+      ${gestor ? html`<a class="btn sm primary block" href="#/conta">Pagar agora</a>` : ""}</div>`);
+    if (mob) render(mob, html`<span class="badge warn">Mensalidade vencida</span>`);
     return;
   }
   if (!teste) {

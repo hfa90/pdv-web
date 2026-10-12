@@ -197,6 +197,25 @@ O menu **Plataforma** aparece só para os e-mails da tabela `plataforma_admins`.
 - **Lojas**: ativar plano, dia de vencimento, módulos, estender teste, suspender e cancelar.
 - **Contatos (leads)**, **Cobranças** (gerar mensalidades do mês, fatura avulsa, link/código de pagamento, registrar recebimento) e **Pedidos de pacotes** (aprovar/recusar, somar na mensalidade, liberar módulos).
 
+## Cobrança recorrente das mensalidades (Asaas)
+
+Cada loja ativa vira uma assinatura mensal no Asaas. O lojista paga em **Minha assinatura**
+(PIX com QR na tela, boleto ou cartão); o Asaas confirma e a fatura fica paga sozinha.
+Fatura vencida além da tolerância **pausa as vendas automaticamente**; o pagamento libera na hora.
+
+Configuração única (Plataforma › Cobranças › Cobrança automática das mensalidades):
+
+1. Aplique a migração `028_cobranca_recorrente.sql` e publique a função `cobranca` (sem verificação de JWT: ela faz a própria autenticação).
+2. No Asaas: **Integrações › Chaves de API** → copie a chave (`$aact_...`) e cole no painel. Comece pelo **Sandbox** para testar.
+3. No Asaas: **Integrações › Webhooks** → URL e token mostrados no painel, API v3, eventos de **Cobranças**.
+4. Ligue a cobrança, clique em **Testar conexão** e depois em **Sincronizar todas as lojas**.
+5. A loja precisa ter CPF ou CNPJ em Configurações › Loja (exigido pelo Asaas).
+
+Segurança: a chave do Asaas fica só no servidor; todo aviso é conferido de novo direto na API do Asaas;
+uma sincronização diária (06:10) corrige qualquer aviso perdido. Ativar, mudar o plano ou cancelar uma
+loja na Plataforma já ajusta a assinatura no Asaas. A nota fiscal de serviço (NFS-e) da mensalidade
+pode ser emitida automaticamente pelo próprio Asaas (Notas fiscais › Configurar emissão automática para assinaturas).
+
 ## Superusuário e Central de suporte
 
 O criador do sistema é o **superusuário** (nível `super` em `plataforma_admins`, migração `020_superusuario.sql`). Ele tem tudo o que o administrador de qualquer loja tem, mais:

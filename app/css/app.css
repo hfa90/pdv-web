@@ -1521,3 +1521,14 @@ kbd { display: inline-block; padding: .05rem .4rem; border: 1px solid var(--line
 .auth-lirio .lis-faixa { fill: currentColor !important; }
 .auth-recibo { color: #18211F; } /* papel branco: texto escuro também no tema escuro */
 .g-marca { display: flex; justify-content: center; margin-bottom: .4rem; }
+
+/* =====================================================================
+   Cobrança automática (028): pagar a mensalidade e painel do Asaas
+   ===================================================================== */
+.pf-pix { display: grid; grid-template-columns: auto 1fr; gap: 1.25rem; align-items: center; padding: 1rem; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+.pf-pix .qr-box { background: #fff; padding: 10px; border-radius: var(--r-sm); line-height: 0; }
+.pf-outras { display: flex; flex-wrap: wrap; gap: .5rem; }
+@media (max-width: 560px) { .pf-pix { grid-template-columns: 1fr; justify-items: center; text-align: center; } }
+.asaas > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.asaas > summary::-webkit-details-marker { display: none; }
+.mono-pq { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: var(--fs-xs); }
