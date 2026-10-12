@@ -1,4 +1,5 @@
 // Utilitários de interface: HTML seguro, formatação, toasts e modais.
+import { carregador } from "../../assets/marca.js";
 
 // ---------- HTML seguro ----------
 // Use sempre html`...` para montar telas: todo valor interpolado é escapado
@@ -207,4 +208,5 @@ export async function ocupado(botao, acao) {
   finally { if (botao) { botao.disabled = false; botao.innerHTML = original; } }
 }
 
-export const carregando = () => html`<div class="loading"><div class="spinner" aria-label="Carregando"></div></div>`;
+// Carregando: o lírio da marca acende pétala por pétala (assets/marca.js)
+export const carregando = () => raw(carregador());

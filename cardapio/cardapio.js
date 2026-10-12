@@ -4,6 +4,7 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../assets/config.js";
 import { html, render, raw, dinheiro, debounce, urlSegura } from "../app/js/ui.js";
 import { payloadPix, qrSvg, qrPronto, txidVenda } from "../assets/pix.js";
+import { simbolo, carregador } from "../assets/marca.js";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const app = document.getElementById("app");
@@ -114,7 +115,7 @@ function telaCardapio() {
       <footer class="rodape">
         ${loja.logradouro ? html`<p>📍 ${[loja.logradouro, loja.numero, loja.bairro, loja.cidade].filter(Boolean).join(", ")}</p>` : ""}
         ${loja.telefone ? html`<p><a href="${zapLoja(loja.telefone, "Olá! Vim pelo cardápio digital.")}" target="_blank" rel="noopener">💬 Falar com a loja</a></p>` : ""}
-        <p class="feito">Pedidos sem taxa para a loja · cardápio digital</p>
+        <p class="feito"><a class="lis-assina" href="https://hfa90.github.io/pdv-web/" target="_blank" rel="noopener">${raw(simbolo({ tam: 16, cor: "var(--lis-verde-logo)" }))} Cardápio digital feito com Lis PDV</a></p>
       </footer>
     </main>
     <div class="barra-sacola" id="barra-sacola" hidden></div>`);
@@ -341,7 +342,7 @@ let canalPedido = null, timerPedido = null, timerPix = null, ultimoStatus = null
 
 async function telaPedido(token, recemCriado = false) {
   if (!/^[0-9a-f-]{36}$/i.test(token)) return telaErro("Pedido não encontrado", "Confira o link do pedido.");
-  render(app, html`<div class="carregando"><span class="girando"></span></div>`);
+  render(app, raw(carregador()));
   await qrPronto(3000);
   const carregar = async () => {
     const { data, error } = await sb.rpc("acompanhar_pedido", { p_token: token });

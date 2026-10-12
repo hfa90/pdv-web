@@ -5,14 +5,15 @@ import { MARCA, linkWhatsApp } from "../config.js";
 import { obterDispositivo, obterImpressao } from "../../../assets/dispositivo.js";
 
 const estado_usuario = () => estado.usuario;
-import { html, render, $, lerForm, toast, ocupado, docValido, somenteDigitos } from "../ui.js";
+import { html, raw, render, $, lerForm, toast, ocupado, docValido, somenteDigitos } from "../ui.js";
+import { logotipo, simbolo } from "../../../assets/marca.js";
 
 function moldura(conteudo) {
   return html`
   <div class="auth">
     <section class="auth-arte">
-      <div class="brand" style="padding:0"><div class="brand-mark" style="background:#fff;color:var(--primary)">${MARCA.slice(0, 1)}</div>
-        <div class="brand-name">${MARCA}</div></div>
+      <div class="auth-logo">${raw(logotipo({ altura: 34, cor: "#fff" }))}</div>
+      <div class="auth-lirio" aria-hidden="true">${raw(simbolo({ tam: 420, cor: "currentColor" }))}</div>
       <div>
         <h2>Venda no balcão, na mesa e no caixa.</h2>
         <p>Para padarias, mercadinhos, lanchonetes, cafés e restaurantes. Cupom na impressora térmica e nota fiscal em poucos toques.</p>

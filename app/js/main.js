@@ -2,7 +2,8 @@
 import { sb } from "./api.js";
 import { estado, carregarContexto, limparEstado, pode, rotaInicial, ROTAS, PAPEIS, atualizarConta, diasDeTeste, tituloRota, aprovaCozinha, licenca } from "./estado.js";
 import { linkWhatsApp, MARCA } from "./config.js";
-import { html, render, $, $$, iniciais, carregando, erro, confirmar, toast } from "./ui.js";
+import { html, raw, render, $, $$, iniciais, carregando, erro, confirmar, toast } from "./ui.js";
+import { simbolo, palavra, fecharAbertura } from "../../assets/marca.js";
 import { icone } from "./icons.js";
 import { telaLogin, telaOnboarding, telaNovaSenha } from "./paginas/login.js";
 import { TELAS } from "./ajuda/telas.js";
@@ -69,8 +70,8 @@ function montarShell() {
     <div class="shell menu-${modo}">
       <aside class="sidebar ${modo === "auto" ? "recolhida" : ""}" id="sidebar">
         <div class="brand">
-          <div class="brand-mark">${iniciais(nomeLoja).slice(0, 1)}</div>
-          <div><div class="brand-name">${nomeLoja}</div><div class="brand-sub">Ponto de venda</div></div>
+          <div class="brand-mark" title="Lis PDV">${raw(simbolo({ tam: 25, cor: "#fff" }))}</div>
+          <div><div class="brand-name">${nomeLoja}</div><div class="brand-sub">${raw(palavra({ altura: 11 }))}<span>PDV</span></div></div>
           <button class="btn ghost icon-btn btn-fixar" id="btn-fixar" title="${modo === "auto" ? "Manter menu aberto" : "Recolher menu automaticamente"}" aria-label="Fixar ou recolher o menu">${icone("recolher")}</button>
         </div>
         <nav class="nav" aria-label="Menu principal">
@@ -232,7 +233,12 @@ async function navegar() {
   }
 }
 
+// A abertura da marca (index.html) some quando a primeira tela fica pronta
 async function iniciar() {
+  try { await iniciarApp(); } finally { fecharAbertura(); }
+}
+
+async function iniciarApp() {
   if (modoRecuperacao) return telaNovaSenha(app, iniciar);
   render(app, carregando());
   try {

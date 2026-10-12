@@ -123,12 +123,14 @@ textarea.input { min-height: 80px; resize: vertical; }
   padding: 1rem .75rem; background: var(--surface); border-right: 1px solid var(--line);
 }
 .brand { display: flex; gap: .6rem; align-items: center; padding: .25rem .5rem 1rem; }
+/* Selo da marca Lis PDV: lírio branco com faixa de pólen sobre o Verde Lis (assets/marca.css) */
 .brand-mark {
-  width: 34px; height: 34px; border-radius: 9px; background: var(--primary); color: var(--on-primary);
+  width: 36px; height: 36px; border-radius: 10px; background: var(--lis-verde, #136F63); color: #fff;
   display: grid; place-items: center; font-weight: 700;
 }
 .brand-name { font-weight: 650; line-height: 1.15; }
-.brand-sub { font-size: var(--fs-xs); color: var(--muted); }
+.brand-sub { display: flex; align-items: flex-end; gap: .3rem; margin-top: .2rem; color: var(--ink); }
+.brand-sub span { font-size: .62rem; font-weight: 650; letter-spacing: .06em; color: var(--lis-verde-logo, var(--primary)); line-height: 1; }
 .nav a {
   display: flex; gap: .7rem; align-items: center;
   padding: .6rem .7rem; border-radius: var(--r-sm);
@@ -1508,3 +1510,14 @@ kbd { display: inline-block; padding: .05rem .4rem; border: 1px solid var(--line
 .prov-op .badge.sm { font-size: .68rem; padding: .05rem .4rem; justify-self: start; }
 .prov-campos { padding: .85rem; border: 1px dashed var(--line-strong); border-radius: var(--r-md); }
 #url-aviso { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: var(--fs-xs); }
+
+/* =====================================================================
+   Marca Lis PDV no login do sistema e do garçom
+   ===================================================================== */
+.auth-logo { --lis-verde-logo: #fff; --lis-raiz: #fff; position: relative; z-index: 1; }
+.auth-logo .lis-pdv { color: rgba(255, 255, 255, .78); }
+.auth-arte > div:not(.auth-lirio), .auth-arte > .auth-recibo { position: relative; z-index: 1; }
+.auth-lirio { position: absolute; right: -110px; bottom: -40px; color: #fff; opacity: .07; pointer-events: none; z-index: 0; }
+.auth-lirio .lis-faixa { fill: currentColor !important; }
+.auth-recibo { color: #18211F; } /* papel branco: texto escuro também no tema escuro */
+.g-marca { display: flex; justify-content: center; margin-bottom: .4rem; }

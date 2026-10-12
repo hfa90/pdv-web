@@ -1,0 +1,91 @@
+/* =====================================================================
+   Identidade Lis PDV — compartilhada por sistema, garçom, mesa, cardápio e site.
+   Símbolo: o lírio (flor-de-lis) preso pela faixa cor de pólen.
+   Logotipo: "lis" desenhado, com o pingo do i em pólen.
+   Cores: Verde Lis #136F63 · Pólen #F5B82E · Raiz #12201D · Névoa #F2F4F3
+   Marcação: assets/marca.js
+   ===================================================================== */
+:root {
+  --lis-verde: #136F63;
+  --lis-verde-logo: #136F63;
+  --lis-polen: #F5B82E;
+  --lis-raiz: #12201D;
+  --lis-fundo: #F2F4F3;
+}
+html[data-tema="escuro"] {
+  --lis-verde-logo: #34C3AE;
+  --lis-raiz: #E4EBE8;
+  --lis-fundo: #0C1211;
+}
+
+/* ---------- Peças ---------- */
+.lis-simbolo { display: block; flex: none; overflow: visible; }
+.lis-simbolo path, .lis-simbolo rect, .lis-palavra path, .lis-palavra circle { transform-box: view-box; }
+.lis-selo {
+  width: var(--t, 34px); height: var(--t, 34px); flex: none;
+  display: inline-grid; place-items: center;
+  border-radius: calc(var(--t, 34px) * .27);
+  background: var(--lis-verde);
+}
+.lis-palavra { display: block; flex: none; overflow: visible; }
+.lis-logo { display: inline-flex; align-items: center; gap: calc(var(--h, 28px) * .32); line-height: 1; color: var(--lis-raiz); }
+.lis-logo .lis-palavra { margin-top: calc(var(--h, 28px) * .06); }
+.lis-logo .lis-pdv { margin-left: calc(var(--h, 28px) * -.14); }
+.lis-pdv {
+  font-weight: 600; letter-spacing: .06em; color: var(--lis-verde-logo);
+  font-size: calc(var(--h, 28px) * .46); align-self: flex-end; margin-bottom: calc(var(--h, 28px) * .02);
+}
+
+/* ---------- Abertura: o lírio desabrocha e o pingo de pólen cai no "i" ---------- */
+.lis-abertura {
+  position: fixed; inset: 0; z-index: 9999;
+  display: grid; place-items: center;
+  background: var(--lis-fundo); color: var(--lis-raiz);
+  transition: opacity .4s ease, transform .4s ease;
+  /* Segurança: se a primeira tela não avisar (erro grave), a abertura sai sozinha em 15 s */
+  animation: lis-some .4s ease 15s forwards;
+}
+@keyframes lis-some { to { opacity: 0; visibility: hidden; pointer-events: none; } }
+.lis-abertura.saindo { opacity: 0; transform: scale(1.03); pointer-events: none; }
+.lis-abertura-in { display: grid; justify-items: center; gap: 1.4rem; }
+.lis-abertura-nome { --h: 40px; display: flex; align-items: flex-end; gap: .4rem; }
+.lis-abertura-nome .lis-pdv { font-family: "Onest", system-ui, sans-serif; font-size: 17px; margin-bottom: 2px; }
+.lis-abertura-sub { font: 500 .85rem/1.3 "Onest", system-ui, sans-serif; color: color-mix(in srgb, var(--lis-raiz) 60%, transparent); min-height: 1.1em; }
+
+.lis-abrindo .lis-p-centro { transform-origin: 24px 30px; animation: lis-cresce .55s cubic-bezier(.2, .9, .25, 1.2) .12s both; }
+.lis-abrindo .lis-p-esq { transform-origin: 20px 30px; animation: lis-abre-esq .6s cubic-bezier(.2, .9, .25, 1.15) .3s both; }
+.lis-abrindo .lis-p-dir { transform-origin: 28px 30px; animation: lis-abre-dir .6s cubic-bezier(.2, .9, .25, 1.15) .3s both; }
+.lis-abrindo .lis-p-pe { transform-origin: 24px 35px; animation: lis-desce .4s ease-out .5s both; }
+.lis-abrindo .lis-faixa { transform-origin: 24px 32.5px; animation: lis-faixa .4s cubic-bezier(.3, .8, .3, 1) 0s both; }
+.lis-abertura-nome { animation: lis-surge .45s ease-out .55s both; }
+.lis-abertura-nome .lis-pingo { transform-origin: 18.2px 6px; animation: lis-pingo .6s cubic-bezier(.3, 1.6, .5, 1) .85s both, lis-pulsa 1.6s ease-in-out 1.8s infinite; }
+.lis-abertura-sub { animation: lis-surge .4s ease-out 1s both; }
+
+@keyframes lis-faixa { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes lis-cresce { from { transform: scaleY(0); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
+@keyframes lis-abre-esq { from { transform: rotate(38deg) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes lis-abre-dir { from { transform: rotate(-38deg) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes lis-desce { from { transform: translateY(-4px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes lis-surge { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes lis-pingo { 0% { transform: translateY(-26px) scale(.4); opacity: 0; } 60% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes lis-pulsa { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.22); } }
+
+/* ---------- Carregador compacto: as pétalas acendem uma a uma ---------- */
+.lis-carregando { display: grid; place-items: center; min-height: 40vh; }
+.lis-respira path { animation: lis-onda 1.3s ease-in-out infinite; }
+.lis-respira .lis-p-esq { animation-delay: .15s; }
+.lis-respira .lis-p-centro { animation-delay: .3s; }
+.lis-respira .lis-p-dir { animation-delay: .45s; }
+.lis-respira .lis-p-pe { animation-delay: .6s; }
+@keyframes lis-onda { 0%, 100% { opacity: .22; } 45% { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lis-abrindo *, .lis-abertura-nome, .lis-abertura-nome *, .lis-abertura-sub { animation: none !important; }
+  .lis-respira path { animation-duration: 2.6s; }
+  .lis-abertura { transition: opacity .2s; }
+  .lis-abertura.saindo { transform: none; }
+}
+
+/* ---------- Assinatura discreta (páginas do cliente: mesa e cardápio) ---------- */
+.lis-assina { display: inline-flex; align-items: center; gap: .4rem; color: inherit; opacity: .7; text-decoration: none; font-size: .78rem; }
+.lis-assina:hover { opacity: 1; }

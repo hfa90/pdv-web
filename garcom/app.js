@@ -2,7 +2,8 @@
 // Usa o mesmo banco, os mesmos usuários e as mesmas regras do sistema do caixa.
 import { sb, rpc, fn } from "../app/js/api.js";
 import { estado, carregarContexto, limparEstado, PAPEIS } from "../app/js/estado.js";
-import { html, render, $, $$, dinheiro, toast, erro, ocupado, iniciais, carregando, debounce, confirmar, qtd as fmtQtd, rotuloMesa } from "../app/js/ui.js";
+import { html, raw, render, $, $$, dinheiro, toast, erro, ocupado, iniciais, carregando, debounce, confirmar, qtd as fmtQtd, rotuloMesa } from "../app/js/ui.js";
+import { logotipo, fecharAbertura } from "../assets/marca.js";
 import { icone } from "../app/js/icons.js";
 import { desenharDetalhe, situacao, NOME_SITUACAO, reenviarPendente } from "../app/js/mesa-detalhe.js";
 import { tempoMesa, barraTempo, selosCozinha, duracao, minutosDesde, ETAPA_COZINHA } from "../app/js/restaurante.js";
@@ -41,7 +42,7 @@ function telaLogin(modo = "matricula") {
   const loja = lerLS(CHAVE_LOJA);
   render(app, html`<div class="g-login">
     <div class="g-login-card">
-      <img src="icones/icone-192.png" alt="" width="72" height="72">
+      <div class="g-marca">${raw(logotipo({ altura: 30 }))}</div>
       <h1>App do garçom</h1>
       ${modo === "matricula" ? html`
         <p class="muted">Entre com sua matrícula ou CPF e a senha numérica.</p>
@@ -331,6 +332,10 @@ function ligarTempoReal() {
 
 // ---------- Início ----------
 async function iniciar() {
+  try { await iniciarApp(); } finally { fecharAbertura(); }
+}
+
+async function iniciarApp() {
   render(app, carregando());
   try {
     const logado = await carregarContexto();

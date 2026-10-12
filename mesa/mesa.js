@@ -9,6 +9,7 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "../assets/config.js";
 import { html, render, raw, dinheiro, urlSegura } from "../app/js/ui.js";
 import { payloadPix, qrSvg, qrPronto } from "../assets/pix.js";
+import { simbolo } from "../assets/marca.js";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const app = document.getElementById("app");
@@ -175,6 +176,7 @@ function desenhar() {
         <p class="muted">${d.pode_pedir ? "Você já pode olhar o cardápio e fazer o pedido. O garçom confirma e abre a sua mesa." : "Chame o garçom para abrir a sua mesa."}</p></section>`}
 
       <p class="pequeno muted centro mesa-rodape">Esta página mostra só a conta desta mesa. Pagamento e pedidos são conferidos pela equipe.</p>
+      <p class="centro"><a class="lis-assina" href="https://hfa90.github.io/pdv-web/" target="_blank" rel="noopener">${raw(simbolo({ tam: 16, cor: "var(--lis-verde-logo)" }))} Feito com Lis PDV</a></p>
     </main>
     ${itensCarrinho ? html`<div class="barra-sacola"><button class="btn-sacola" data-a="revisar"><span class="contador">${itensCarrinho}</span><span>Ver meu pedido</span><span>${dinheiro(totalCarrinho())}</span></button></div>` : ""}`);
 }
