@@ -84,3 +84,16 @@ body.com-detalhe { overflow: hidden; }
 .g-cod { text-transform: uppercase; letter-spacing: .2em; text-align: center; font-weight: 700; }
 .g-pin { letter-spacing: .35em; font-size: 1.4rem; text-align: center; }
 .g-login-card .link-btn { font-size: var(--fs-sm); }
+
+/* Pedido por voz: botão flutuante grande, ao alcance do polegar */
+.g-voz-fab { position: fixed; right: 16px; bottom: calc(82px + env(safe-area-inset-bottom)); z-index: 26; display: inline-flex; align-items: center; gap: .55rem;
+  height: 64px; padding: 0 1.3rem 0 1.05rem; border: 0; border-radius: 999px; background: var(--primary); color: var(--on-primary);
+  font: inherit; font-weight: 700; font-size: 1.05rem; box-shadow: 0 10px 26px rgba(19,111,99,.38), 0 2px 6px rgba(0,0,0,.12); cursor: pointer; }
+.g-voz-fab svg { stroke: currentColor; }
+.g-voz-fab:active { transform: scale(.96); }
+body.com-detalhe .g-voz-fab { display: none; }
+.g-mesas { padding-bottom: 6rem; }
+@media (max-width: 760px) {
+  body.garcom dialog.modal.wide.modal-voz { inset: 0; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+  body.garcom dialog.modal.wide.modal-voz .modal-body { max-height: none; }
+}

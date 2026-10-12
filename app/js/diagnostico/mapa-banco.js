@@ -81,6 +81,7 @@ export const EDGE = {
   teste: "criar loja de teste grátis",
   "resumo-diario": "resumo do dia por e-mail",
   backup: "backup das lojas (recriar logins, excluir usuários)",
+  "pedido-voz": "entender pedidos falados no app do garçom (com IA)",
 };
 
 /** Para uma função/tabela que não existe, devolve o arquivo da migração que a cria. */

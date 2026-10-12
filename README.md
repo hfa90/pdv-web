@@ -19,7 +19,7 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 - **Registro de atividades** (auditoria) de cancelamentos, alterações de preço, caixa, usuários e notas.
 - **PIX com QR Code no caixa**: a chave da loja fica em Configurações › PIX e o PDV gera o código "copia e cola" (BR Code com CRC16) com o valor exato. Opcional: token do Mercado Pago para cobrança com confirmação automática.
 - **Mesas (restaurantes)**: mapa interativo do salão (arrastar para montar, áreas, formatos), situação ao vivo (livre, ocupada, conta pedida), lançar itens, transferir/juntar, conta por pessoa e envio para o caixa.
-- **App do garçom** (`garcom/`): PWA instalável no celular ou tablet, mesmo login e mesmas regras do banco, funciona com internet instável e reenvia pedidos pendentes.
+- **App do garçom** (`garcom/`): PWA instalável no celular ou tablet, mesmo login e mesmas regras do banco, funciona com internet instável e reenvia pedidos pendentes. Tem **pedido por voz**: o garçom fala, confere o resumo e envia (veja abaixo).
 - **Cozinha**: um computador pode imprimir sozinho os itens lançados pelos garçons e os pedidos do delivery.
 - **Delivery e cardápio digital** (`cardapio/?loja=endereco`): cardápio com fotos, sacola, entrega ou retirada, CEP automático, PIX, e acompanhamento do pedido em tempo real (recebido, em preparo, saiu, entregue). A loja gerencia em um quadro por etapa com aviso sonoro.
 
@@ -62,6 +62,29 @@ Frontend em HTML, CSS e JavaScript puro (sem etapa de build) e backend 100% Supa
 - **Login do garçom por matrícula ou CPF + senha numérica** (6 a 12 números, sem sequência ou repetição). O celular é vinculado à loja uma vez pelo QR de Mesas › App do garçom (leva o código da loja); depois o garçom digita só matrícula/CPF e senha. A senha é guardada com bcrypt; 5 erros bloqueiam por 15 minutos (o gerente libera em Usuários). O garçom pode ser criado sem e-mail e troca a própria senha no app. Quem tem e-mail continua podendo entrar por e-mail.
 - **Meu turno** (app do garçom e "Meu desempenho" no sistema): quanto recebeu no app no dia por PIX, débito e crédito (com NSU de cada conta), comissão do dia, taxa de serviço arrecadada nas suas mesas, comissão prevista das mesas abertas e **conferência com a maquininha**: ele digita os totais do relatório, vê na hora o que bateu ou a diferença e registra o fechamento do turno (o gerente vê em Garçons › Desempenho individual).
 - **Garçons › Ao vivo** (administrador/gerente): um boneco por garçom com anel e % da meta (dia, semana ou mês; sem meta, em relação ao líder), expressão do boneco conforme o desempenho, medalhas do 1º ao 3º, quanto está em mesa agora, hoje, na semana e no mês, mesas abertas, contas pedidas, pedidos prontos, último pedido, e o **mapa do salão com a cor do garçom em cada mesa**. Atualiza em tempo real e tem modo tela cheia.
+
+### Pedido por voz (app do garçom e tela Mesas)
+
+Botão **Falar pedido** (flutuante no app do garçom) e **Pedir por voz** / **Abrir e pedir por voz** no detalhe da mesa.
+
+1. **Ouvir**: o microfone já abre ligado. Toque para ligar/desligar, ou **segure enquanto fala** e solte para entender (tipo rádio). O texto aparece ao vivo e pode ser corrigido no teclado. Sem reconhecimento de voz no navegador (ex.: Firefox), o garçom dita pelo microfone do teclado.
+2. **Entender**: “Mesa 12, quatro pessoas, duas coca lata, uma sem gelo, um x-tudo sem cebola e 300 gramas de picanha ao ponto” vira mesa, pessoas, itens, quantidades (inclusive gramas → kg) e observações para a cozinha. Números por extenso, plural, “xis”, erros de pronúncia e frases como “me vê”, “por favor” são tratados.
+3. **Conferir** (obrigatório): nada vai para a cozinha sem o resumo. O que tem dúvida fica marcado em amarelo e **trava o envio** até o garçom resolver com um toque: “Qual destes?” (Coca Lata / 600 ml / 2 L), “Quanto?” (produto por peso sem peso dito), “É item novo ou observação?” (“x-tudo sem cebola e fritas”) e “Não entendi” (escolher produto ou ignorar). Quantidade, observação e produto podem ser trocados; **Falar mais** soma itens; **Ouvir** lê o resumo em voz alta.
+4. **Enviar**: abre a mesa se estiver livre e lança pelas funções de sempre (`abrir_mesa`, `adicionar_itens`): mesmas regras, aprovação do caixa, cozinha e reenvio sem internet.
+
+**Aprende com o garçom**: quando ele escolhe “Coca Lata” para “coca”, o aparelho guarda e acerta direto da próxima vez.
+
+**Dois motores**: o próprio aparelho entende sem internet e sem custo (`app/js/voz-interpretar.js`). Com a Edge Function `pedido-voz` publicada e a chave configurada, a IA (Claude) interpreta frases mais livres; o aparelho confere a resposta da IA e, se os dois discordarem, o item vira dúvida. Se a IA cair ou demorar, o app segue sozinho com o motor local.
+
+Ativar a IA (opcional):
+```
+supabase functions deploy pedido-voz
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-...        # console.anthropic.com
+supabase secrets set VOZ_MODELO=claude-haiku-5-5          # opcional (padrão). Mais precisão: claude-sonnet-5-5
+```
+A função lê o cardápio no banco (só produtos ativos da loja de quem chamou), devolve só produtos que existem e não grava nada. O cardápio vai em cache na Anthropic, então as falas seguintes ficam mais rápidas e baratas.
+
+Requisitos: HTTPS (o microfone não funciona em http), permissão de microfone no navegador. O reconhecimento de voz do Chrome/Android e do Safari/iPhone usa internet; sem internet, digite ou use o teclado.
 
 ### Ativar (configuração única)
 

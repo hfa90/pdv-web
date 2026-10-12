@@ -1312,3 +1312,75 @@ kbd { display: inline-block; padding: .05rem .4rem; border: 1px solid var(--line
   .ajuda-artigo { border: 0; }
 }
 .ajuda-hero-tit svg { flex: none; }
+
+/* =====================================================================
+   Pedido por voz (app do garçom e tela Mesas): ouvir → conferir → enviar
+   ===================================================================== */
+.modal-voz .modal-body { padding: 1rem 1.1rem; }
+.voz { display: grid; gap: .9rem; }
+.voz-alvo { text-align: center; color: var(--muted); display: flex; gap: .4rem; justify-content: center; align-items: center; font-size: var(--fs-md); }
+.voz-alvo strong { color: var(--ink); }
+.voz-mic { position: relative; justify-self: center; width: 132px; height: 132px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--primary); color: var(--on-primary); display: grid; place-items: center; box-shadow: var(--shadow-pop);
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: transform .12s, background .2s; }
+.voz-mic:active { transform: scale(.95); }
+.voz-mic:disabled { background: var(--line-strong); cursor: not-allowed; box-shadow: none; }
+.voz-mic.on { background: var(--danger); }
+.voz-mic .voz-onda { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
+.voz-mic.on .voz-onda { animation: voz-onda 1.3s ease-out infinite; }
+@keyframes voz-onda { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 45%, transparent); } 100% { box-shadow: 0 0 0 26px transparent; } }
+@media (prefers-reduced-motion: reduce) { .voz-mic.on .voz-onda { animation: none; box-shadow: 0 0 0 6px color-mix(in srgb, var(--danger) 30%, transparent); } }
+.voz-estado { text-align: center; font-weight: 600; min-height: 1.4em; }
+.voz-texto { font-size: 1.1rem; line-height: 1.4; min-height: 96px; }
+.voz-dica { margin: -.4rem 0 0; }
+.voz-rodape { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .5rem; position: sticky; bottom: -1rem; background: var(--surface);
+  padding: .7rem 0 calc(.2rem + env(safe-area-inset-bottom)); margin-top: .2rem; border-top: 1px solid var(--line); }
+.voz-rodape .btn.lg { font-size: 1rem; white-space: normal; line-height: 1.2; }
+.voz-rodape .btn.primary.ok { font-size: 1.05rem; }
+.voz-entendendo { display: grid; justify-items: center; gap: .3rem; padding: 2.5rem 1rem; text-align: center; }
+.voz-entendendo .spinner { width: 42px; height: 42px; margin-bottom: .6rem; }
+.voz-aviso { display: flex; gap: .5rem; align-items: flex-start; background: var(--amber-soft); color: var(--warn-ink); padding: .6rem .75rem; border-radius: var(--r-md); font-size: var(--fs-sm); }
+.voz-aviso svg { flex: none; margin-top: .1rem; }
+.voz-fala { background: var(--surface-2); border-radius: var(--r-md); padding: .55rem .8rem; }
+.voz-fala p { margin: .1rem 0 0; font-style: italic; }
+.voz-mesa { border: 1px solid var(--line); border-radius: var(--r-md); padding: .7rem .8rem; display: grid; gap: .5rem; }
+.voz-mesa.falta { border: 2px solid var(--amber); background: var(--amber-soft); }
+.voz-mesa-linha { display: flex; align-items: center; gap: .5rem; font-size: 1.1rem; }
+.voz-tit { display: flex; gap: .4rem; align-items: center; }
+.voz-pessoas { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: var(--fs-sm); color: var(--muted); }
+.voz-mesas { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: .4rem; max-height: 34vh; overflow-y: auto; }
+.voz-mesas .mesa-mini.ativo { outline: 3px solid var(--primary); }
+.voz-itens { display: grid; gap: .55rem; }
+.voz-item { border: 1px solid var(--line); border-radius: var(--r-md); padding: .65rem .7rem .4rem; display: grid; gap: .45rem; background: var(--surface); }
+.voz-item.duvida { border: 2px solid var(--amber); box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 18%, transparent); }
+.voz-item.nao { border: 2px solid var(--danger); background: var(--danger-soft); padding-bottom: .65rem; }
+.voz-item.nao .voz-item-topo svg { color: var(--danger); flex: none; }
+.voz-item-topo { display: flex; gap: .6rem; align-items: flex-start; }
+.voz-qtd button { width: 40px; height: 40px; }
+.voz-qtd span { min-width: 44px; font-size: 1.1rem; }
+.voz-qtd small { font-size: .7rem; font-weight: 500; color: var(--muted); }
+.voz-nome { min-width: 0; line-height: 1.3; }
+.voz-nome strong { font-size: 1.02rem; }
+.voz-preco { font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.voz-pergunta { display: grid; gap: .4rem; background: var(--amber-soft); color: var(--warn-ink); border-radius: var(--r-sm); padding: .5rem .55rem; font-weight: 600; font-size: var(--fs-sm); }
+.voz-escolha { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.voz-escolha .btn { white-space: normal; text-align: left; line-height: 1.2; min-height: 40px; }
+.voz-alts .btn small { color: var(--muted); font-weight: 500; margin-left: .25rem; }
+.voz-alts .btn.primary small { color: inherit; }
+.voz-peso { width: 110px; text-align: center; font-size: 1.1rem; }
+.voz-item-acoes { display: flex; align-items: center; gap: .9rem; font-size: var(--fs-sm); }
+.voz-mais { display: flex; gap: .5rem; flex-wrap: wrap; }
+.voz-mais .btn { flex: 1 1 auto; justify-content: center; }
+.voz-origem { margin: -.3rem 0 0; text-align: center; }
+.voz-busca { display: grid; gap: .3rem; max-height: 55vh; overflow-y: auto; }
+.voz-busca-item { display: flex; gap: .6rem; align-items: center; text-align: left; font: inherit; padding: .8rem .75rem; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); cursor: pointer; min-height: 48px; }
+.voz-busca-item:active { background: var(--primary-soft); }
+.btn-voz { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+.btn-voz svg { stroke: currentColor; }
+.md-acoes .btn-voz { grid-column: 1 / -1; min-height: 56px; font-size: 1.05rem; }
+.md-livre .btn-voz { margin-top: -.25rem; }
+@media (max-width: 760px) {
+  dialog.modal.modal-voz { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; margin: 0; }
+  .modal-voz[open] { display: flex; flex-direction: column; }
+  .modal-voz .modal-body { flex: 1; max-height: none; }
+}

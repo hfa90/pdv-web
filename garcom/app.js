@@ -132,6 +132,7 @@ function montar() {
       <button data-aba="turno">${icone("carteira", 'width="22" height="22"')}<span>Meu turno</span></button>
       <button data-aba="desemp">${icone("trofeu", 'width="22" height="22"')}<span>Desempenho</span></button>
     </nav>
+    <button class="g-voz-fab" id="btn-voz" aria-label="Pedido por voz">${icone("microfone", 'width="26" height="26"')}<span>Falar pedido</span></button>
     <section class="g-detalhe" id="detalhe" hidden></section>
   </div>`);
   $("#btn-ajuda").onclick = () => import("../app/js/suporte.js").then((m) => m.pedirAjuda({ app: "garcom" })).catch(erro);
@@ -139,6 +140,13 @@ function montar() {
   $("#btn-instalar").onclick = async () => {
     if (instalar) { instalar.prompt(); await instalar.userChoice; instalar = null; $("#btn-instalar").hidden = true; return; }
     toast("No iPhone: toque em Compartilhar e depois em “Adicionar à Tela de Início”.");
+  };
+  $("#btn-voz").onclick = async () => {
+    // Botão de voz: o garçom diz a mesa e o pedido, confere o resumo e envia
+    try {
+      const { pedidoPorVoz } = await import("../app/js/pedido-voz.js");
+      if (await pedidoPorVoz({ mesas: () => mesas, onMudou: recarregarDepois })) recarregar();
+    } catch (e) { erro(e); }
   };
   $$("#filtros button").forEach((b) => (b.onclick = () => { filtro = b.dataset.f; desenhar(); }));
   $$(".g-tabs button").forEach((b) => (b.onclick = () => irPara(b.dataset.aba)));

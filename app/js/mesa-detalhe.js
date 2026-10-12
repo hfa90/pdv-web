@@ -61,12 +61,24 @@ export async function desenharDetalhe(alvo, mesa, op) {
       <p>Quantas pessoas?</p>
       <div class="qtd grande"><button data-a="menos" aria-label="Menos">−</button><span id="md-pessoas">${pessoas}</span><button data-a="mais" aria-label="Mais">+</button></div>
       <button class="btn primary lg block" data-a="abrir">Abrir mesa e lançar pedido</button>
+      <button class="btn btn-voz lg block" data-a="abrir-voz">${icone("microfone", 'width="20" height="20"')} Abrir e pedir por voz</button>
       ${avisoCobranca.length ? html`<p class="small muted" style="margin:0">Esta mesa terá ${avisoCobranca.join(" e ")}.</p>` : ""}
     </div>`);
     alvo.onclick = async (e) => {
       const a = e.target.closest("[data-a]")?.dataset.a;
       if (a === "fechar") return op.onFechar();
       if (a === "menos" || a === "mais") { pessoas = Math.max(1, Math.min(50, pessoas + (a === "mais" ? 1 : -1))); alvo.querySelector("#md-pessoas").textContent = pessoas; }
+      if (a === "abrir-voz") {
+        try {
+          const { pedidoPorVoz } = await import("./pedido-voz.js");
+          const r = await pedidoPorVoz({ mesa, pessoas, mesas: op.todas, onMudou: op.onMudou });
+          if (!r) return;
+          mesa = { ...mesa, venda_id: r.venda_id, aberta_em: new Date().toISOString(), pessoas, total: 0, itens: 0 };
+          op.onMudou();
+          await desenharDetalhe(alvo, mesa, op);
+        } catch (err) { erro(err); }
+        return;
+      }
       if (a === "abrir") {
         try {
           const id = await ocupado(e.target.closest("button"), () => rpc("abrir_mesa", { p_mesa: mesa.id, p_pessoas: pessoas }));
@@ -135,6 +147,7 @@ export async function desenharDetalhe(alvo, mesa, op) {
     ${v.pessoas > 1 && Number(v.total) ? html`<div class="muted small r" style="margin-top:-.4rem">${dinheiro(Number(v.total) / v.pessoas)} por pessoa</div>` : ""}
     <div class="md-acoes">
       <button class="btn primary lg" data-a="lancar">${icone("mais", 'width="20" height="20"')} Lançar itens</button>
+      <button class="btn btn-voz lg" data-a="voz">${icone("microfone", 'width="20" height="20"')} Pedir por voz</button>
       <button class="btn ${v.conta_pedida_em ? "conta-on" : ""}" data-a="conta">${icone("conta", 'width="18" height="18"')} ${v.conta_pedida_em ? "Conta pedida ✓" : "Pedir conta"}</button>
       <button class="btn" data-a="transferir">${icone("transferir", 'width="18" height="18"')} Transferir</button>
       ${gestor && ehMesa ? html`<button class="btn" data-a="taxas">${icone("etiqueta", 'width="18" height="18"')} Serviço e couvert</button>` : ""}
@@ -158,6 +171,11 @@ export async function desenharDetalhe(alvo, mesa, op) {
       }
       if (a === "fechar") return op.onFechar();
       if (a === "lancar") return lancar(alvo, mesa, op);
+      if (a === "voz") {
+        const { pedidoPorVoz } = await import("./pedido-voz.js");
+        const r = await pedidoPorVoz({ mesa: { ...mesa, venda_id: v.id, conta_pedida: !!v.conta_pedida_em }, mesas: op.todas, onMudou: op.onMudou });
+        if (!r) return;
+      }
       if (a === "conta") { await rpc("pedir_conta", { p_venda: v.id, p_pedida: !v.conta_pedida_em }); toast(v.conta_pedida_em ? "Pedido de conta cancelado" : "Conta pedida · o caixa foi avisado", "ok"); }
       if (a === "p-menos" || a === "p-mais") {
         const n = Math.max(1, Math.min(50, (Number(v.pessoas) || 1) + (a === "p-mais" ? 1 : -1)));
