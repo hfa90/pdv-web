@@ -1540,3 +1540,9 @@ kbd { display: inline-block; padding: .05rem .4rem; border: 1px solid var(--line
 .auth-legal { display: flex; gap: 1rem; justify-content: center; font-size: var(--fs-xs); padding-top: 1rem; }
 .auth-legal a { color: var(--muted); }
 .lista-legal { margin: 0; padding-left: 1.2em; display: grid; gap: .35rem; }
+
+/* Backup › Apagar todos os dados (030) */
+.zona-perigo { margin-top: 1rem; border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line)); background: color-mix(in srgb, var(--danger-soft) 55%, var(--surface)); }
+.zona-perigo h2 { color: var(--danger); }
+.zona-perigo .btn.danger, #ap-confirmar.btn.danger:not(:disabled) { background: var(--danger); border-color: var(--danger); color: #fff; }
+.zona-perigo .btn.danger:hover, #ap-confirmar.btn.danger:not(:disabled):hover { background: color-mix(in srgb, var(--danger) 85%, #000); }
