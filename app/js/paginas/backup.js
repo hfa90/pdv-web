@@ -76,11 +76,18 @@ export async function montarPainelBackup(alvo, empresaId = null, { aoRestaurarPr
 
     ${podeApagar ? html`<div class="panel zona-perigo">
       <div class="panel-pad row wrap" style="gap:1rem;align-items:center">
+        <div class="grow"><h2 style="margin:0 0 .25rem">Apagar dados financeiros</h2>
+          <p class="small muted" style="margin:0">Vendas, caixa, sangrias, suprimentos, conferências, contas a pagar, fiado e fechamentos dos garçons. Produtos, estoque e clientes continuam. Antes, o sistema obriga a baixar o backup completo.</p></div>
+        <button class="btn danger" id="bk-apagar-financeiro">${icone("lixo", 'width="18" height="18"')} Apagar dados financeiros</button>
+      </div>
+      <div class="panel-pad row wrap" style="gap:1rem;align-items:center;border-top:1px solid var(--line)">
         <div class="grow"><h2 style="margin:0 0 .25rem">Apagar todos os dados da loja</h2>
           <p class="small muted" style="margin:0">Produtos, estoque, vendas, caixa, clientes, fiado, financeiro, compras e fornecedores. Para recomeçar do zero. Antes, o sistema obriga a baixar o backup completo.</p></div>
         <button class="btn danger" id="bk-apagar-tudo">${icone("lixo", 'width="18" height="18"')} Apagar todos os dados</button>
       </div></div>` : ""}`);
-  $("#bk-apagar-tudo", alvo)?.addEventListener("click", () => apagarTudo(p, empresaId, { propria, aoRestaurarPropria, recarregar }));
+  const ctxApagar = { propria, aoRestaurarPropria, recarregar };
+  $("#bk-apagar-tudo", alvo)?.addEventListener("click", () => apagarDados("tudo", p, empresaId, ctxApagar));
+  $("#bk-apagar-financeiro", alvo)?.addEventListener("click", () => apagarDados("financeiro", p, empresaId, ctxApagar));
 
   $("#bk-agora", alvo)?.addEventListener("click", (e) => ocupado(e.currentTarget, async () => {
     try { const b = await rpc("backup_criar", { p_empresa: empresaId, p_obs: null }); toast(`Backup feito: ${numero(b.registros)} registros (${tamanho(b.tamanho_bytes)})`, "ok"); recarregar(); }
@@ -151,17 +158,26 @@ const APAGA = ["Produtos e categorias", "Estoque, lotes, validade e perdas", "Pr
 const MANTEM = ["Usuários e senhas", "Dados da empresa (nome, CNPJ, endereço)", "Configurações fiscais, PIX e operadoras de pagamento",
   "Aparelhos autorizados", "Mesas (os QR Codes impressos continuam valendo)", "Assinatura, faturas e licenças", "Registro de atividades"];
 
-function apagarTudo(painel, empresaId, { propria, aoRestaurarPropria, recarregar }) {
+const APAGA_FIN = ["Vendas, com itens, pagamentos, comandas e notas fiscais dessas vendas", "Pagamentos feitos pela mesa (QR Code)",
+  "Caixas, sangrias, suprimentos e conferências", "Contas a pagar", "Fiado (o saldo dos clientes volta a zero)", "Fechamentos dos garçons"];
+const MANTEM_FIN = ["Produtos e estoque atual", "Histórico de entradas e ajustes de estoque", "Clientes e fornecedores", "Compras e notas de entrada",
+  "Mesas, usuários e configurações", "Assinatura, faturas e registro de atividades"];
+
+function apagarDados(escopo, painel, empresaId, { propria, aoRestaurarPropria, recarregar }) {
   const loja = painel.loja || estado.empresa?.nome_fantasia || estado.empresa?.razao_social || "loja";
   let codigo = null;
+  const fin = escopo === "financeiro";
+  const PALAVRA = fin ? "APAGAR FINANCEIRO" : "APAGAR TUDO";
+  const nome = fin ? "Apagar dados financeiros" : "Apagar todos os dados";
+  const apaga = fin ? APAGA_FIN : APAGA, mantem = fin ? MANTEM_FIN : MANTEM;
   return modal({
-    titulo: "Apagar todos os dados da loja", largo: true, fixo: true,
+    titulo: fin ? "Apagar dados financeiros da loja" : "Apagar todos os dados da loja", largo: true, fixo: true,
     corpo: html`<div class="stack-lg">
-      <div class="alerta"><strong>Isto não pode ser desfeito pelo sistema.</strong> Todos os dados de operação de <strong>${loja}</strong> serão apagados.
+      <div class="alerta"><strong>Isto não pode ser desfeito pelo sistema.</strong> ${fin ? "Todo o histórico financeiro" : "Todos os dados de operação"} de <strong>${loja}</strong> ${fin ? "será apagado" : "serão apagados"}.
         Só será possível recuperar importando o backup que você vai baixar agora.</div>
       <div class="two-col">
-        <div><h3 style="margin-bottom:.4rem;color:var(--danger)">Será apagado</h3><ul class="lista-setor">${APAGA.map((x) => html`<li>${x}</li>`)}</ul></div>
-        <div><h3 style="margin-bottom:.4rem">Continua como está</h3><ul class="lista-setor">${MANTEM.map((x) => html`<li>${x}</li>`)}</ul></div>
+        <div><h3 style="margin-bottom:.4rem;color:var(--danger)">Será apagado</h3><ul class="lista-setor">${apaga.map((x) => html`<li>${x}</li>`)}</ul></div>
+        <div><h3 style="margin-bottom:.4rem">Continua como está</h3><ul class="lista-setor">${mantem.map((x) => html`<li>${x}</li>`)}</ul></div>
       </div>
       <p class="small muted" style="margin:0">Notas fiscais: a lei manda a loja guardar os arquivos (XML) por 5 anos. Eles vão no backup e continuam com o provedor fiscal.</p>
       <div class="passo-setor" id="ap-passo1">
@@ -173,9 +189,9 @@ function apagarTudo(painel, empresaId, { propria, aoRestaurarPropria, recarregar
       </div>
       <div class="passo-setor" id="ap-passo2" aria-disabled="true">
         <div><strong>2. Confirme</strong>
-          <p class="small muted">O servidor ainda guarda uma cópia antes de apagar. Digite <strong>APAGAR TUDO</strong> para confirmar. Vale por 30 minutos depois do download.</p>
-          <input class="input" id="ap-conf" autocomplete="off" placeholder="APAGAR TUDO" disabled style="max-width:240px"></div>
-        <button class="btn danger" id="ap-confirmar" disabled>Apagar todos os dados</button>
+          <p class="small muted">O servidor ainda guarda uma cópia antes de apagar. Digite <strong>${PALAVRA}</strong> para confirmar. Vale por 30 minutos depois do download.</p>
+          <input class="input" id="ap-conf" autocomplete="off" placeholder="${PALAVRA}" disabled style="max-width:260px"></div>
+        <button class="btn danger" id="ap-confirmar" disabled>${nome}</button>
       </div>
     </div>`,
     rodape: html`<button class="btn" data-fechar>Cancelar</button>`,
@@ -184,8 +200,8 @@ function apagarTudo(painel, empresaId, { propria, aoRestaurarPropria, recarregar
       d.querySelector("#ap-baixar").onclick = async (ev) => {
         const b = ev.currentTarget; b.disabled = true; b.textContent = "Gerando o backup…";
         try {
-          const r = await rpc("apagar_dados_iniciar", { p_empresa: empresaId });
-          baixarJson(r.dados, nomeArquivo(`${r.dados.loja || loja}-antes-de-apagar-tudo`));
+          const r = await rpc("apagar_dados_iniciar", { p_empresa: empresaId, p_escopo: escopo });
+          baixarJson(r.dados, nomeArquivo(`${r.dados.loja || loja}-antes-de-apagar-${fin ? "financeiro" : "tudo"}`));
           codigo = r.codigo;
           render(d.querySelector("#ap-info"), html`${icone("check", 'width="14" height="14"')} Backup baixado agora: ${numero(r.registros)} registros (${tamanho(JSON.stringify(r.dados).length)}). Confira se o arquivo está na pasta Downloads.`);
           d.querySelector("#ap-passo1").classList.add("feito");
@@ -197,18 +213,18 @@ function apagarTudo(painel, empresaId, { propria, aoRestaurarPropria, recarregar
           b.textContent = "Baixar backup completo";
         } finally { b.disabled = false; }
       };
-      conf.oninput = () => { btConf.disabled = !codigo || conf.value.trim().toUpperCase() !== "APAGAR TUDO"; };
+      conf.oninput = () => { btConf.disabled = !codigo || conf.value.trim().toUpperCase() !== PALAVRA; };
       btConf.onclick = async () => {
         if (!codigo) return toast("Baixe o backup completo primeiro", "erro");
-        if (!(await confirmar(`Última confirmação: apagar todos os dados de ${loja}?`, { titulo: "Apagar todos os dados", ok: "Apagar", perigo: true }))) return;
+        if (!(await confirmar(`Última confirmação: ${fin ? "apagar os dados financeiros" : "apagar todos os dados"} de ${loja}?`, { titulo: nome, ok: "Apagar", perigo: true }))) return;
         btConf.disabled = true; btConf.textContent = "Apagando…";
         try {
-          const r = await rpc("apagar_dados_confirmar", { p_codigo: codigo, p_confirmacao: "APAGAR TUDO" });
+          const r = await rpc("apagar_dados_confirmar", { p_codigo: codigo, p_confirmacao: PALAVRA });
           fechar(true);
           toast(`Pronto: ${numero(r.apagados)} registros apagados. O backup ficou no seu computador e uma cópia no servidor.`, "ok");
           if (propria) setTimeout(() => (aoRestaurarPropria ? aoRestaurarPropria() : location.reload()), 1500);
           else recarregar();
-        } catch (e) { erro(e); btConf.disabled = false; btConf.textContent = "Apagar todos os dados"; }
+        } catch (e) { erro(e); btConf.disabled = false; btConf.textContent = nome; }
       };
     },
   });
