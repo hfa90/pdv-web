@@ -82,7 +82,7 @@ end $$;
 /** Passo 2: confirma e apaga. Até 30 minutos depois de baixar o backup. Digite APAGAR TUDO ou APAGAR FINANCEIRO. */
 create or replace function public.apagar_dados_confirmar(p_codigo uuid, p_confirmacao text)
 returns jsonb language plpgsql security definer set search_path = '' as $$
-declare a public.loja_apagamentos; v_emp uuid; v_tabs text[]; i int; t text; n bigint; v_total bigint := 0; v_por jsonb := '{}'::jsonb; v_bk uuid;
+declare a public.loja_apagamentos; v_emp uuid; v_tabs text[]; i int; t text; n bigint; v_total bigint := 0; v_por jsonb := '{}'::jsonb; v_bk uuid; v_palavra text;
 begin
   select * into a from public.loja_apagamentos where id = p_codigo for update;
   if not found then raise exception 'Baixe o backup antes de apagar'; end if;
@@ -90,8 +90,9 @@ begin
   if not private.apagar_dados_pode(v_emp) then raise exception 'Só o administrador da loja ou o superusuário pode apagar os dados'; end if;
   if a.concluido_em is not null then raise exception 'Estes dados já foram apagados'; end if;
   if a.baixado_em < now() - interval '30 minutes' then raise exception 'O backup foi baixado há mais de 30 minutos. Baixe de novo para continuar.'; end if;
-  if upper(trim(coalesce(p_confirmacao, ''))) <> case when a.escopo = 'financeiro' then 'APAGAR FINANCEIRO' else 'APAGAR TUDO' end then
-    raise exception 'Digite % para confirmar', case when a.escopo = 'financeiro' then 'APAGAR FINANCEIRO' else 'APAGAR TUDO' end;
+  v_palavra := case when a.escopo = 'financeiro' then 'APAGAR FINANCEIRO' else 'APAGAR TUDO' end;
+  if upper(trim(coalesce(p_confirmacao, ''))) <> v_palavra then
+    raise exception 'Digite % para confirmar', v_palavra;
   end if;
 
   -- Cópia de segurança no servidor, além do arquivo baixado
