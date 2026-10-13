@@ -15,13 +15,13 @@ export const SUPABASE_ANON_KEY =
 // Dados legais do fornecedor (Termos de Uso, Política de Privacidade e Acordo de Tratamento de Dados).
 // Preencha antes de vender: enquanto vazio, as páginas mostram "[a preencher]" em destaque.
 export const LEGAL = {
-  razaoSocial: "",            // ex.: "Hayden Fernandes Tecnologia LTDA"
-  cnpj: "",                   // ex.: "00.000.000/0001-00"
-  endereco: "",               // endereço completo da sede
-  cidadeForo: "",             // comarca do foro, ex.: "Manaus/AM"
-  emailContato: "",           // atendimento geral
-  emailPrivacidade: "",       // canal do titular de dados (LGPD), ex.: "privacidade@seudominio.com.br"
-  encarregado: "",            // nome do encarregado de dados (DPO)
+  razaoSocial: "Hayden Fernandes Tecnologia LTDA",            // ex.: "Hayden Fernandes Tecnologia LTDA"
+  cnpj: "22.870.363/0001-10",                   // ex.: "00.000.000/0001-00"
+  endereco: "Rua Inari, 102, Bairro: Cidade Nova",               // endereço completo da sede
+  cidadeForo: "Manaus/AM",             // comarca do foro, ex.: "Manaus/AM"
+  emailContato: "haydenfernandes.ti@gmail.com",           // atendimento geral
+  emailPrivacidade: "haydenfernandes.ti@gmail.com",       // canal do titular de dados (LGPD), ex.: "privacidade@seudominio.com.br"
+  encarregado: "Hayden Fernandes",            // nome do encarregado de dados (DPO)
   versao: "1.0",              // mude ao alterar os textos: o administrador de cada loja aceita de novo
   vigenteDesde: "2026-10-12",
 };
